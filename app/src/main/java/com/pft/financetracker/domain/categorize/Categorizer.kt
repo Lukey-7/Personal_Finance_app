@@ -1,0 +1,43 @@
+package com.pft.financetracker.domain.categorize
+
+import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.TransactionType
+import java.util.Locale
+
+/**
+ * Rule-based categorizer. Keyword lists live on [Category]; add words there.
+ * Longer keyword matches win over shorter ones so "tata power" beats "tata".
+ */
+object Categorizer {
+    fun categorize(merchant: String, type: TransactionType, bankName: String? = null): Category {
+        val text = merchant.lowercase(Locale.ROOT)
+        if (type == TransactionType.CREDIT) {
+            // Credits default to income unless clearly a refund from a shop (still income for cashflow purposes).
+            return Category.INCOME
+        }
+        var best: Category? = null
+        var bestLen = 0
+        for (cat in Category.entries) {
+            for (kw in cat.keywords) {
+                if (kw.length > bestLen && containsWord(text, kw)) {
+                    best = cat
+                    bestLen = kw.length
+                }
+            }
+        }
+        return best ?: Category.OTHER
+    }
+
+    private fun containsWord(text: String, kw: String): Boolean {
+        val idx = text.indexOf(kw)
+        if (idx < 0) return false
+        // Short keywords (<=3 chars) must be whole words to avoid "gas" matching "vegas".
+        if (kw.length <= 3) {
+            val before = if (idx == 0) ' ' else text[idx - 1]
+            val afterIdx = idx + kw.length
+            val after = if (afterIdx >= text.length) ' ' else text[afterIdx]
+            return !before.isLetterOrDigit() && !after.isLetterOrDigit()
+        }
+        return true
+    }
+}
