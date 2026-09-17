@@ -24,7 +24,7 @@ class SmsParserTest {
         assertEquals(TransactionType.DEBIT, t.type)
         assertEquals("1234", t.accountRef)
         assertEquals("HDFC Bank", t.bankName)
-        assertTrue(t.merchant.lowercase().contains("swiggy"))
+        assertEquals("Swiggy", t.merchant)
     }
 
     @Test
@@ -34,6 +34,14 @@ class SmsParserTest {
         assertEquals(TransactionType.CREDIT, t.type)
         assertEquals("5678", t.accountRef)
         assertEquals("SBI", t.bankName)
+        assertTrue("merchant was ${t.merchant}", t.merchant.lowercase().contains("acme"))
+    }
+
+    @Test
+    fun creditMerchantIsNeverTheAmount() {
+        val t = success("AD-SBIINB", "Your a/c no. XXXXX5678 is credited by Rs.45,000.00 on 17Sep26 by ACME CORP SALARY (IMPS Ref no 123456). -SBI")
+        assertTrue("merchant was ${t.merchant}", !t.merchant.contains(Regex("""(?i)rs\.?\s*\d""")))
+        assertTrue("merchant was ${t.merchant}", t.merchant.lowercase().contains("acme"))
     }
 
     @Test

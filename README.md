@@ -6,6 +6,10 @@ FinTrack reads bank, UPI and credit-card alert SMS, turns them into transactions
 - Room on SQLCipher (AES-256) for storage
 - Android 12+ (minSdk 31, targetSdk 35)
 
+## Download
+
+Get the latest signed APK from the [Releases page](https://github.com/Lukey-7/Personal_Finance_app/releases/latest). Each release lists a SHA-256 checksum so you can verify the file.
+
 ## Features
 
 - **Adaptive SMS parsing.** A layered, bank-agnostic parser detects debits and credits from most Indian banks, UPI apps and card networks. There are no per-bank templates.
@@ -102,13 +106,13 @@ Run the parser tests:
 ./gradlew testDebugUnitTest
 ```
 
-Build a debug APK, written to `app/build/outputs/apk/debug/app-debug.apk`:
+Build a debug APK, written to `app/build/outputs/apk/debug/FinTrack-v1.0.0-debug.apk`:
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-Build a release APK, written to `app/build/outputs/apk/release/app-release.apk`:
+Build a release APK, written to `app/build/outputs/apk/release/FinTrack-v1.0.0-release.apk`:
 
 ```bash
 ./gradlew assembleRelease
@@ -118,14 +122,30 @@ On Windows use `gradlew.bat` instead of `./gradlew`.
 
 ### Release signing
 
-Out of the box, the release build is signed with the debug key so it installs for personal use. To distribute it, create your own keystore and replace `signingConfig` in `app/build.gradle.kts` with a release config. Never commit keystores. `*.jks`, `*.keystore` and `keystore.properties` are already git-ignored.
+`assembleRelease` reads signing details from `keystore.properties` in the project root. Without that file it falls back to the debug key.
+
+```properties
+storeFile=C:/path/to/your-release.jks
+storePassword=...
+keyAlias=...
+keyPassword=...
+```
+
+Never commit the keystore or this file. `*.jks`, `*.keystore` and `keystore.properties` are git-ignored. Back the keystore up somewhere safe: Android only installs an update over an existing app if both are signed with the same key.
+
+### Cutting a new version
+
+1. Bump `appVersionCode` by one and set `appVersionName` in `app/build.gradle.kts`.
+2. Add a section to `CHANGELOG.md`.
+3. Run the tests and `assembleRelease`. The APK is named `FinTrack-vX.Y.Z-release.apk`.
+4. Commit, tag `vX.Y.Z`, push, and attach the APK to a GitHub Release for that tag.
 
 ### Installing
 
 Enable installing from unknown sources on your phone, then copy the APK over, or run:
 
 ```bash
-adb install app/build/outputs/apk/release/app-release.apk
+adb install app/build/outputs/apk/release/FinTrack-v1.0.0-release.apk
 ```
 
 ## Using the app

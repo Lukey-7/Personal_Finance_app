@@ -197,7 +197,7 @@ object MerchantExtractor {
         // "towards MERCHANT", "for MERCHANT"
         Regex("""\b(?:towards|for)\s+(?!rs|inr|₹|a/c|account|card)([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
         // Credits: "from MERCHANT", "by MERCHANT", "received from"
-        Regex("""\b(?:from|by)\s+(?!your|ur|a/c|account|card)([A-Za-z0-9][A-Za-z0-9 .&'\-*@]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:from|by)\s+(?!your|ur|a/c|account|card|rs\.?\s*\d|inr\s*\d|₹)([A-Za-z0-9][A-Za-z0-9 .&'\-*@]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
     )
 
     private val noise = Regex("""\b(upi|imps|neft|rtgs|pos|ecom|txn|ref|no|id|payment|via|the|mr|ms|mrs)\b""", RegexOption.IGNORE_CASE)
@@ -217,6 +217,7 @@ object MerchantExtractor {
         if (s.contains('@')) {
             // VPA: keep the handle part, humanize it: "swiggy.upi@axisbank" -> "swiggy"
             s = s.substringBefore('@').substringBefore('.').replace(Regex("""[._\-]+"""), " ")
+                .split(" ").joinToString(" ") { w -> w.replaceFirstChar { it.uppercase() } }
         }
         s = s.replace(Regex("""\s{2,}"""), " ")
         s = noise.replace(s, "").replace(Regex("""\s{2,}"""), " ").trim()
