@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Boro - Tradable Assets &amp; Sign Up</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "inverse-surface": "#2f2f3b",
+                        "surface-container-high": "#e8e6f6",
+                        "on-secondary-fixed-variant": "#474646",
+                        "secondary-fixed": "#e5e2e1",
+                        "primary-container": "#0000ff",
+                        "on-tertiary-fixed-variant": "#930002",
+                        "tertiary-fixed": "#ffdad5",
+                        "on-surface-variant": "#454558",
+                        "on-tertiary": "#ffffff",
+                        "secondary-container": "#e5e2e1",
+                        "surface-container-highest": "#e3e1f1",
+                        "on-tertiary-container": "#ffa598",
+                        "secondary-fixed-dim": "#c9c6c5",
+                        "surface-container-low": "#f5f2ff",
+                        "inverse-primary": "#bec2ff",
+                        "primary-fixed": "#e0e0ff",
+                        "on-primary-container": "#b3b7ff",
+                        "on-error-container": "#93000a",
+                        "on-error": "#ffffff",
+                        "tertiary-container": "#9d0002",
+                        "tertiary": "#720001",
+                        "surface-tint": "#343dff",
+                        "surface": "#fbf8ff",
+                        "secondary": "#5f5e5e",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#00006e",
+                        "primary-fixed-dim": "#bec2ff",
+                        "on-surface": "#1a1b26",
+                        "surface-variant": "#e3e1f1",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary-fixed": "#410000",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "on-background": "#1a1b26",
+                        "error-container": "#ffdad6",
+                        "outline": "#757589",
+                        "inverse-on-surface": "#f1efff",
+                        "outline-variant": "#c5c4db",
+                        "surface-bright": "#fbf8ff",
+                        "on-secondary-container": "#656464",
+                        "on-secondary": "#ffffff",
+                        "surface-container": "#eeecfc",
+                        "primary": "#0001bb",
+                        "surface-dim": "#dad8e8",
+                        "background": "#fbf8ff",
+                        "on-primary-fixed-variant": "#0000ef",
+                        "tertiary-fixed-dim": "#ffb4a9"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack_md": "16px",
+                        "stack_sm": "8px",
+                        "stack_lg": "24px",
+                        "horizontal_padding": "24px",
+                        "stack_xl": "32px",
+                        "base_unit": "8px"
+                    },
+                    "fontFamily": {
+                        "keypad-number": ["Inter"],
+                        "input-number": ["Inter"],
+                        "row-title": ["Inter"],
+                        "button-primary": ["Inter"],
+                        "input-suffix": ["Inter"],
+                        "body-label": ["Inter"],
+                        "small-label": ["Inter"],
+                        "row-subtitle": ["Inter"],
+                        "row-value": ["Inter"],
+                        "status-time": ["Inter"],
+                        "nav-title": ["Inter"],
+                        "portfolio-balance": ["Inter"]
+                    },
+                    "fontSize": {
+                        "keypad-number": ["28px", { "lineHeight": "34px", "fontWeight": "400" }],
+                        "input-number": ["64px", { "letterSpacing": "-0.055em", "fontWeight": "600" }],
+                        "row-title": ["15px", { "lineHeight": "20px", "fontWeight": "650" }],
+                        "button-primary": ["15px", { "lineHeight": "20px", "fontWeight": "650" }],
+                        "input-suffix": ["60px", { "letterSpacing": "-0.055em", "fontWeight": "600" }],
+                        "body-label": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                        "small-label": ["12px", { "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "row-subtitle": ["14px", { "lineHeight": "18px", "fontWeight": "400" }],
+                        "row-value": ["15px", { "lineHeight": "20px", "fontWeight": "500" }],
+                        "status-time": ["17px", { "lineHeight": "22px", "fontWeight": "600" }],
+                        "nav-title": ["17px", { "lineHeight": "22px", "fontWeight": "650" }],
+                        "portfolio-balance": ["36px", { "letterSpacing": "-0.04em", "fontWeight": "650" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen relative flex flex-col items-center">
+<div class="w-full max-w-md bg-background min-h-screen relative flex flex-col shadow-xl overflow-hidden">
+<!-- TopAppBar Placeholder (Hidden on this specific transactional/signup overlay view, but keeping structural intent if needed, or relying on content canvas) -->
+<!-- Content Canvas -->
+<main class="flex-1 flex flex-col overflow-y-auto hide-scrollbar pb-[300px]">
+<!-- Top Shortcuts -->
+<div class="px-horizontal_padding pt-stack_xl pb-stack_lg flex space-x-stack_md overflow-x-auto hide-scrollbar">
+<div class="flex flex-col items-center space-y-stack_sm min-w-[60px]">
+<div class="w-11 h-11 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined" data-icon="add" style="font-variation-settings: 'FILL' 0;">add</span>
+</div>
+<span class="font-small-label text-small-label text-on-surface-variant text-center">Deposit</span>
+</div>
+<div class="flex flex-col items-center space-y-stack_sm min-w-[60px]">
+<div class="w-11 h-11 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined" data-icon="swap_vert" style="font-variation-settings: 'FILL' 0;">swap_vert</span>
+</div>
+<span class="font-small-label text-small-label text-on-surface-variant text-center">Trade</span>
+</div>
+<div class="flex flex-col items-center space-y-stack_sm min-w-[60px]">
+<div class="w-11 h-11 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined" data-icon="arrow_outward" style="font-variation-settings: 'FILL' 0;">arrow_outward</span>
+</div>
+<span class="font-small-label text-small-label text-on-surface-variant text-center">Send</span>
+</div>
+</div>
+<!-- Tabs & Search -->
+<div class="px-horizontal_padding flex items-center justify-between mb-stack_lg">
+<div class="flex space-x-stack_md">
+<button class="px-4 py-2 bg-primary-container text-on-primary rounded-full font-body-label text-body-label">
+                        Tradable
+                    </button>
+<button class="px-4 py-2 text-on-surface font-body-label text-body-label">
+                        All Assets
+                    </button>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined" data-icon="search" style="font-variation-settings: 'FILL' 0;">search</span>
+</div>
+</div>
+<!-- Asset List -->
+<div class="flex flex-col px-horizontal_padding space-y-stack_md">
+<!-- Row: Bitcoin -->
+<div class="flex items-center h-[74px]">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center mr-stack_md shrink-0">
+<img alt="Asset Icon" class="w-full h-full object-cover rounded-full mix-blend-multiply" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+</div>
+<div class="flex-1 flex flex-col">
+<span class="font-row-title text-row-title text-on-surface">Bitcoin</span>
+<span class="font-row-subtitle text-row-subtitle text-on-surface-variant">BTC</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-row-value text-row-value text-on-surface">S$90,446.92</span>
+<span class="font-row-subtitle text-row-subtitle text-primary">+1.64%</span>
+</div>
+</div>
+<!-- Row: Ethereum -->
+<div class="flex items-center h-[74px]">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center mr-stack_md shrink-0">
+<span class="material-symbols-outlined" data-icon="currency_exchange" style="font-variation-settings: 'FILL' 0;">currency_exchange</span>
+</div>
+<div class="flex-1 flex flex-col">
+<span class="font-row-title text-row-title text-on-surface">Ethereum</span>
+<span class="font-row-subtitle text-row-subtitle text-on-surface-variant">ETH</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-row-value text-row-value text-on-surface">S$3,593.24</span>
+<span class="font-row-subtitle text-row-subtitle text-primary">+3.96%</span>
+</div>
+</div>
+<!-- Row: Tether -->
+<div class="flex items-center h-[74px]">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center mr-stack_md shrink-0">
+<span class="material-symbols-outlined" data-icon="payments" style="font-variation-settings: 'FILL' 0;">payments</span>
+</div>
+<div class="flex-1 flex flex-col">
+<span class="font-row-title text-row-title text-on-surface">Tether</span>
+<span class="font-row-subtitle text-row-subtitle text-on-surface-variant">USDT</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-row-value text-row-value text-on-surface">S$1.31</span>
+<span class="font-row-subtitle text-row-subtitle text-error">-0.02%</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Sign Up Overlay -->
+<div class="absolute bottom-0 w-full bg-surface-container-lowest rounded-t-xl shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] border-t border-outline-variant pt-stack_xl pb-safe px-horizontal_padding flex flex-col z-50 min-h-[300px]">
+<div class="w-12 h-1.5 bg-surface-container-highest rounded-full mx-auto mb-stack_lg"></div>
+<div class="flex flex-col space-y-stack_md mt-auto mb-stack_lg">
+<button class="w-full h-[56px] bg-primary-container text-on-primary rounded-lg font-button-primary text-button-primary flex items-center justify-center transition-opacity hover:opacity-90">
+                    Sign up
+                </button>
+<div class="flex space-x-stack_md">
+<button class="flex-1 h-[56px] bg-surface-container-highest text-on-surface rounded-lg font-button-primary text-button-primary flex items-center justify-center space-x-2 transition-opacity hover:opacity-90">
+<span class="material-symbols-outlined" data-icon="account_circle" style="font-variation-settings: 'FILL' 0;">account_circle</span>
+<span>Google</span>
+</button>
+<button class="flex-1 h-[56px] bg-surface-container-highest text-on-surface rounded-lg font-button-primary text-button-primary flex items-center justify-center transition-opacity hover:opacity-90">
+                        Sign in
+                    </button>
+</div>
+</div>
+</div>
+</div>
+</body></html>

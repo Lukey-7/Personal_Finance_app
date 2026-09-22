@@ -8,6 +8,7 @@ import com.pft.financetracker.domain.split.SplitCalculator
 import com.pft.financetracker.domain.split.SplitMode
 import com.pft.financetracker.domain.split.SplitShare
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SplitCalculatorTest {
@@ -74,6 +75,34 @@ class SplitCalculatorTest {
         val r = SplitCalculator.byItem(items, BillExtras(taxPaise = 1_001), 3, 0)
         assertEquals(11_002L, r.totalPaise)
         assertEquals(11_002L, r.shares.sumOf { it.amountPaise })
+    }
+
+    /**
+     * A bill that divides cleanly must look like it. Handing each item's leftover paise to the payer
+     * one item at a time turned a 990 / 3 split into 330.04 / 329.98 / 329.98; the remainder is now
+     * pooled and settled once.
+     */
+    @Test
+    fun byItemStaysCleanWhenTheBillDividesEvenly() {
+        val items = listOf(
+            BillItem(name = "Paneer Tikka", pricePaise = 28_000),
+            BillItem(name = "Veg Biryani", quantity = 2, pricePaise = 22_000),
+            BillItem(name = "Masala Chaas", quantity = 3, pricePaise = 6_000),
+        )
+        val r = SplitCalculator.byItem(items, BillExtras(taxPaise = 4_500, servicePaise = 4_500), people = 3, payerIndex = 0)
+        assertEquals(99_000L, r.totalPaise)
+        assertEquals(listOf(33_000L, 33_000L, 33_000L), r.shares.map { it.amountPaise })
+    }
+
+    @Test
+    fun byItemPooledRemainderStillSumsExactly() {
+        // Three items that each leave a paisa behind: pooled, that is 3 paise, not 3 separate rounding hits.
+        val items = (1..3).map { BillItem(name = "item$it", pricePaise = 10_000 + 1, assignedTo = setOf(0, 1, 2)) }
+        val r = SplitCalculator.byItem(items, BillExtras(), people = 3, payerIndex = 1)
+        assertEquals(30_003L, r.totalPaise)
+        assertEquals(30_003L, r.shares.sumOf { it.amountPaise })
+        // Nobody is more than a paisa off an even share.
+        r.shares.forEach { assertTrue("share ${it.amountPaise}", Math.abs(it.amountPaise - 10_001L) <= 1L) }
     }
 
     @Test

@@ -63,6 +63,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -72,10 +73,23 @@ android {
         // not unit-test assets) can open a real v1 database and upgrade it. Release builds do not include them.
         getByName("debug").assets.srcDir("$projectDir/schemas")
     }
+    // ML Kit ships a native OCR model per ABI, which makes a single universal APK very large. Splitting
+    // by ABI gives each phone only its own copy (~25 MB instead of ~68 MB); the universal APK is still
+    // built for sideloading when you do not know the target.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
     applicationVariants.all {
         outputs.all {
-            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-                "FinTrack-v${versionName}-${buildType.name}.apk"
+            val abi = (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
+                .filters.find { it.filterType == "ABI" }?.identifier
+            outputFileName = "FinTrack-v${versionName}-${abi ?: "universal"}-${buildType.name}.apk"
         }
     }
     packaging {

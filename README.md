@@ -10,6 +10,10 @@ FinTrack reads bank, UPI and credit-card alert SMS, turns them into transactions
 
 Get the latest signed APK from the [Releases page](https://github.com/Lukey-7/Personal_Finance_app/releases/latest). Each release lists a SHA-256 checksum so you can verify the file.
 
+APKs are split by CPU: take **arm64-v8a** for any phone from the last several years (~22 MB). The
+`universal` APK works everywhere but is three times the size, because the on-device OCR model ships once
+per architecture.
+
 ## Features
 
 - **Adaptive SMS parsing.** A layered, bank-agnostic parser detects debits and credits from most Indian banks, UPI apps and card networks. There are no per-bank templates.
@@ -23,6 +27,7 @@ Get the latest signed APK from the [Releases page](https://github.com/Lukey-7/Pe
 - **Insights.** Weekly and monthly trends, category comparisons such as "Food up 20%", and local "reduce spending" suggestions. Suggestions cover recurring subscriptions, frequent small spends, rising categories and budget overspend.
 - **Budgets.** Set a monthly limit per category, with progress bars and overspend alerts.
 - **Optional AI summary.** Add your own OpenAI API key to get a written monthly summary and saving tips, on demand only.
+- **Clean up duplicates.** Finds the same payment stored twice by an older version and shows exactly what it would remove before deleting anything.
 - **Your data.** Export to CSV, or wipe everything.
 
 ## Security and privacy
@@ -38,10 +43,18 @@ Get the latest signed APK from the [Releases page](https://github.com/Lukey-7/Pe
 | Backups | `allowBackup=false` and data-extraction rules exclude everything from cloud backup and device-to-device transfer. |
 | Screen | `FLAG_SECURE` blocks screenshots, screen recording and the recents preview. |
 | Release build | R8 minification is on, and all `android.util.Log` calls are stripped. |
+| Screenshots | `FLAG_SECURE` is set in release builds. Debug builds leave it off so the UI can be captured for documentation. |
 | Third parties | Only AndroidX and Google libraries, plus SQLCipher. No Firebase, analytics, crash reporting or ads. |
 | CSV export | Written to a location you pick through the system file picker. Cells are escaped against spreadsheet formula injection. |
 
 Two things are outside the app's control. An exported CSV is plain text, so treat it like a bank statement. If you use the AI feature, OpenAI's own data policy applies to the aggregated numbers you send.
+
+## Design
+
+The interface follows the Buro reference kept in `stitch_buro_fintech_app/`: a warm off-white page,
+white cards separated by hairlines rather than shadows, a single saturated blue for anything actionable,
+and figures treated as the hero element with tight tracking. Colours were sampled from those screens.
+[Inter](https://rsms.me/inter/) is bundled under the SIL Open Font License (`licenses/Inter-OFL.txt`).
 
 ## Project structure
 

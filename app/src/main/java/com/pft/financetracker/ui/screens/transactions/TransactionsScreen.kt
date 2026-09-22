@@ -21,6 +21,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,6 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel
+import androidx.compose.foundation.shape.CircleShape
+import com.pft.financetracker.ui.components.Hairline
+import com.pft.financetracker.ui.components.PillChip
 import com.pft.financetracker.ui.components.TransactionRow
 import com.pft.financetracker.ui.components.dateOnly
 import com.pft.financetracker.ui.components.money
@@ -68,13 +72,20 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
         Column(Modifier.fillMaxSize().padding(padding)) {
             OutlinedTextField(
                 value = query, onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search merchant, bank, amount") }, singleLine = true
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                placeholder = { Text("Search merchant, bank, amount") }, singleLine = true,
+                shape = CircleShape,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                ),
             )
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FilterChip(selected = filter == null, onClick = { filter = null }, label = { Text("All") })
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                PillChip(filter == null, "All") { filter = null }
                 Category.entries.forEach { c ->
-                    FilterChip(selected = filter == c, onClick = { filter = if (filter == c) null else c }, label = { Text(c.label) })
+                    PillChip(filter == c, c.label) { filter = if (filter == c) null else c }
                 }
             }
             if (filtered.isEmpty()) {
@@ -83,8 +94,8 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
             LazyColumn(contentPadding = PaddingValues(bottom = 88.dp)) {
                 grouped.forEach { (day, list) ->
                     item(key = "h_$day") {
-                        Text(day, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                        HorizontalDivider()
+                        Text(day, Modifier.padding(horizontal = 20.dp, vertical = 10.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Hairline(startInset = 20.dp)
                     }
                     items(list, key = { it.id }) { t -> TransactionRow(t) { onEdit(t.id) } }
                 }

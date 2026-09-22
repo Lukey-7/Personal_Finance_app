@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Boro - Buy Amount</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Design System Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "error": "#ba1a1a",
+                    "inverse-surface": "#2f2f3b",
+                    "surface-container-high": "#e8e6f6",
+                    "on-secondary-fixed-variant": "#474646",
+                    "secondary-fixed": "#e5e2e1",
+                    "primary-container": "#0000ff",
+                    "on-tertiary-fixed-variant": "#930002",
+                    "tertiary-fixed": "#ffdad5",
+                    "on-surface-variant": "#454558",
+                    "on-tertiary": "#ffffff",
+                    "secondary-container": "#e5e2e1",
+                    "surface-container-highest": "#e3e1f1",
+                    "on-tertiary-container": "#ffa598",
+                    "secondary-fixed-dim": "#c9c6c5",
+                    "surface-container-low": "#f5f2ff",
+                    "inverse-primary": "#bec2ff",
+                    "primary-fixed": "#e0e0ff",
+                    "on-primary-container": "#b3b7ff",
+                    "on-error-container": "#93000a",
+                    "on-error": "#ffffff",
+                    "tertiary-container": "#9d0002",
+                    "tertiary": "#720001",
+                    "surface-tint": "#343dff",
+                    "surface": "#fbf8ff",
+                    "secondary": "#5f5e5e",
+                    "on-primary": "#ffffff",
+                    "on-primary-fixed": "#00006e",
+                    "primary-fixed-dim": "#bec2ff",
+                    "on-surface": "#1a1b26",
+                    "surface-variant": "#e3e1f1",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-fixed": "#410000",
+                    "on-secondary-fixed": "#1c1b1b",
+                    "on-background": "#1a1b26",
+                    "error-container": "#ffdad6",
+                    "outline": "#757589",
+                    "inverse-on-surface": "#f1efff",
+                    "outline-variant": "#c5c4db",
+                    "surface-bright": "#fbf8ff",
+                    "on-secondary-container": "#656464",
+                    "on-secondary": "#ffffff",
+                    "surface-container": "#eeecfc",
+                    "primary": "#0001bb",
+                    "surface-dim": "#dad8e8",
+                    "background": "#fbf8ff",
+                    "on-primary-fixed-variant": "#0000ef",
+                    "tertiary-fixed-dim": "#ffb4a9"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack_md": "16px",
+                    "stack_sm": "8px",
+                    "stack_lg": "24px",
+                    "horizontal_padding": "24px",
+                    "stack_xl": "32px",
+                    "base_unit": "8px"
+            },
+            "fontFamily": {
+                    "keypad-number": ["Inter", "sans-serif"],
+                    "input-number": ["Inter", "sans-serif"],
+                    "row-title": ["Inter", "sans-serif"],
+                    "button-primary": ["Inter", "sans-serif"],
+                    "input-suffix": ["Inter", "sans-serif"],
+                    "body-label": ["Inter", "sans-serif"],
+                    "small-label": ["Inter", "sans-serif"],
+                    "row-subtitle": ["Inter", "sans-serif"],
+                    "row-value": ["Inter", "sans-serif"],
+                    "status-time": ["Inter", "sans-serif"],
+                    "nav-title": ["Inter", "sans-serif"],
+                    "portfolio-balance": ["Inter", "sans-serif"]
+            },
+            "fontSize": {
+                    "keypad-number": ["28px", {"lineHeight": "34px", "fontWeight": "400"}],
+                    "input-number": ["64px", {"letterSpacing": "-0.055em", "fontWeight": "600"}],
+                    "row-title": ["15px", {"lineHeight": "20px", "fontWeight": "650"}],
+                    "button-primary": ["15px", {"lineHeight": "20px", "fontWeight": "650"}],
+                    "input-suffix": ["60px", {"letterSpacing": "-0.055em", "fontWeight": "600"}],
+                    "body-label": ["14px", {"lineHeight": "20px", "fontWeight": "500"}],
+                    "small-label": ["12px", {"letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "row-subtitle": ["14px", {"lineHeight": "18px", "fontWeight": "400"}],
+                    "row-value": ["15px", {"lineHeight": "20px", "fontWeight": "500"}],
+                    "status-time": ["17px", {"lineHeight": "22px", "fontWeight": "600"}],
+                    "nav-title": ["17px", {"lineHeight": "22px", "fontWeight": "650"}],
+                    "portfolio-balance": ["36px", {"letterSpacing": "-0.04em", "fontWeight": "650"}]
+            }
+          }
+        }
+      }
+    </script>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-sans max-w-md mx-auto relative overflow-hidden">
+<!-- Top App Bar -->
+<header class="bg-transparent h-[52px] w-full flex items-center px-horizontal_padding justify-between z-20 shrink-0">
+<button class="w-[40px] h-[40px] flex items-center justify-start text-on-surface hover:opacity-80 transition-all active:scale-95">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<div class="bg-surface-container py-1.5 px-4 rounded-full flex items-center justify-center">
+<span class="font-small-label text-small-label text-on-surface uppercase tracking-wider">Order</span>
+</div>
+<div class="w-[40px]"></div> <!-- Spacer for exact center alignment -->
+</header>
+<!-- Scrollable Content Canvas -->
+<main class="flex-1 flex flex-col w-full overflow-y-auto pb-[20px]">
+<!-- Segmented Control -->
+<div class="px-horizontal_padding mt-stack_sm shrink-0">
+<div class="flex bg-surface-variant/50 p-1 rounded-[12px]">
+<button class="flex-1 py-1.5 bg-background shadow-sm rounded-[10px] font-small-label text-small-label text-on-surface text-center transition-all">Buy</button>
+<button class="flex-1 py-1.5 font-small-label text-small-label text-on-surface-variant text-center transition-all hover:bg-surface-variant/30 rounded-[10px]">Sell</button>
+<button class="flex-1 py-1.5 font-small-label text-small-label text-on-surface-variant text-center transition-all hover:bg-surface-variant/30 rounded-[10px]">Convert</button>
+</div>
+</div>
+<!-- Input Area -->
+<div class="flex flex-col items-center justify-center flex-1 min-h-[160px] px-horizontal_padding">
+<div class="flex items-center justify-center relative -ml-2">
+<span class="font-input-number text-input-number text-on-surface leading-none">5</span>
+<div class="h-[50px] w-[3px] bg-primary rounded-full mx-[2px] animate-pulse"></div>
+<span class="font-input-suffix text-input-suffix text-outline-variant leading-none">SGD</span>
+</div>
+<div class="mt-stack_sm flex items-center gap-1.5 bg-primary/5 px-3 py-1.5 rounded-full cursor-pointer hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[16px] text-primary" style="font-variation-settings: 'wght' 600">swap_vert</span>
+<span class="font-small-label text-small-label text-primary tracking-normal">0.00004884 BTC</span>
+</div>
+</div>
+<!-- Transaction Rows -->
+<div class="px-horizontal_padding flex flex-col gap-0 mt-stack_lg shrink-0">
+<!-- Pay With Row -->
+<button class="w-full flex items-center py-[12px] relative group text-left active:opacity-70 transition-opacity">
+<div class="w-[40px] h-[40px] rounded-full bg-surface-variant flex items-center justify-center mr-[16px] shrink-0">
+<span class="material-symbols-outlined text-on-surface-variant">account_balance_wallet</span>
+</div>
+<div class="flex flex-col flex-1 pr-4">
+<span class="font-row-subtitle text-row-subtitle text-on-surface-variant">Pay with</span>
+<span class="font-row-title text-row-title text-on-surface mt-[2px]">SGD Wallet</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+<!-- Inner Divider -->
+<div class="absolute bottom-0 left-[56px] right-0 h-[1px] bg-outline-variant/30"></div>
+</button>
+<!-- Buy Row -->
+<button class="w-full flex items-center py-[12px] group text-left active:opacity-70 transition-opacity mt-1">
+<div class="w-[40px] h-[40px] rounded-full overflow-hidden bg-surface-variant flex items-center justify-center mr-[16px] shrink-0">
+<img class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+</div>
+<div class="flex flex-col flex-1 pr-4">
+<span class="font-row-subtitle text-row-subtitle text-on-surface-variant">Buy</span>
+<span class="font-row-title text-row-title text-on-surface mt-[2px]">Bitcoin</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+</div>
+</main>
+<!-- Bottom Action & Keypad Area -->
+<div class="w-full bg-background flex flex-col pb-6 shrink-0 rounded-t-[24px] shadow-[0_-10px_40px_rgba(0,0,0,0.03)] z-30">
+<!-- Primary Action Button -->
+<div class="px-horizontal_padding pt-stack_lg pb-stack_md w-full">
+<button class="w-full h-[56px] bg-primary text-on-primary rounded-[16px] font-button-primary text-button-primary flex items-center justify-center hover:bg-primary/90 active:scale-[0.98] transition-all shadow-sm">
+                Review order
+            </button>
+</div>
+<!-- Custom Keypad -->
+<div class="w-full px-[32px] pt-[8px]">
+<div class="grid grid-cols-3 gap-y-4 gap-x-8">
+<!-- Row 1 -->
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">1</button>
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">2</button>
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">3</button>
+<!-- Row 2 -->
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">4</button>
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">5</button>
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">6</button>
+<!-- Row 3 -->
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">7</button>
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">8</button>
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">9</button>
+<!-- Row 4 -->
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">.</button>
+<button class="h-[54px] w-full flex items-center justify-center font-keypad-number text-keypad-number text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">0</button>
+<button class="h-[54px] w-full flex items-center justify-center text-on-surface active:bg-surface-variant rounded-[12px] transition-colors">
+<span class="material-symbols-outlined text-[24px]">backspace</span>
+</button>
+</div>
+</div>
+</div>
+</body></html>

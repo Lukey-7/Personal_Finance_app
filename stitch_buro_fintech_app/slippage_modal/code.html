@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Slippage Modal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface": "#fcf8f8",
+                        "on-primary-fixed-variant": "#464747",
+                        "inverse-primary": "#c7c6c6",
+                        "outline-variant": "#c4c7c7",
+                        "background": "#fcf8f8",
+                        "primary-fixed-dim": "#c7c6c6",
+                        "on-error": "#ffffff",
+                        "tertiary-container": "#1e1b1b",
+                        "primary-container": "#1b1c1c",
+                        "tertiary-fixed": "#e8e1e0",
+                        "surface-tint": "#5e5e5e",
+                        "on-primary-container": "#848483",
+                        "on-tertiary-container": "#888382",
+                        "on-background": "#1c1b1b",
+                        "secondary-fixed-dim": "#b4c5ff",
+                        "on-primary": "#ffffff",
+                        "surface-container-highest": "#e5e2e1",
+                        "error-container": "#ffdad6",
+                        "on-secondary": "#ffffff",
+                        "inverse-surface": "#313030",
+                        "surface-bright": "#fcf8f8",
+                        "surface-variant": "#e5e2e1",
+                        "primary-fixed": "#e3e2e1",
+                        "on-surface": "#1c1b1b",
+                        "surface-dim": "#ddd9d8",
+                        "error": "#ba1a1a",
+                        "on-secondary-container": "#fefcff",
+                        "secondary-container": "#2469ff",
+                        "inverse-on-surface": "#f4f0ef",
+                        "on-tertiary-fixed": "#1e1b1b",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#f1edec",
+                        "surface-container-low": "#f7f3f2",
+                        "on-surface-variant": "#444747",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#003da9",
+                        "primary": "#000000",
+                        "on-primary-fixed": "#1b1c1c",
+                        "secondary-fixed": "#dbe1ff",
+                        "tertiary-fixed-dim": "#ccc5c4",
+                        "on-tertiary-fixed-variant": "#4a4646",
+                        "surface-container-high": "#ebe7e7",
+                        "on-secondary-fixed": "#00174c",
+                        "secondary": "#0050d7",
+                        "outline": "#747878",
+                        "tertiary": "#000000"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "lg": "48px",
+                        "unit": "4px",
+                        "gutter": "24px",
+                        "xs": "8px",
+                        "xl": "80px",
+                        "container-margin": "40px",
+                        "md": "24px",
+                        "sm": "16px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "numeric-data": ["Inter"],
+                        "display-xl": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "heading-md": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", { "lineHeight": "1.5", "letterSpacing": "0", "fontWeight": "400" }],
+                        "numeric-data": ["24px", { "lineHeight": "1.0", "letterSpacing": "-0.055em", "fontWeight": "500" }],
+                        "display-xl": ["82px", { "lineHeight": "1.0", "letterSpacing": "-0.04em", "fontWeight": "600" }],
+                        "label-sm": ["12px", { "lineHeight": "1.0", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "display-lg": ["60px", { "lineHeight": "1.1", "letterSpacing": "-0.03em", "fontWeight": "600" }],
+                        "heading-md": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "500" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "letterSpacing": "-0.01em", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen relative overflow-hidden flex justify-center items-end pb-0 sm:items-center sm:pb-0">
+<!-- Blurred Background App Content Simulation -->
+<div aria-hidden="true" class="absolute inset-0 z-0 select-none overflow-hidden">
+<div class="h-full w-full bg-surface-container-lowest blur-sm relative">
+<!-- Top App Bar Mock -->
+<header class="flex justify-between items-center w-full px-container-margin h-16 border-b border-outline-variant bg-surface opacity-50">
+<span class="material-symbols-outlined text-on-surface-variant text-[24px]" data-icon="arrow_back">arrow_back</span>
+<span class="font-heading-md text-heading-md font-bold tracking-tight text-primary">Boro</span>
+<span class="material-symbols-outlined text-on-surface-variant text-[24px]" data-icon="more_vert">more_vert</span>
+</header>
+<div class="p-container-margin flex flex-col gap-lg opacity-50">
+<div class="h-32 bg-surface-container rounded-lg"></div>
+<div class="h-64 bg-surface-container rounded-lg"></div>
+</div>
+<!-- Bottom Nav Bar Mock -->
+<nav class="fixed bottom-lg left-1/2 -translate-x-1/2 z-0 flex justify-between items-center px-sm py-xs bg-surface-container-low/90 backdrop-blur-md rounded-full border border-outline-variant shadow-sm min-w-[320px] opacity-50">
+<div class="text-on-surface-variant p-3"><span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span></div>
+<div class="bg-primary text-on-primary rounded-full p-3"><span class="material-symbols-outlined" data-icon="swap_horiz">swap_horiz</span></div>
+<div class="text-on-surface-variant p-3"><span class="material-symbols-outlined" data-icon="insert_chart">insert_chart</span></div>
+<div class="text-on-surface-variant p-3"><span class="material-symbols-outlined" data-icon="person">person</span></div>
+</nav>
+</div>
+</div>
+<!-- Dark Overlay -->
+<div aria-hidden="true" class="absolute inset-0 bg-primary/40 z-10"></div>
+<!-- Bottom Sheet Modal -->
+<div aria-labelledby="modal-title" aria-modal="true" class="relative z-20 w-full max-w-[367px] bg-surface rounded-t-[30px] sm:rounded-[30px] flex flex-col transform transition-transform duration-300 ease-in-out translate-y-0 shadow-lg" role="dialog">
+<!-- Header -->
+<div class="flex justify-between items-center px-container-margin pt-container-margin pb-sm">
+<h2 class="text-[22px] font-[650] tracking-tight text-primary" id="modal-title">Slippage</h2>
+<button aria-label="Close modal" class="p-2 -mr-2 text-on-surface-variant hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary rounded-full">
+<span class="material-symbols-outlined text-[24px]" data-icon="close">close</span>
+</button>
+</div>
+<!-- Body Text -->
+<div class="px-container-margin pb-lg">
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+                Setting a high slippage tolerance can help transactions succeed, but you may not get a good price.
+            </p>
+</div>
+<!-- Segmented Control -->
+<div class="px-container-margin pb-lg">
+<div class="flex bg-surface-container rounded-[22px] p-1">
+<button class="flex-1 py-3 text-center text-on-primary bg-primary rounded-[18px] font-label-sm text-label-sm transition-colors focus:outline-none">
+                    Manual
+                </button>
+<button class="flex-1 py-3 text-center text-on-surface-variant hover:text-primary rounded-[18px] font-label-sm text-label-sm transition-colors focus:outline-none">
+                    Dynamic
+                </button>
+</div>
+</div>
+<!-- Main Input Panel -->
+<div class="px-container-margin pb-lg">
+<div class="bg-[#F1F6FF] border border-secondary rounded-lg p-md flex flex-col items-center justify-center relative overflow-hidden">
+<!-- Abstract visual texture inside panel -->
+<div aria-hidden="true" class="absolute -right-10 -top-10 w-32 h-32 opacity-10 bg-[url('{{DATA:IMAGE:IMAGE_5}}')] bg-cover mix-blend-multiply pointer-events-none"></div>
+<span class="font-label-sm text-label-sm text-secondary uppercase tracking-wider mb-xs z-10 relative">Max Slippage</span>
+<div class="flex items-center justify-between w-full z-10 relative">
+<button aria-label="Decrease slippage" class="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-secondary shadow-sm hover:bg-secondary hover:text-on-secondary transition-colors focus:outline-none">
+<span class="material-symbols-outlined text-[20px]" data-icon="remove">remove</span>
+</button>
+<div class="font-display-lg text-display-lg text-secondary">
+                        3.0%
+                    </div>
+<button aria-label="Increase slippage" class="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-secondary shadow-sm hover:bg-secondary hover:text-on-secondary transition-colors focus:outline-none">
+<span class="material-symbols-outlined text-[20px]" data-icon="add">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Save Button & Footer -->
+<div class="px-container-margin pb-[34px] pt-sm">
+<button class="w-full bg-primary text-on-primary font-body-md text-body-md font-medium h-[56px] rounded-[29px] hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary shadow-sm">
+                Save
+            </button>
+</div>
+<!-- iOS Home Indicator -->
+<div class="flex justify-center pb-2 w-full sm:hidden">
+<div class="w-1/3 h-1 bg-on-surface-variant rounded-full opacity-50"></div>
+</div>
+</div>
+</body></html>

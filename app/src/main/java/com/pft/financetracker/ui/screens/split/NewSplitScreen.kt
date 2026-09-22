@@ -47,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -139,6 +140,17 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
         camera.launch(uri)
     }
 
+    // The capture file must never outlive recognition, on any path: a bill photo left in the cache
+    // would contradict the promise that photos are not stored. Cleared when OCR finishes either way,
+    // and again when this screen goes away (cancelled capture, back button, process kill).
+    fun discardCapture() { runCatching { File(ctx.cacheDir, "bill_capture.jpg").delete() } }
+
+    DisposableEffect(Unit) { onDispose { discardCapture() } }
+
+    LaunchedEffect(ocr) {
+        if (ocr is OcrUiState.Done || ocr is OcrUiState.Error) discardCapture()
+    }
+
     // Apply OCR result once, into editable fields. Everything stays editable.
     LaunchedEffect(ocr) {
         val s = ocr
@@ -152,7 +164,6 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
             if (s.bill.discountPaise > 0) discountInput = paiseToInput(s.bill.discountPaise)
             items.clear(); s.bill.items.forEach { items += ItemState(it.name, it.quantity, it.pricePaise, emptySet()) }
             if (items.isNotEmpty()) mode = SplitMode.BY_ITEM
-            File(ctx.cacheDir, "bill_capture.jpg").delete()
         }
     }
 

@@ -100,6 +100,14 @@ class ParserAccuracyTest {
     fun ordinaryPurchaseIsExpense() =
         assertEquals(Flow.EXPENSE, FlowClassifier.classify(TransactionType.DEBIT, "INR 1,299.00 spent on Card XX9012 at AMAZON", "Amazon", Category.SHOPPING))
 
+    /** "towards your <own card>" is the customer's own account, not a payee to show as a merchant. */
+    @Test
+    fun ownCardIsNotUsedAsMerchant() {
+        val t = success("VM-HDFCBK", "Payment of Rs.12,500.00 received towards your HDFC Bank Credit Card XX3344 on 05-09-26. Thank you.")
+        assertTrue("merchant was ${t.merchant}", !t.merchant.lowercase().contains("your"))
+        assertTrue("merchant was ${t.merchant}", !t.merchant.lowercase().contains("credit card"))
+    }
+
     // ---- 1.6 filters must not eat real transactions ----
     @Test
     fun debitWithClickHereIsNotDroppedAsPromo() {

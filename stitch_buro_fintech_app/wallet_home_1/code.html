@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Boro Wallet</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "surface": "#fcf8f8",
+                        "on-primary-fixed-variant": "#464747",
+                        "inverse-primary": "#c7c6c6",
+                        "outline-variant": "#c4c7c7",
+                        "background": "#fcf8f8",
+                        "primary-fixed-dim": "#c7c6c6",
+                        "on-error": "#ffffff",
+                        "tertiary-container": "#1e1b1b",
+                        "primary-container": "#1b1c1c",
+                        "tertiary-fixed": "#e8e1e0",
+                        "surface-tint": "#5e5e5e",
+                        "on-primary-container": "#848483",
+                        "on-tertiary-container": "#888382",
+                        "on-background": "#1c1b1b",
+                        "secondary-fixed-dim": "#b4c5ff",
+                        "on-primary": "#ffffff",
+                        "surface-container-highest": "#e5e2e1",
+                        "error-container": "#ffdad6",
+                        "on-secondary": "#ffffff",
+                        "inverse-surface": "#313030",
+                        "surface-bright": "#fcf8f8",
+                        "surface-variant": "#e5e2e1",
+                        "primary-fixed": "#e3e2e1",
+                        "on-surface": "#1c1b1b",
+                        "surface-dim": "#ddd9d8",
+                        "error": "#ba1a1a",
+                        "on-secondary-container": "#fefcff",
+                        "secondary-container": "#2469ff",
+                        "inverse-on-surface": "#f4f0ef",
+                        "on-tertiary-fixed": "#1e1b1b",
+                        "surface-container-lowest": "#ffffff",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#f1edec",
+                        "surface-container-low": "#f7f3f2",
+                        "on-surface-variant": "#444747",
+                        "on-error-container": "#93000a",
+                        "on-secondary-fixed-variant": "#003da9",
+                        "primary": "#000000",
+                        "on-primary-fixed": "#1b1c1c",
+                        "secondary-fixed": "#dbe1ff",
+                        "tertiary-fixed-dim": "#ccc5c4",
+                        "on-tertiary-fixed-variant": "#4a4646",
+                        "surface-container-high": "#ebe7e7",
+                        "on-secondary-fixed": "#00174c",
+                        "secondary": "#0050d7",
+                        "outline": "#747878",
+                        "tertiary": "#000000"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "lg": "48px",
+                        "unit": "4px",
+                        "gutter": "24px",
+                        "xs": "8px",
+                        "xl": "80px",
+                        "container-margin": "40px",
+                        "md": "24px",
+                        "sm": "16px"
+                    },
+                    fontFamily: {
+                        "body-md": ["Inter"],
+                        "numeric-data": ["Inter"],
+                        "display-xl": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "heading-md": ["Inter"],
+                        "body-lg": ["Inter"]
+                    },
+                    fontSize: {
+                        "body-md": ["16px", { lineHeight: "1.5", letterSpacing: "0", fontWeight: "400" }],
+                        "numeric-data": ["24px", { lineHeight: "1.0", letterSpacing: "-0.055em", fontWeight: "500" }],
+                        "display-xl": ["82px", { lineHeight: "1.0", letterSpacing: "-0.04em", fontWeight: "600" }],
+                        "label-sm": ["12px", { lineHeight: "1.0", letterSpacing: "0.05em", fontWeight: "600" }],
+                        "display-lg": ["60px", { lineHeight: "1.1", letterSpacing: "-0.03em", fontWeight: "600" }],
+                        "heading-md": ["32px", { lineHeight: "1.2", letterSpacing: "-0.02em", fontWeight: "500" }],
+                        "body-lg": ["18px", { lineHeight: "1.6", letterSpacing: "-0.01em", fontWeight: "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Utility for missing color to match #FDFCF9 from prompt, closest is surface-bright */
+        body {
+            background-color: #fcf8f8; /* Matches surface config */
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex justify-center w-full">
+<!-- Mobile Artboard Container -->
+<div class="relative w-full max-w-[393px] h-screen max-h-[852px] bg-surface overflow-hidden shadow-2xl md:my-8 md:rounded-[40px] md:h-[852px] md:border-[8px] md:border-black flex flex-col">
+<!-- TopAppBar (from JSON) -->
+<header class="flex justify-between items-center w-full px-container-margin h-16 pt-8 z-10 shrink-0">
+<div class="flex items-center gap-2">
+<h1 class="font-heading-md text-heading-md font-bold tracking-tight text-primary">Boro</h1>
+</div>
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold font-body-md shrink-0 shadow-sm border border-outline-variant">
+                B
+            </div>
+</header>
+<!-- Main Scrollable Canvas -->
+<main class="flex-1 overflow-y-auto pb-32 hide-scrollbar flex flex-col px-6">
+<!-- Balance Section -->
+<section class="mt-8 flex flex-col items-center">
+<div class="flex items-center gap-2 mb-2">
+<span class="font-body-md text-body-md text-on-surface-variant">Total Balance</span>
+<span class="inline-flex items-center px-2 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D32] font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[12px] mr-1">arrow_outward</span>
+                        100%
+                    </span>
+</div>
+<div class="flex items-baseline justify-center">
+<span class="font-display-lg text-display-lg text-primary">$11</span>
+<span class="font-display-lg text-display-lg text-outline">.12</span>
+</div>
+</section>
+<!-- Chart Section (Simplified CSS representation) -->
+<section class="mt-12 flex justify-center items-end gap-2 h-32 w-full px-2">
+<!-- Using inline styles for precise pixel heights requested in prompt, simulating bars -->
+<div class="w-[6px] rounded-full bg-surface-variant h-8"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-12"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-10"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-16"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-20"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-14"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-24"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-18"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-28"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-32 bg-primary"></div> <!-- Highlighted bar -->
+<div class="w-[6px] rounded-full bg-surface-variant h-16"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-20"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-24"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-12"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-8"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-14"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-10"></div>
+<div class="w-[6px] rounded-full bg-surface-variant h-16"></div>
+</section>
+<!-- Time Selector -->
+<section class="mt-6 flex justify-center items-center gap-6 font-label-sm text-label-sm text-on-surface-variant">
+<button class="px-2 py-1">1D</button>
+<button class="px-2 py-1 text-primary relative">
+                    1W
+                    <span class="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-[2px] bg-primary rounded-full"></span>
+</button>
+<button class="px-2 py-1">1M</button>
+<button class="px-2 py-1">6M</button>
+<button class="px-2 py-1">1Y</button>
+</section>
+<!-- Earn Banner -->
+<section class="mt-8 w-full">
+<div class="w-full bg-surface-container-lowest rounded-[27px] py-4 px-6 flex justify-between items-center shadow-sm border border-surface-variant">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[18px]">payments</span>
+</div>
+<span class="font-body-md text-body-md font-medium">Earn up to 8.14% APY</span>
+</div>
+<span class="material-symbols-outlined text-outline">chevron_right</span>
+</div>
+</section>
+<!-- Bento Grid -->
+<section class="mt-6 grid grid-cols-2 gap-4 w-full">
+<!-- Cash Card -->
+<div class="bg-surface-container-lowest rounded-[18px] p-5 flex flex-col justify-between h-[112px] border border-surface-variant shadow-sm relative overflow-hidden group">
+<div class="flex justify-between items-start">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Cash</span>
+<img alt="Placeholder graphic for cash icon" class="w-6 h-6 rounded-full object-cover" data-alt="A macro shot of a sleek, abstract metallic geometric form representing financial fluidity, floating in a pristine, bright white minimalist gallery space. The metallic surface is highly polished, reflecting soft, high-key lighting that creates a bright, modern light-mode aesthetic." src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+</div>
+<span class="font-numeric-data text-numeric-data text-primary">$0.73</span>
+</div>
+<!-- Investments Card -->
+<div class="bg-surface-container-lowest rounded-[18px] p-5 flex flex-col justify-between h-[112px] border border-surface-variant shadow-sm">
+<div class="flex justify-between items-start">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Investments</span>
+<div class="w-6 h-6 rounded-full bg-surface-variant flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+</div>
+</div>
+<span class="font-numeric-data text-numeric-data text-primary">$5.30</span>
+</div>
+<!-- Earn Card -->
+<div class="bg-surface-container-lowest rounded-[18px] p-5 flex flex-col justify-between h-[112px] border border-surface-variant shadow-sm">
+<div class="flex justify-between items-start">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Earn</span>
+<div class="w-6 h-6 rounded-full bg-surface-variant flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-[14px]">savings</span>
+</div>
+</div>
+<span class="font-numeric-data text-numeric-data text-primary">$5.09</span>
+</div>
+<!-- Boro Card -->
+<div class="bg-transparent rounded-[18px] p-5 flex flex-col items-center justify-center h-[112px] border-2 border-dashed border-outline-variant hover:border-outline transition-colors cursor-pointer">
+<div class="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center text-on-surface mb-2">
+<span class="material-symbols-outlined">add</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Boro Card</span>
+</div>
+</section>
+</main>
+<!-- Floating Action Button -->
+<button class="absolute right-6 bottom-28 w-[58px] h-[58px] bg-primary text-on-primary rounded-full flex items-center justify-center shadow-lg hover:opacity-90 transition-opacity z-40">
+<span class="material-symbols-outlined">add</span>
+</button>
+<!-- BottomNavBar (from JSON) -->
+<nav class="fixed bottom-lg left-1/2 -translate-x-1/2 z-50 flex justify-between items-center px-sm py-xs bg-surface-container-low/90 backdrop-blur-md w-auto min-w-[320px] rounded-full border border-outline-variant shadow-sm md:absolute md:bottom-8">
+<button class="flex flex-col items-center justify-center bg-primary text-on-primary rounded-full p-3 scale-90 transition-transform">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet" data-weight="fill">account_balance_wallet</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant p-3 hover:bg-surface-variant/50 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="swap_horiz">swap_horiz</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant p-3 hover:bg-surface-variant/50 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="insert_chart">insert_chart</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant p-3 hover:bg-surface-variant/50 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</button>
+</nav>
+</div>
+</body></html>

@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Boro - Buy Amount</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "error": "#ba1a1a",
+                "inverse-surface": "#2f2f3b",
+                "surface-container-high": "#e8e6f6",
+                "on-secondary-fixed-variant": "#474646",
+                "secondary-fixed": "#e5e2e1",
+                "primary-container": "#0000ff",
+                "on-tertiary-fixed-variant": "#930002",
+                "tertiary-fixed": "#ffdad5",
+                "on-surface-variant": "#454558",
+                "on-tertiary": "#ffffff",
+                "secondary-container": "#e5e2e1",
+                "surface-container-highest": "#e3e1f1",
+                "on-tertiary-container": "#ffa598",
+                "secondary-fixed-dim": "#c9c6c5",
+                "surface-container-low": "#f5f2ff",
+                "inverse-primary": "#bec2ff",
+                "primary-fixed": "#e0e0ff",
+                "on-primary-container": "#b3b7ff",
+                "on-error-container": "#93000a",
+                "on-error": "#ffffff",
+                "tertiary-container": "#9d0002",
+                "tertiary": "#720001",
+                "surface-tint": "#343dff",
+                "surface": "#fbf8ff",
+                "secondary": "#5f5e5e",
+                "on-primary": "#ffffff",
+                "on-primary-fixed": "#00006e",
+                "primary-fixed-dim": "#bec2ff",
+                "on-surface": "#1a1b26",
+                "surface-variant": "#e3e1f1",
+                "surface-container-lowest": "#ffffff",
+                "on-tertiary-fixed": "#410000",
+                "on-secondary-fixed": "#1c1b1b",
+                "on-background": "#1a1b26",
+                "error-container": "#ffdad6",
+                "outline": "#757589",
+                "inverse-on-surface": "#f1efff",
+                "outline-variant": "#c5c4db",
+                "surface-bright": "#fbf8ff",
+                "on-secondary-container": "#656464",
+                "on-secondary": "#ffffff",
+                "surface-container": "#eeecfc",
+                "primary": "#0001bb",
+                "surface-dim": "#dad8e8",
+                "background": "#fbf8ff",
+                "on-primary-fixed-variant": "#0000ef",
+                "tertiary-fixed-dim": "#ffb4a9",
+                "app-soft": "#F4F5F6",
+                "app-divider": "#ECEDEF",
+                "app-bg": "#FDFCFB"
+        },
+        "borderRadius": {
+                "DEFAULT": "1rem",
+                "lg": "2rem",
+                "xl": "3rem",
+                "full": "9999px",
+                "card": "22px"
+        },
+        "spacing": {
+                "stack_md": "16px",
+                "stack_sm": "8px",
+                "stack_lg": "24px",
+                "horizontal_padding": "24px",
+                "stack_xl": "32px",
+                "base_unit": "8px"
+        },
+        "fontFamily": {
+                "keypad-number": [
+                        "Inter"
+                ],
+                "input-number": [
+                        "Inter"
+                ],
+                "row-title": [
+                        "Inter"
+                ],
+                "button-primary": [
+                        "Inter"
+                ],
+                "input-suffix": [
+                        "Inter"
+                ],
+                "body-label": [
+                        "Inter"
+                ],
+                "small-label": [
+                        "Inter"
+                ],
+                "row-subtitle": [
+                        "Inter"
+                ],
+                "row-value": [
+                        "Inter"
+                ],
+                "status-time": [
+                        "Inter"
+                ],
+                "nav-title": [
+                        "Inter"
+                ],
+                "portfolio-balance": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "keypad-number": [
+                        "28px",
+                        {
+                                "lineHeight": "34px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "input-number": [
+                        "64px",
+                        {
+                                "letterSpacing": "-0.055em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "row-title": [
+                        "15px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "650"
+                        }
+                ],
+                "button-primary": [
+                        "15px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "650"
+                        }
+                ],
+                "input-suffix": [
+                        "60px",
+                        {
+                                "letterSpacing": "-0.055em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-label": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "500"
+                        }
+                ],
+                "small-label": [
+                        "12px",
+                        {
+                                "letterSpacing": "0.05em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "row-subtitle": [
+                        "14px",
+                        {
+                                "lineHeight": "18px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "row-value": [
+                        "15px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "500"
+                        }
+                ],
+                "status-time": [
+                        "17px",
+                        {
+                                "lineHeight": "22px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "nav-title": [
+                        "17px",
+                        {
+                                "lineHeight": "22px",
+                                "fontWeight": "650"
+                        }
+                ],
+                "portfolio-balance": [
+                        "36px",
+                        {
+                                "letterSpacing": "-0.04em",
+                                "fontWeight": "650"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    .no-scrollbar {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+    }
+</style>
+</head>
+<body class="bg-app-bg text-on-surface h-screen w-full flex flex-col antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="flex items-center justify-between px-horizontal_padding h-[52px] bg-transparent shrink-0">
+<button class="w-10 h-10 flex items-center justify-start text-on-surface hover:opacity-80 transition-all active:scale-95">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
+</button>
+<div class="flex items-center justify-center bg-app-soft rounded-full px-4 py-1.5 h-8 font-small-label text-small-label text-on-surface">
+            One-time order
+            <span class="material-symbols-outlined text-[16px] ml-1" style="font-variation-settings: 'FILL' 0;">expand_more</span>
+</div>
+<div class="w-10 h-10"></div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col px-horizontal_padding overflow-y-auto no-scrollbar pb-8 relative">
+<!-- Segment Control -->
+<div class="mt-8 flex bg-app-soft rounded-full p-1 h-10">
+<button class="flex-1 rounded-full bg-white shadow-sm font-small-label text-small-label text-on-surface flex items-center justify-center">
+                Buy
+            </button>
+<button class="flex-1 rounded-full font-small-label text-small-label text-on-surface-variant flex items-center justify-center">
+                Sell
+            </button>
+<button class="flex-1 rounded-full font-small-label text-small-label text-on-surface-variant flex items-center justify-center">
+                Convert
+            </button>
+</div>
+<!-- Input Area Hero -->
+<div class="flex flex-col items-center justify-center mt-12 mb-10">
+<div class="flex items-baseline justify-center relative">
+<span class="font-input-number text-input-number text-on-surface">0</span>
+<div class="w-[2px] h-[50px] bg-primary-container animate-pulse mx-1 transform translate-y-1"></div>
+<span class="font-input-suffix text-input-suffix text-outline">SGD</span>
+</div>
+<div class="mt-4 flex items-center justify-center gap-1 font-body-label text-body-label text-primary-container bg-surface-container-low px-3 py-1.5 rounded-full cursor-pointer hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 0;">swap_vert</span>
+<span>0 BTC</span>
+</div>
+</div>
+<!-- Transaction Rows -->
+<div class="flex flex-col relative mt-auto mb-stack_lg">
+<!-- Vertical Connector Line -->
+<div class="absolute left-5 top-10 bottom-10 w-[1px] bg-app-divider z-0"></div>
+<!-- Pay With Row -->
+<div class="flex items-center py-3 relative z-10 bg-app-bg">
+<div class="w-10 h-10 rounded-full bg-app-soft flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-surface" style="font-variation-settings: 'FILL' 0;">account_balance_wallet</span>
+</div>
+<div class="ml-4 flex-1 flex flex-col justify-center">
+<div class="flex justify-between items-baseline">
+<span class="font-row-subtitle text-row-subtitle text-outline">Pay with</span>
+<span class="font-row-value text-row-value text-on-surface">SGD Wallet</span>
+</div>
+<div class="flex justify-between items-baseline mt-0.5">
+<span class="font-small-label text-small-label text-outline uppercase"></span>
+<span class="font-row-subtitle text-row-subtitle text-outline">S$5.00 Available</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline ml-2" style="font-variation-settings: 'FILL' 0;">chevron_right</span>
+</div>
+<!-- Buy Row -->
+<div class="flex items-center py-3 relative z-10 bg-app-bg mt-2">
+<div class="w-10 h-10 rounded-full bg-surface-container-low overflow-hidden flex items-center justify-center shrink-0">
+<img alt="Bitcoin logo" class="w-full h-full object-cover" data-alt="Close up rendering of a Bitcoin logo or icon, featuring a warm golden hue against a dark background, minimal and modern." src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+</div>
+<div class="ml-4 flex-1 flex flex-col justify-center">
+<div class="flex justify-between items-baseline">
+<span class="font-row-subtitle text-row-subtitle text-outline">Buy</span>
+<span class="font-row-value text-row-value text-on-surface">Bitcoin</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline ml-2" style="font-variation-settings: 'FILL' 0;">chevron_right</span>
+</div>
+</div>
+<!-- Action Button -->
+<button class="w-full h-[52px] bg-app-soft text-on-surface font-button-primary text-button-primary rounded-full flex items-center justify-center mb-stack_lg active:scale-[0.98] transition-transform">
+            Buy maximum amount
+        </button>
+</main>
+<!-- Keypad -->
+<section class="bg-app-bg pb-safe shrink-0">
+<div class="grid grid-cols-3 gap-y-2 py-4 px-6 max-w-md mx-auto">
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">1</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">2</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">3</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">4</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">5</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">6</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">7</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">8</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">9</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">.</button>
+<button class="h-14 font-keypad-number text-keypad-number text-on-surface flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors">0</button>
+<button class="h-14 flex items-center justify-center active:bg-app-soft rounded-2xl transition-colors text-on-surface">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">backspace</span>
+</button>
+</div>
+</section>
+</body></html>
