@@ -58,7 +58,24 @@ class SettingsRepository(context: Context) {
         val trimmed = key?.trim()
         if (trimmed.isNullOrEmpty()) secure.edit().remove(KEY_API).apply()
         else secure.edit().putString(KEY_API, trimmed).apply()
+        // A key typed by hand is the user's own; only the debug seeder marks one as seeded.
+        plain.edit().putBoolean(KEY_API_SEEDED, false).apply()
         _hasApiKey.value = !trimmed.isNullOrEmpty()
+    }
+
+    /**
+     * Debug-build helper: adopt a key supplied at build time from OPENAI_API_KEY. It replaces a key that a
+     * previous build seeded (so rebuilding with a different key actually takes effect) but never one you
+     * entered yourself.
+     */
+    fun seedApiKey(key: String) {
+        val current = getApiKey()
+        val seededBefore = plain.getBoolean(KEY_API_SEEDED, false)
+        if (!current.isNullOrBlank() && !seededBefore) return
+        if (current == key) return
+        secure.edit().putString(KEY_API, key).apply()
+        plain.edit().putBoolean(KEY_API_SEEDED, true).apply()
+        _hasApiKey.value = true
     }
 
     fun setOnboarded(v: Boolean) { plain.edit().putBoolean(KEY_ONBOARDED, v).apply(); _onboarded.value = v }
@@ -85,5 +102,6 @@ class SettingsRepository(context: Context) {
         const val KEY_AUTO_IMPORT = "auto_import"
         const val KEY_CASH_SPEND = "cash_as_spend"
         const val KEY_MY_NAME = "my_name"
+        const val KEY_API_SEEDED = "api_key_seeded"
     }
 }
