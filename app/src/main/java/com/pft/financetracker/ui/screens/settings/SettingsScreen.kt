@@ -4,6 +4,8 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,6 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.ui.AiUiState
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.components.MarkdownText
+import com.pft.financetracker.ui.components.SoftPanel
 import com.pft.financetracker.ui.components.money
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -54,7 +58,7 @@ import java.util.Locale
 import androidx.compose.material3.TopAppBarDefaults
 import com.pft.financetracker.ui.components.FinCard
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
     val ctx = LocalContext.current
@@ -183,7 +187,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
                 )
                 if (hasKey) {
                     Text("API key is saved (encrypted with Android Keystore).", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Button(onClick = { vm.generateAiSummary() }, enabled = aiState !is AiUiState.Loading) { Text("Generate summary") }
                         OutlinedButton(onClick = { showPayload = true }) { Text("What is sent?") }
                         TextButton(onClick = { vm.setApiKey(null); vm.clearAi() }) { Text("Remove key") }
@@ -201,7 +205,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
                 }
                 when (val s = aiState) {
                     is AiUiState.Loading -> Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { CircularProgressIndicator(Modifier.height(20.dp).padding(end = 8.dp)); Text("Asking the model…") }
-                    is AiUiState.Result -> Card { Text(s.text, Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium) }
+                    is AiUiState.Result -> SoftPanel { MarkdownText(s.text) }
                     is AiUiState.Error -> Text("Error: ${s.message}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     AiUiState.Idle -> {}
                 }
