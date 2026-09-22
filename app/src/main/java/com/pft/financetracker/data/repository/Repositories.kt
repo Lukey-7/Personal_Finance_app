@@ -54,15 +54,37 @@ class TransactionRepository(
      */
     suspend fun findLikelyDuplicate(candidate: Transaction, windowMillis: Long = 10 * 60_000L): Transaction? {
         candidate.refNumber?.let { ref -> findByRef(ref, candidate.type)?.let { return it } }
-        val similar = dao.findSimilar(candidate.amountPaise, candidate.type.name, candidate.timestamp - windowMillis, candidate.timestamp + windowMillis)
-        return similar.map { it.toDomain() }.firstOrNull { existing ->
+
+        // Search the whole calendar day as well as the window: a transaction imported by v1.0.0 sits at
+        // midnight (its parser dropped the time of day), so the same message re-parsed by v1.1 lands hours
+        // away and the window alone would miss it. Same-day matches are held to the stricter merchant test.
+        val dayStart = startOfDay(candidate.timestamp)
+        val dayEnd = dayStart + 86_400_000L
+        val from = minOf(dayStart, candidate.timestamp - windowMillis)
+        val to = maxOf(dayEnd, candidate.timestamp + windowMillis)
+
+        return dao.findSimilar(candidate.amountPaise, candidate.type.name, from, to).map { it.toDomain() }.firstOrNull { existing ->
+            // Two references that both exist and disagree mean two genuinely different payments.
             if (existing.refNumber != null && candidate.refNumber != null && existing.refNumber != candidate.refNumber) return@firstOrNull false
             val sameMerchant = InsightsEngine.normalizeMerchant(existing.merchant) == InsightsEngine.normalizeMerchant(candidate.merchant)
-            val differentReporter = existing.bankName != candidate.bankName
-            val genericMerchant = isGeneric(existing.merchant) || isGeneric(candidate.merchant)
-            sameMerchant || differentReporter || genericMerchant
+            if (kotlin.math.abs(existing.timestamp - candidate.timestamp) <= windowMillis) {
+                // Minutes apart: a second sender reporting the same payment, or a generic-merchant alert.
+                val differentReporter = existing.bankName != candidate.bankName
+                val genericMerchant = isGeneric(existing.merchant) || isGeneric(candidate.merchant)
+                sameMerchant || differentReporter || genericMerchant
+            } else {
+                // Hours apart but the same day: only the same merchant counts, so two different payments
+                // that happen to share an amount are both kept.
+                sameMerchant && existing.timestamp in dayStart until dayEnd
+            }
         }
     }
+
+    private fun startOfDay(t: Long): Long = java.util.Calendar.getInstance().apply {
+        timeInMillis = t
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
 
     private fun isGeneric(m: String) = m.startsWith("Payment") || m.startsWith("Credit") || m.length < 3
 
@@ -70,6 +92,67 @@ class TransactionRepository(
     fun richer(a: Transaction, b: Transaction): Transaction {
         fun score(t: Transaction) = (if (!isGeneric(t.merchant)) 4 else 0) + (if (t.accountRef != null) 2 else 0) + (if (t.refNumber != null) 1 else 0) + (if (t.bankName != null) 1 else 0)
         return if (score(b) > score(a)) b else a
+    }
+
+    /** A pair of stored transactions that look like the same payment recorded twice. */
+    data class DuplicatePair(val keep: Transaction, val drop: Transaction) {
+        val amountPaise: Long get() = drop.amountPaise
+    }
+
+    /**
+     * Sweep already-stored transactions for the same payment counted twice. This is the retrospective
+     * counterpart to [findLikelyDuplicate]: rows imported before the duplicate rules existed are still
+     * sitting in the database, and no amount of re-importing removes them.
+     *
+     * Two rows pair up when the amount, direction and calendar day match and either their references
+     * agree, a different bank/app reported each, or one carries no real merchant. References that both
+     * exist and disagree mean two genuine payments, so those are never paired.
+     */
+    suspend fun findExistingDuplicates(): List<DuplicatePair> {
+        val all = dao.getAll().map { it.toDomain() }.filter { it.source == Transaction.Source.SMS && !it.needsReview }
+        val pairs = mutableListOf<DuplicatePair>()
+        val consumed = mutableSetOf<Long>()
+        val byKey = all.groupBy { Triple(it.amountPaise, it.type, startOfDay(it.timestamp)) }
+        for ((_, group) in byKey) {
+            if (group.size < 2) continue
+            val ordered = group.sortedBy { it.timestamp }
+            for (i in ordered.indices) {
+                val a = ordered[i]
+                if (a.id in consumed) continue
+                for (j in i + 1 until ordered.size) {
+                    val b = ordered[j]
+                    if (b.id in consumed) continue
+                    if (a.refNumber != null && b.refNumber != null && a.refNumber != b.refNumber) continue
+                    val sameMerchant = InsightsEngine.normalizeMerchant(a.merchant) == InsightsEngine.normalizeMerchant(b.merchant)
+                    val differentReporter = a.bankName != b.bankName
+                    val generic = isGeneric(a.merchant) || isGeneric(b.merchant)
+                    val sameRef = a.refNumber != null && a.refNumber == b.refNumber
+                    if (!(sameRef || sameMerchant || differentReporter || generic)) continue
+                    val keep = richer(a, b)
+                    val drop = if (keep === a) b else a
+                    pairs += DuplicatePair(keep, drop)
+                    consumed += drop.id
+                    consumed += keep.id
+                    break
+                }
+            }
+        }
+        return pairs.sortedByDescending { it.amountPaise }
+    }
+
+    /** Delete the redundant row of each pair, keeping any detail it had that the survivor lacked. */
+    suspend fun mergeDuplicates(pairs: List<DuplicatePair>) {
+        for (p in pairs) {
+            val merged = p.keep.copy(
+                merchant = if (isGeneric(p.keep.merchant) && !isGeneric(p.drop.merchant)) p.drop.merchant else p.keep.merchant,
+                accountRef = p.keep.accountRef ?: p.drop.accountRef,
+                refNumber = p.keep.refNumber ?: p.drop.refNumber,
+                bankName = p.keep.bankName ?: p.drop.bankName,
+                note = p.keep.note ?: p.drop.note,
+            )
+            if (merged != p.keep) dao.update(merged.toEntity())
+            dao.delete(p.drop.toEntity())
+        }
     }
 
     suspend fun enqueueReview(item: ReviewItemEntity): Boolean = reviewDao.insert(item) != -1L

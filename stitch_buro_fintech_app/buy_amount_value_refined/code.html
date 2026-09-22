@@ -1,0 +1,201 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Buy Amount</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface": "#1c1b1b",
+                        "inverse-on-surface": "#f3f0ef",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#4a4c4e",
+                        "surface-container": "#f1edec",
+                        "on-primary-container": "#b3b7ff",
+                        "on-primary-fixed-variant": "#0000ef",
+                        "surface-dim": "#dcd9d9",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "tertiary-fixed-dim": "#c5c6c8",
+                        "primary-fixed": "#e0e0ff",
+                        "background": "#fcf8f8",
+                        "primary-container": "#0000ff",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#171c22",
+                        "on-error": "#ffffff",
+                        "tertiary": "#333637",
+                        "surface-bright": "#fcf8f8",
+                        "inverse-primary": "#bec2ff",
+                        "outline-variant": "#c5c4db",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-container": "#5e636a",
+                        "on-background": "#1c1b1b",
+                        "tertiary-fixed": "#e1e2e4",
+                        "on-tertiary": "#ffffff",
+                        "primary-fixed-dim": "#bec2ff",
+                        "secondary": "#5a5f66",
+                        "on-tertiary-container": "#bbbcbe",
+                        "primary": "#0001bb",
+                        "outline": "#757589",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-error-container": "#93000a",
+                        "secondary-container": "#dbe0e8",
+                        "on-primary-fixed": "#00006e",
+                        "on-secondary-fixed-variant": "#42474e",
+                        "surface": "#fcf8f8",
+                        "surface-tint": "#343dff",
+                        "surface-container-low": "#f6f3f2",
+                        "secondary-fixed-dim": "#c2c7cf",
+                        "surface-container-high": "#ebe7e7",
+                        "secondary-fixed": "#dee3eb",
+                        "on-surface-variant": "#454558",
+                        "inverse-surface": "#313030",
+                        "surface-variant": "#e5e2e1",
+                        "surface-container-highest": "#e5e2e1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "section-gap": "48px",
+                        "safe-area-bottom": "34px",
+                        "page-margin": "24px",
+                        "element-gap": "12px",
+                        "row-padding": "16px"
+                    },
+                    "fontFamily": {
+                        "label-muted": ["Inter"],
+                        "body-main": ["Inter"],
+                        "screen-title": ["Inter"],
+                        "button-label": ["Inter"],
+                        "display-numeric": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-muted": ["13px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "body-main": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "screen-title": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "button-label": ["15px", {"lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "display-numeric": ["82px", {"lineHeight": "100%", "letterSpacing": "-0.04em", "fontWeight": "400"}],
+                        "currency": ["78px", {"lineHeight": "100%", "letterSpacing": "-0.04em", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #FDFCFB; }
+        .blinking-cursor {
+            display: inline-block;
+            width: 4px;
+            height: 70px;
+            background-color: #0000FF;
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+            margin-left: 8px;
+            border-radius: 2px;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-body-main text-on-surface antialiased bg-[#FDFCFB]">
+<!-- Top AppBar -->
+<header class="flex items-center justify-between px-page-margin py-row-padding sticky top-0 bg-[#FDFCFB] z-10">
+<button class="w-10 h-10 flex items-center justify-center -ml-2 text-on-surface hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined" style="font-variation-settings: &quot;wght&quot; 300;">arrow_back</span>
+</button>
+<div class="px-4 py-1.5 rounded-full bg-[#F4F5F6] flex items-center justify-between w-[151px]">
+<span class="font-label-muted text-label-muted text-on-surface">One-time order</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">expand_more</span>
+</div>
+<div class="w-10"></div> <!-- Spacer for center alignment -->
+</header>
+<!-- Segmented Control -->
+<div class="px-page-margin mt-element-gap">
+<div class="flex p-1 bg-[#F4F5F6] rounded-full mx-auto w-[220px]">
+<button class="flex-1 py-2 bg-[#1c1b1b] text-on-primary rounded-full font-button-label text-button-label shadow-sm transition-all">Buy</button>
+<button class="flex-1 py-2 text-on-surface-variant font-button-label text-button-label hover:text-on-surface transition-all">Sell</button>
+<button class="flex-1 py-2 text-on-surface-variant font-button-label text-button-label hover:text-on-surface transition-all">Convert</button>
+</div>
+</div>
+<!-- Main Input Area -->
+<main class="flex-1 flex flex-col px-page-margin pt-section-gap">
+<!-- Numerical Input -->
+<div class="flex flex-col items-center justify-center flex-1 min-h-[200px]">
+<div class="flex items-baseline justify-center relative">
+<span class="text-[84px] leading-none text-on-surface tracking-tighter">12</span>
+<div class="blinking-cursor"></div>
+<span class="text-[78px] leading-none tracking-tighter text-outline ml-4 font-normal">SGD</span>
+<span class="material-symbols-outlined text-[#0000FF] absolute -right-12 bottom-4" style="font-variation-settings: &quot;wght&quot; 300, &quot;FILL&quot; 1;">swap_vert</span>
+</div>
+<!-- Conversion Text -->
+<div class="mt-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px] text-[#0000FF]">swap_vert</span>
+<span class="font-body-main text-body-main text-[#0000FF] font-medium">0.00004884 BTC</span>
+</div>
+</div>
+<!-- Transaction Details Rows -->
+<div class="mt-section-gap">
+<!-- Pay with Row -->
+<div class="flex items-center gap-4 py-row-padding bg-[#FDFCFB]">
+<div class="w-12 h-12 rounded-full bg-[#F4F5F6] flex items-center justify-center shrink-0">
+<span class="font-button-label text-button-label text-on-surface">S$</span>
+</div>
+<div class="flex-1">
+<p class="font-label-muted text-label-muted text-on-surface-variant mb-0.5">Pay with</p>
+<p class="font-body-main text-body-main text-on-surface font-medium">SGD Wallet</p>
+</div>
+<div class="text-right flex items-center">
+<p class="font-body-main text-body-main text-on-surface mr-2">S$ 1,240.50</p>
+<span class="material-symbols-outlined text-[20px] text-on-surface-variant mt-1">chevron_right</span>
+</div>
+</div>
+<!-- Buy Row -->
+<div class="flex items-center gap-4 py-row-padding bg-[#FDFCFB]">
+<div class="w-12 h-12 rounded-full overflow-hidden shrink-0">
+<img alt="Bitcoin logo" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7">
+</div>
+<div class="flex-1">
+<p class="font-label-muted text-label-muted text-on-surface-variant mb-0.5">Buy</p>
+<p class="font-body-main text-body-main text-on-surface font-medium">Bitcoin</p>
+</div>
+<div class="text-right flex items-center">
+<span class="material-symbols-outlined text-[20px] text-on-surface-variant">chevron_right</span>
+</div>
+</div>
+</div>
+<!-- Button -->
+<div class="mt-8">
+<button class="w-full bg-[#0000FF] text-white py-4 rounded-full font-button-label text-button-label shadow-sm hover:opacity-90 transition-opacity active:scale-[0.98]">
+            Review order
+        </button>
+</div>
+<!-- Sparse Keypad -->
+<div class="grid grid-cols-3 gap-y-6 gap-x-4 mt-8 pb-12">
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">1</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">2</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">3</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">4</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">5</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">6</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">7</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">8</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">9</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">.</button>
+<button class="py-4 text-[38px] font-medium text-[#1c1b1b] hover:opacity-70 transition-opacity">0</button>
+<button class="py-4 flex justify-center items-center text-[#1c1b1b] hover:opacity-70 transition-opacity">
+<span class="material-symbols-outlined text-[38px]" style="font-variation-settings: &quot;wght&quot; 300;">backspace</span>
+</button>
+</div>
+</main>
+
+
+</body></html>

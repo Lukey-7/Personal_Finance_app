@@ -96,9 +96,14 @@ class SmsImporter(
                 )
                 val existing = repo.findLikelyDuplicate(candidate)
                 if (existing != null) {
-                    // Same payment reported by a second sender. Keep one record, but the richer of the two.
+                    // Same payment reported by a second sender, or a row imported by an older version whose
+                    // hash no longer matches. Keep one record: the richer of the two for the descriptive
+                    // fields, but always this parse's flow and category. We are holding the full SMS body,
+                    // whereas a row carried over from v1.0.0 only ever had a flow guessed from its category,
+                    // so a rescan is the moment a mis-filed card-bill payment or transfer gets corrected.
                     val best = repo.richer(existing, candidate)
-                    if (best !== existing) repo.update(best.copy(id = existing.id, smsHash = existing.smsHash))
+                    val merged = best.copy(id = existing.id, smsHash = existing.smsHash, flow = candidate.flow, category = candidate.category)
+                    if (merged != existing) repo.update(merged)
                     val why = if (candidate.refNumber != null && candidate.refNumber == existing.refNumber) "same_ref_${existing.id}" else "same_amount_within_10min_${existing.id}"
                     log.log(entry(Outcomes.DUPLICATE, why, p.amountPaise, p.type.name, existing.id))
                     return Outcome.DUPLICATE

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Boro - Market Assets</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface": "#1c1b1b",
+                        "inverse-on-surface": "#f3f0ef",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#4a4c4e",
+                        "surface-container": "#f1edec",
+                        "on-primary-container": "#b3b7ff",
+                        "on-primary-fixed-variant": "#0000ef",
+                        "surface-dim": "#dcd9d9",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "tertiary-fixed-dim": "#c5c6c8",
+                        "primary-fixed": "#e0e0ff",
+                        "background": "#fcf8f8",
+                        "primary-container": "#0000ff",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#171c22",
+                        "on-error": "#ffffff",
+                        "tertiary": "#333637",
+                        "surface-bright": "#fcf8f8",
+                        "inverse-primary": "#bec2ff",
+                        "outline-variant": "#c5c4db",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-container": "#5e636a",
+                        "on-background": "#1c1b1b",
+                        "tertiary-fixed": "#e1e2e4",
+                        "on-tertiary": "#ffffff",
+                        "primary-fixed-dim": "#bec2ff",
+                        "secondary": "#5a5f66",
+                        "on-tertiary-container": "#bbbcbe",
+                        "primary": "#0001bb",
+                        "outline": "#757589",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-error-container": "#93000a",
+                        "secondary-container": "#dbe0e8",
+                        "on-primary-fixed": "#00006e",
+                        "on-secondary-fixed-variant": "#42474e",
+                        "surface": "#fcf8f8",
+                        "surface-tint": "#343dff",
+                        "surface-container-low": "#f6f3f2",
+                        "secondary-fixed-dim": "#c2c7cf",
+                        "surface-container-high": "#ebe7e7",
+                        "secondary-fixed": "#dee3eb",
+                        "on-surface-variant": "#454558",
+                        "inverse-surface": "#313030",
+                        "surface-variant": "#e5e2e1",
+                        "surface-container-highest": "#e5e2e1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "section-gap": "48px",
+                        "safe-area-bottom": "34px",
+                        "page-margin": "24px",
+                        "element-gap": "12px",
+                        "row-padding": "16px"
+                    },
+                    "fontFamily": {
+                        "label-muted": ["Inter"],
+                        "body-main": ["Inter"],
+                        "screen-title": ["Inter"],
+                        "button-label": ["Inter"],
+                        "display-numeric": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-muted": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "body-main": ["16px", { "lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400" }],
+                        "screen-title": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "button-label": ["15px", { "lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "display-numeric": ["82px", { "lineHeight": "100%", "letterSpacing": "-0.04em", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-main antialiased min-h-screen flex flex-col items-center justify-start pb-safe-area-bottom">
+<!-- Top Navigation (Mobile Hidden, Web Visible) -->
+<header class="hidden md:flex justify-between items-center px-page-margin py-row-padding w-full max-w-2xl bg-background sticky top-0 z-40">
+<div class="flex items-center gap-element-gap">
+<div class="w-8 h-8 rounded-full border-[1.5px] border-primary flex items-center justify-center">
+<span class="font-button-label text-button-label text-primary uppercase">B</span>
+</div>
+<h1 class="font-screen-title text-screen-title text-primary font-semibold tracking-tight">Boro</h1>
+</div>
+<nav class="flex gap-element-gap">
+<a class="font-label-muted text-label-muted text-on-surface-variant hover:opacity-80 transition-opacity" href="#">Explore</a>
+<a class="font-label-muted text-label-muted text-on-surface-variant hover:opacity-80 transition-opacity" href="#">Markets</a>
+<a class="font-label-muted text-label-muted text-on-surface-variant hover:opacity-80 transition-opacity" href="#">Sign In</a>
+</nav>
+</header>
+<!-- Main Content Canvas -->
+<main class="w-full max-w-2xl flex-1 flex flex-col relative pb-[300px]">
+<!-- Cropped Action Circles Section (Top) -->
+<section class="flex gap-element-gap overflow-x-auto px-page-margin py-page-margin no-scrollbar snap-x">
+<!-- Card -->
+<div class="snap-start shrink-0 flex flex-col items-center gap-2">
+<div class="w-16 h-16 rounded-full bg-primary-container/10 flex items-center justify-center overflow-hidden border border-primary-container/20">
+<span class="material-symbols-outlined text-primary-container">credit_card</span>
+</div>
+<span class="font-label-muted text-label-muted text-on-surface">Card</span>
+</div>
+<!-- Earn -->
+<div class="snap-start shrink-0 flex flex-col items-center gap-2">
+<div class="w-16 h-16 rounded-full bg-primary-container/10 flex items-center justify-center overflow-hidden border border-primary-container/20">
+<span class="material-symbols-outlined text-primary-container">savings</span>
+</div>
+<span class="font-label-muted text-label-muted text-on-surface">Earn</span>
+</div>
+<!-- Wallet -->
+<div class="snap-start shrink-0 flex flex-col items-center gap-2">
+<div class="w-16 h-16 rounded-full bg-primary-container/10 flex items-center justify-center overflow-hidden border border-primary-container/20">
+<span class="material-symbols-outlined text-primary-container">account_balance_wallet</span>
+</div>
+<span class="font-label-muted text-label-muted text-on-surface">Wallet</span>
+</div>
+<!-- Recurring buys -->
+<div class="snap-start shrink-0 flex flex-col items-center gap-2">
+<div class="w-16 h-16 rounded-full bg-primary-container/10 flex items-center justify-center overflow-hidden border border-primary-container/20">
+<span class="material-symbols-outlined text-primary-container">update</span>
+</div>
+<span class="font-label-muted text-label-muted text-on-surface whitespace-nowrap">Recurring buys</span>
+</div>
+</section>
+<!-- Tabs & Search -->
+<section class="px-page-margin py-row-padding flex justify-between items-center sticky top-0 md:top-[72px] bg-background/90 backdrop-blur-sm z-30">
+<div class="flex gap-2">
+<button class="px-4 py-2 rounded-full bg-primary-container text-on-primary font-label-muted text-label-muted">Tradable</button>
+<button class="px-4 py-2 rounded-full bg-transparent text-secondary font-label-muted text-label-muted">All Assets</button>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-surface-container-low text-on-surface-variant">
+<span class="material-symbols-outlined">search</span>
+</button>
+</section>
+<!-- Asset List (Open Rows) -->
+<section class="flex flex-col px-page-margin">
+<!-- Asset Row: Bitcoin -->
+<div class="flex justify-between items-center py-row-padding border-b border-surface-variant/50">
+<div class="flex items-center gap-element-gap">
+<div class="w-10 h-10 rounded-full bg-[#F7931A]/10 flex items-center justify-center">
+<span class="font-button-label text-button-label text-[#F7931A]">B</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main text-on-surface">Bitcoin</span>
+<span class="font-label-muted text-label-muted text-secondary">BTC</span>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-body-main text-body-main text-on-surface">S$90,446.92</span>
+<span class="font-label-muted text-label-muted text-[#00C853]">+1.64%</span>
+</div>
+</div>
+<!-- Asset Row: Ethereum -->
+<div class="flex justify-between items-center py-row-padding border-b border-surface-variant/50">
+<div class="flex items-center gap-element-gap">
+<div class="w-10 h-10 rounded-full bg-[#627EEA]/10 flex items-center justify-center">
+<span class="font-button-label text-button-label text-[#627EEA]">E</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main text-on-surface">Ethereum</span>
+<span class="font-label-muted text-label-muted text-secondary">ETH</span>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-body-main text-body-main text-on-surface">S$3,593.24</span>
+<span class="font-label-muted text-label-muted text-[#00C853]">+3.96%</span>
+</div>
+</div>
+<!-- Asset Row: Tether -->
+<div class="flex justify-between items-center py-row-padding border-b border-surface-variant/50">
+<div class="flex items-center gap-element-gap">
+<div class="w-10 h-10 rounded-full bg-[#26A17B]/10 flex items-center justify-center">
+<span class="font-button-label text-button-label text-[#26A17B]">T</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main text-on-surface">Tether</span>
+<span class="font-label-muted text-label-muted text-secondary">USDT</span>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-body-main text-body-main text-on-surface">S$1.35</span>
+<span class="font-label-muted text-label-muted text-secondary">0.00%</span>
+</div>
+</div>
+<!-- Asset Row: Solana -->
+<div class="flex justify-between items-center py-row-padding">
+<div class="flex items-center gap-element-gap">
+<div class="w-10 h-10 rounded-full bg-[#00FFA3]/10 flex items-center justify-center">
+<span class="font-button-label text-button-label text-[#00FFA3]">S</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main text-on-surface">Solana</span>
+<span class="font-label-muted text-label-muted text-secondary">SOL</span>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-body-main text-body-main text-on-surface">S$194.50</span>
+<span class="font-label-muted text-label-muted text-[#00C853]">+5.21%</span>
+</div>
+</div>
+<div class="w-full flex justify-center py-section-gap">
+<img alt="Minimalist abstract dark texture" class="w-24 h-24 object-cover opacity-20 rounded-full" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+</div>
+</section>
+</main>
+<!-- Bottom Sign-Up Overlay -->
+<div class="fixed bottom-0 left-0 right-0 w-full flex justify-center z-50 pointer-events-none">
+<div class="w-full max-w-2xl bg-surface-container-lowest rounded-t-xl px-page-margin pt-section-gap pb-safe-area-bottom shadow-[0_-20px_40px_rgba(0,0,0,0.04)] pointer-events-auto border-t border-surface-variant/30 flex flex-col items-center gap-4">
+<button class="w-full max-w-md py-4 rounded-full bg-primary-container text-on-primary font-button-label text-button-label text-center transition-opacity hover:opacity-90">
+                Sign up
+            </button>
+<div class="flex w-full max-w-md gap-4">
+<button class="flex-1 py-4 rounded-full bg-surface-container-low text-on-surface font-button-label text-button-label flex items-center justify-center gap-2 border border-surface-variant/50 transition-opacity hover:bg-surface-variant/50">
+<svg class="w-5 h-5" fill="none" viewbox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"></path><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"></path><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"></path><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"></path></svg>
+                    Google
+                </button>
+<button class="flex-1 py-4 rounded-full bg-surface-container-low text-on-surface font-button-label text-button-label flex items-center justify-center border border-surface-variant/50 transition-opacity hover:bg-surface-variant/50">
+                    Sign in
+                </button>
+</div>
+</div>
+</div>
+</body></html>

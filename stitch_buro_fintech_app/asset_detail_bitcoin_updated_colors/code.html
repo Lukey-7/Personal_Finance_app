@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Bitcoin Price Detail - Boro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-primary-container": "#130002",
+                        "on-secondary-fixed": "#161c23",
+                        "tertiary-fixed": "#e1e2e4",
+                        "surface-variant": "#e5e2e1",
+                        "on-background": "#1c1b1b",
+                        "inverse-primary": "#ffb2bb",
+                        "on-primary-fixed": "#400011",
+                        "error-container": "#ffdad6",
+                        "outline": "#717785",
+                        "on-tertiary": "#ffffff",
+                        "secondary-fixed": "#dde3ed",
+                        "on-surface-variant": "#414753",
+                        "on-error": "#ffffff",
+                        "surface-container": "#f1edec",
+                        "primary-fixed-dim": "#ffb2bb",
+                        "primary": "#bd0043",
+                        "background": "#fcf8f8",
+                        "surface": "#fcf8f8",
+                        "error": "#ba1a1a",
+                        "on-primary-fixed-variant": "#910032",
+                        "on-tertiary-fixed": "#191c1e",
+                        "secondary-fixed-dim": "#c1c7d0",
+                        "secondary": "#595f67",
+                        "inverse-surface": "#313030",
+                        "inverse-on-surface": "#f3f0ef",
+                        "surface-tint": "#bd0044",
+                        "on-surface": "#1c1b1b",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#f6f3f2",
+                        "on-secondary-fixed-variant": "#41474f",
+                        "primary-fixed": "#ffd9dc",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#5c5e60",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-highest": "#e5e2e1",
+                        "surface-bright": "#fcf8f8",
+                        "on-tertiary-container": "#030506",
+                        "surface-dim": "#dcd9d9",
+                        "tertiary-container": "#757779",
+                        "on-secondary": "#ffffff",
+                        "secondary-container": "#dde3ed",
+                        "outline-variant": "#c1c6d5",
+                        "surface-container-high": "#ebe7e7",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "app-brand-blue": "#1275e2",
+                        "app-brand-blue-container": "#e7f1fc",
+                        "app-green": "#168A55"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "page-margin": "24px",
+                        "safe-area-bottom": "34px",
+                        "row-padding": "16px",
+                        "section-gap": "48px",
+                        "element-gap": "12px"
+                    },
+                    "fontFamily": {
+                        "display-numeric": ["Inter"],
+                        "button-label": ["Inter"],
+                        "body-main": ["Inter"],
+                        "label-muted": ["Inter"],
+                        "screen-title": ["Inter"]
+                    },
+                    "fontSize": {
+                        "display-numeric": ["82px", { "lineHeight": "100%", "letterSpacing": "-0.04em", "fontWeight": "400" }],
+                        "button-label": ["15px", { "lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-main": ["16px", { "lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400" }],
+                        "label-muted": ["13px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "screen-title": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #fcf8f8; }
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="text-on-background font-body-main antialiased pb-safe-area-bottom relative min-h-screen">
+<!-- Top Navigation -->
+<header class="flex items-center px-page-margin h-[52px] bg-transparent pt-8 pb-4 justify-between sticky top-0 z-40 bg-surface/90 backdrop-blur-md">
+<button class="hover:opacity-80 transition-all text-on-surface w-10 h-10 flex items-center justify-start">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</button>
+<div class="flex gap-4">
+<button class="hover:opacity-80 transition-all text-app-brand-blue w-10 h-10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]" style='font-variation-settings: "FILL" 1;'>star</span>
+</button>
+<button class="hover:opacity-80 transition-all text-on-surface w-10 h-10 flex items-center justify-end">
+<span class="material-symbols-outlined text-[24px]">ios_share</span>
+</button>
+</div>
+</header>
+<main class="flex flex-col w-full max-w-[393px] mx-auto overflow-hidden pb-40">
+<!-- Header Section -->
+<section class="px-page-margin pt-4 pb-section-gap flex flex-col gap-1">
+<div class="flex items-center gap-3 mb-2">
+<img alt="Bitcoin Logo" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+<h1 class="font-screen-title text-screen-title text-on-surface">Bitcoin</h1>
+</div>
+<!-- Financial Typography -->
+<div class="text-[38px] leading-tight font-medium tracking-tight text-on-surface mt-1">$78,451.51</div>
+<div class="text-[15px] font-medium text-app-green mt-1">+S$52,697.40 (108.28%)</div>
+</section>
+<!-- Chart Section -->
+<section class="w-full relative h-[240px] mb-8">
+<div class="absolute inset-0 w-full h-full">
+<svg fill="none" height="100%" preserveaspectratio="none" viewbox="0 0 393 240" width="100%" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<pattern height="6" id="dotPattern" patternunits="userSpaceOnUse" width="6" x="0" y="0">
+<circle cx="2" cy="2" fill="rgba(18, 117, 226, 0.1)" r="1"></circle>
+</pattern>
+</defs>
+<path d="M0 200 C 50 210, 80 150, 150 160 C 220 170, 280 80, 393 40 L 393 240 L 0 240 Z" fill="url(#dotPattern)"></path>
+<path d="M0 200 C 50 210, 80 150, 150 160 C 220 170, 280 80, 393 40" fill="none" stroke="#1275e2" stroke-linecap="round" stroke-width="2.5"></path>
+</svg>
+</div>
+<div class="absolute top-2 right-page-margin font-label-muted text-label-muted text-secondary">High: 104K</div>
+<div class="absolute bottom-2 left-page-margin font-label-muted text-label-muted text-secondary">Low: 48K</div>
+</section>
+<!-- Time Selector -->
+<section class="px-page-margin mb-section-gap">
+<div class="flex justify-between items-center bg-surface-container-low rounded-full p-1">
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">1H</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">1D</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">1W</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">1M</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-on-surface bg-surface-container-lowest shadow-sm rounded-full">1Y</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">All</button>
+</div>
+</section>
+<!-- Tabs -->
+<section class="px-page-margin flex border-b border-surface-variant mb-6">
+<button class="pb-3 mr-8 font-button-label text-button-label text-app-brand-blue border-b-2 border-app-brand-blue relative">
+                Balance
+            </button>
+<button class="pb-3 font-button-label text-button-label text-secondary hover:text-on-surface transition-colors">
+                Insights
+            </button>
+</section>
+<!-- Balance Section -->
+<section class="px-page-margin flex justify-between items-center mb-section-gap">
+<div class="flex flex-col gap-1">
+<div class="text-[28px] font-semibold text-on-surface">S$4.95</div>
+<div class="font-body-main text-body-main text-secondary">0.00004884 BTC</div>
+</div>
+<button class="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined">swap_horiz</span>
+</button>
+</section>
+<!-- Transactions Section -->
+<section class="px-page-margin flex flex-col gap-4">
+<h2 class="font-screen-title text-[20px] font-semibold text-on-surface mb-2">Transactions</h2>
+<div class="flex justify-between items-center py-row-padding">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined">arrow_downward</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main text-on-surface font-medium">Bought BTC</span>
+<span class="font-label-muted text-label-muted text-secondary">Jan 12 • Pending</span>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-body-main text-body-main text-on-surface font-medium">+0.00004884 BTC</span>
+<span class="font-label-muted text-label-muted text-secondary">S$4.95</span>
+</div>
+</div>
+</section>
+</main>
+<div class="fixed bottom-0 left-0 right-0 px-page-margin z-40 flex gap-4 bg-surface/70 backdrop-blur-md border-t border-outline-variant/20 py-4" style="padding-bottom: calc(env(safe-area-inset-bottom) + 80px);">
+<button class="flex-1 bg-app-brand-blue text-white font-button-label text-[16px] font-semibold py-4 rounded-full shadow-[0_8px_24px_rgba(18,117,226,0.2)] pointer-events-auto active:scale-95 transition-transform flex items-center justify-center gap-2">
+            Buy
+        </button>
+<button class="flex-1 bg-app-brand-blue-container text-app-brand-blue font-button-label text-[16px] font-semibold py-4 rounded-full pointer-events-auto active:scale-95 transition-transform flex items-center justify-center gap-2">
+            Deposit
+        </button>
+</div>
+<nav class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex justify-center items-center px-4 w-full max-w-xs">
+<div class="w-full rounded-full border border-outline-variant/30 shadow-[0_8px_32px_rgba(0,0,0,0.08)] flex items-center justify-around py-2 px-4 bg-surface-container-lowest/90 backdrop-blur-md">
+<button class="flex items-center justify-center text-on-surface-variant/70 w-12 h-12 hover:text-on-surface transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[28px]">home</span>
+</button>
+<button class="flex items-center justify-center text-app-brand-blue rounded-full w-12 h-12 transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[28px]" data-weight="fill">account_balance_wallet</span>
+</button>
+<button class="flex items-center justify-center text-on-surface-variant/70 w-12 h-12 hover:text-on-surface transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[28px]">swap_horiz</span>
+</button>
+<button class="flex items-center justify-center text-on-surface-variant/70 w-12 h-12 hover:text-on-surface transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[28px]">person</span>
+</button>
+</div>
+</nav>
+</body></html>

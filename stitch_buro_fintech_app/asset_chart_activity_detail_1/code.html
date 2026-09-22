@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Asset Details</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "surface": "#fcf8f8",
+                "on-primary-fixed-variant": "#464747",
+                "inverse-primary": "#c7c6c6",
+                "outline-variant": "#c4c7c7",
+                "background": "#fcf8f8",
+                "primary-fixed-dim": "#c7c6c6",
+                "on-error": "#ffffff",
+                "tertiary-container": "#1e1b1b",
+                "primary-container": "#1b1c1c",
+                "tertiary-fixed": "#e8e1e0",
+                "surface-tint": "#5e5e5e",
+                "on-primary-container": "#848483",
+                "on-tertiary-container": "#888382",
+                "on-background": "#1c1b1b",
+                "secondary-fixed-dim": "#b4c5ff",
+                "on-primary": "#ffffff",
+                "surface-container-highest": "#e5e2e1",
+                "error-container": "#ffdad6",
+                "on-secondary": "#ffffff",
+                "inverse-surface": "#313030",
+                "surface-bright": "#fcf8f8",
+                "surface-variant": "#e5e2e1",
+                "primary-fixed": "#e3e2e1",
+                "on-surface": "#1c1b1b",
+                "surface-dim": "#ddd9d8",
+                "error": "#ba1a1a",
+                "on-secondary-container": "#fefcff",
+                "secondary-container": "#2469ff",
+                "inverse-on-surface": "#f4f0ef",
+                "on-tertiary-fixed": "#1e1b1b",
+                "surface-container-lowest": "#ffffff",
+                "on-tertiary": "#ffffff",
+                "surface-container": "#f1edec",
+                "surface-container-low": "#f7f3f2",
+                "on-surface-variant": "#444747",
+                "on-error-container": "#93000a",
+                "on-secondary-fixed-variant": "#003da9",
+                "primary": "#000000",
+                "on-primary-fixed": "#1b1c1c",
+                "secondary-fixed": "#dbe1ff",
+                "tertiary-fixed-dim": "#ccc5c4",
+                "on-tertiary-fixed-variant": "#4a4646",
+                "surface-container-high": "#ebe7e7",
+                "on-secondary-fixed": "#00174c",
+                "secondary": "#0050d7",
+                "outline": "#747878",
+                "tertiary": "#000000"
+        },
+        "borderRadius": {
+                "DEFAULT": "1rem",
+                "lg": "2rem",
+                "xl": "3rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "lg": "48px",
+                "unit": "4px",
+                "gutter": "24px",
+                "xs": "8px",
+                "xl": "80px",
+                "container-margin": "40px",
+                "md": "24px",
+                "sm": "16px"
+        },
+        "fontFamily": {
+                "body-md": [
+                        "Inter"
+                ],
+                "numeric-data": [
+                        "Inter"
+                ],
+                "display-xl": [
+                        "Inter"
+                ],
+                "label-sm": [
+                        "Inter"
+                ],
+                "display-lg": [
+                        "Inter"
+                ],
+                "heading-md": [
+                        "Inter"
+                ],
+                "body-lg": [
+                        "Inter"
+                ]
+        },
+        "fontSize": {
+                "body-md": [
+                        "16px",
+                        {
+                                "lineHeight": "1.5",
+                                "letterSpacing": "0",
+                                "fontWeight": "400"
+                        }
+                ],
+                "numeric-data": [
+                        "24px",
+                        {
+                                "lineHeight": "1.0",
+                                "letterSpacing": "-0.055em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "display-xl": [
+                        "82px",
+                        {
+                                "lineHeight": "1.0",
+                                "letterSpacing": "-0.04em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "label-sm": [
+                        "12px",
+                        {
+                                "lineHeight": "1.0",
+                                "letterSpacing": "0.05em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "display-lg": [
+                        "60px",
+                        {
+                                "lineHeight": "1.1",
+                                "letterSpacing": "-0.03em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "heading-md": [
+                        "32px",
+                        {
+                                "lineHeight": "1.2",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "body-lg": [
+                        "18px",
+                        {
+                                "lineHeight": "1.6",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "400"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+    body {
+      background-color: #FDFCF9;
+    }
+  </style>
+</head>
+<body class="antialiased text-on-surface font-body-md h-screen w-full flex flex-col md:w-[393px] md:mx-auto relative">
+<!-- TopAppBar -->
+<header class="flex justify-between items-center w-full px-container-margin h-16 top-0 bg-surface dark:bg-background border-b border-outline-variant dark:border-on-primary-container/10">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary cursor-pointer hover:opacity-70 transition-opacity" data-icon="arrow_back">arrow_back</span>
+</div>
+<div class="font-heading-md text-heading-md font-bold tracking-tight text-primary dark:text-inverse-primary">
+      Boro
+    </div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary dark:text-inverse-primary cursor-pointer hover:opacity-70 transition-opacity" data-icon="more_vert">more_vert</span>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto pb-[100px]">
+<!-- Token Header -->
+<section class="px-container-margin mt-lg mb-md">
+<div class="flex items-center gap-sm mb-xs">
+<img alt="Token Icon" class="w-[34px] h-[34px] rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+<div class="flex flex-col">
+<span class="text-on-surface-variant text-label-sm font-label-sm">Boro Token</span>
+<span class="text-on-surface text-numeric-data font-numeric-data font-semibold">0.0278 BOR</span>
+</div>
+</div>
+</section>
+<!-- Chart Area -->
+<section class="w-full mb-md relative h-[200px] flex items-end">
+<!-- Minimal Chart Representation -->
+<svg class="w-full" fill="none" height="150" viewbox="0 0 393 150" width="100%" xmlns="http://www.w3.org/2000/svg">
+<path d="M0 130 C 50 140, 100 80, 150 90 C 200 100, 250 40, 300 50 C 350 60, 380 10, 393 0" fill="none" stroke="#000000" stroke-width="2.5"></path>
+</svg>
+</section>
+<!-- Time Selector -->
+<section class="px-container-margin mb-lg">
+<div class="flex gap-sm items-center">
+<button class="px-sm py-xs bg-surface-variant text-on-surface font-label-sm rounded-full font-semibold">1D</button>
+<button class="px-sm py-xs text-on-surface-variant font-label-sm rounded-full">1W</button>
+<button class="px-sm py-xs text-on-surface-variant font-label-sm rounded-full">1M</button>
+<button class="px-sm py-xs text-on-surface-variant font-label-sm rounded-full">1Y</button>
+<button class="px-sm py-xs text-on-surface-variant font-label-sm rounded-full">ALL</button>
+</div>
+</section>
+<!-- Info Rows -->
+<section class="px-container-margin mb-lg">
+<div class="flex justify-between items-center py-xs border-b border-outline-variant/30">
+<span class="text-on-surface-variant text-body-md font-body-md">Volume 24h</span>
+<span class="text-on-surface text-body-md font-body-md font-medium">$1.2M</span>
+</div>
+<div class="flex justify-between items-center py-xs border-b border-outline-variant/30">
+<span class="text-on-surface-variant text-body-md font-body-md">Mint Address</span>
+<span class="text-on-surface text-body-md font-body-md font-medium">0x12...89ab</span>
+</div>
+<div class="text-center mt-md">
+<button class="text-on-surface font-semibold text-body-lg flex items-center justify-center w-full gap-1">See more <span class="material-symbols-outlined text-[19px]">arrow_outward</span></button>
+</div>
+</section>
+<!-- Activity -->
+<section class="px-container-margin mb-xl">
+<h3 class="text-on-surface-variant text-body-lg font-body-lg mb-sm">Oct 3, 2025</h3>
+<div class="flex flex-col gap-sm">
+<!-- Row 1 -->
+<div class="flex items-center justify-between p-sm bg-[#F2F4F6] rounded-xl">
+<div class="flex items-center gap-sm">
+<div class="relative w-10 h-10">
+<img alt="Token" class="w-7 h-7 rounded-full absolute top-0 left-0 border border-surface" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+<div class="w-7 h-7 rounded-full absolute bottom-0 right-0 border border-surface bg-primary text-on-primary flex items-center justify-center text-[10px] font-bold">U</div>
+</div>
+<div class="flex flex-col">
+<span class="text-on-surface font-body-md font-medium">BOR → USDC</span>
+<span class="text-on-surface-variant text-label-sm">Swap</span>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[#000000] font-numeric-data text-[16px] font-medium">+15.50 USDC</span>
+<span class="text-on-surface-variant text-label-sm">-450 BOR</span>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="flex items-center justify-between p-sm bg-[#F2F4F6] rounded-xl">
+<div class="flex items-center gap-sm">
+<div class="relative w-10 h-10">
+<div class="w-7 h-7 rounded-full absolute top-0 left-0 border border-surface bg-primary text-on-primary flex items-center justify-center text-[10px] font-bold">U</div>
+<img alt="Token" class="w-7 h-7 rounded-full absolute bottom-0 right-0 border border-surface" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+</div>
+<div class="flex flex-col">
+<span class="text-on-surface font-body-md font-medium">USDC → BOR</span>
+<span class="text-on-surface-variant text-label-sm">Swap</span>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-[#000000] font-numeric-data text-[16px] font-medium">+320 BOR</span>
+<span class="text-on-surface-variant text-label-sm">-10.00 USDC</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-lg left-1/2 -translate-x-1/2 z-50 flex justify-between items-center px-sm py-xs bg-surface-container-low/90 dark:bg-surface-container/90 backdrop-blur-md rounded-full border border-outline-variant shadow-sm w-auto min-w-[320px] md:hidden">
+<div class="flex flex-col items-center justify-center p-3 text-on-surface-variant dark:text-outline cursor-pointer hover:bg-surface-variant/50 dark:hover:bg-on-primary-container/10 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-primary dark:bg-primary-fixed text-on-primary dark:text-on-primary-fixed rounded-full p-3 scale-90 transition-transform cursor-pointer hover:bg-surface-variant/50 dark:hover:bg-on-primary-container/10">
+<span class="material-symbols-outlined" data-icon="swap_horiz">swap_horiz</span>
+</div>
+<div class="flex flex-col items-center justify-center p-3 text-on-surface-variant dark:text-outline cursor-pointer hover:bg-surface-variant/50 dark:hover:bg-on-primary-container/10 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="insert_chart">insert_chart</span>
+</div>
+<div class="flex flex-col items-center justify-center p-3 text-on-surface-variant dark:text-outline cursor-pointer hover:bg-surface-variant/50 dark:hover:bg-on-primary-container/10 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</div>
+</nav>
+</body></html>

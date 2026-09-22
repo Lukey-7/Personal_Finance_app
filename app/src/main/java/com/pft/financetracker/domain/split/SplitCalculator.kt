@@ -36,17 +36,25 @@ object SplitCalculator {
      */
     fun byItem(items: List<BillItem>, extras: BillExtras, people: Int, payerIndex: Int): SplitResult {
         require(people > 0)
+        // Divide each item exactly, keeping the leftover paise aside rather than handing them to the
+        // payer item by item - doing that per item is what turned a clean 990/3 into 330.04 / 329.98 /
+        // 329.98. The pooled remainder is settled once at the end.
         val itemSubtotals = LongArray(people)
+        var pooledRemainder = 0L
         for (item in items) {
             val cost = item.pricePaise * item.quantity
             val who = item.assignedTo.filter { it in 0 until people }.ifEmpty { (0 until people).toList() }
-            val part = equal(cost, who.size, who.indexOf(payerIndex).takeIf { it >= 0 } ?: 0)
-            part.shares.forEach { s -> itemSubtotals[who[s.personIndex]] += s.amountPaise }
+            val each = Math.floorDiv(cost, who.size.toLong())
+            who.forEach { p -> itemSubtotals[p] += each }
+            pooledRemainder += cost - each * who.size
         }
         val itemsTotal = itemSubtotals.sum()
-        val total = itemsTotal + extras.netPaise
+        val total = itemsTotal + pooledRemainder + extras.netPaise
         if (itemsTotal == 0L) return equal(total, people, payerIndex)
-        val extrasSplit = proportional(extras.netPaise, itemSubtotals.toList(), payerIndex)
+
+        // Extras (tax, service, tip, less discount) ride along in proportion to what each person ate,
+        // and the pooled remainder rides with them, so the parts still add up to the exact total.
+        val extrasSplit = proportional(extras.netPaise + pooledRemainder, itemSubtotals.toList(), payerIndex)
         val shares = (0 until people).map { i -> PersonShare(i, itemSubtotals[i] + extrasSplit.shares[i].amountPaise) }
         return SplitResult(total, shares)
     }

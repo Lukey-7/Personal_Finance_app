@@ -209,7 +209,8 @@ object MerchantExtractor {
         // "to MERCHANT on", "paid to MERCHANT", "sent to MERCHANT", "transferred to MERCHANT"
         Regex("""\b(?:paid |sent |transferred |credited )?to\s+(?!your|ur|a/c|account|card)([A-Za-z0-9][A-Za-z0-9 .&'\-*]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
         // "towards MERCHANT", "for MERCHANT"
-        Regex("""\b(?:towards|for)\s+(?!rs|inr|₹|a/c|account|card)([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
+        // "your ..." is the customer's own account, never a payee: "towards your HDFC Credit Card XX3344".
+        Regex("""\b(?:towards|for)\s+(?!rs|inr|₹|a/c|account|card|your|ur\b|my\b)([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
         // Credits: "from MERCHANT", "by MERCHANT", "received from"
         Regex("""\b(?:from|by)\s+(?!your|ur|a/c|account|card|rs\.?\s*\d|inr\s*\d|₹)([A-Za-z0-9][A-Za-z0-9 .&'\-*@]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
     )

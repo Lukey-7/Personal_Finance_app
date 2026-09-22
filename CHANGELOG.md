@@ -28,10 +28,28 @@ Focus: numbers you can trust, a log of every SMS, and bill splitting with on-dev
 - Split equally, by shares, by custom amounts, or by item with tax/service/discount spread proportionally. All maths in paise; parts always add up to the total.
 - Only **your share** counts as your spend. If you paid, the matching SMS debit is trimmed to your share and the rest is tracked as owed to you. Balances, partial settlements, plain-text share sheet, CSV export.
 
+### Look and feel
+- Restyled to the Buro reference: warm off-white page, white cards separated by hairlines instead of
+  shadows, one saturated blue for anything actionable, and numbers as the hero element. Inter is
+  bundled (OFL).
+- Dashboard leads with the net-spend figure itself, with the arithmetic in a tonal panel below.
+- Pill chips and a floating pill bottom bar; transaction rows use tinted circular initials.
+
+### Housekeeping
+- **Clean up duplicates** in Settings finds the same payment stored twice - typically rows imported by
+  v1.0.0, before the app could tell that a bank and a UPI app were reporting one payment. It shows what
+  it would remove before anything is deleted.
+- Per-ABI APKs: arm64 is ~22 MB instead of ~68 MB. A universal APK is still produced for sideloading.
+
 ### Under the hood
 - Room schema v2 with a tested migration (no data loss). `fallbackToDestructiveMigration` removed.
 - New professional navy/teal theme; dynamic colour disabled for consistency.
-- AI summary (unchanged privacy model) now receives the corrected net figures.
+- AI summary (unchanged privacy model) now receives the corrected net figures, and *What would be sent?*
+  is available before you save a key.
+- By-item splits pool their rounding remainder once instead of per item, so a bill that divides evenly
+  now looks like it (990 across 3 is 330 each, not 330.04 / 329.98 / 329.98).
+- A captured bill photo is discarded whether or not recognition succeeds, and when the screen closes.
+- `FLAG_SECURE` is applied in release builds only, so debug builds can be screenshotted for docs.
 
 ## [1.0.0] - 2026-09-17
 

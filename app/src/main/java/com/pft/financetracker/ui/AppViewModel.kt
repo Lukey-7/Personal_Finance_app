@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.pft.financetracker.appContainer
 import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.data.local.SmsLogEntity
+import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.data.sms.ImportStats
 import com.pft.financetracker.domain.ai.OpenAiClient
 import com.pft.financetracker.domain.export.CsvExporter
@@ -149,6 +150,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setBudget(category: Category, limitPaise: Long) = viewModelScope.launch { c.budgets.set(category, limitPaise) }
+
+    // ---- Duplicate cleanup ----
+    private val _duplicates = MutableStateFlow<List<TransactionRepository.DuplicatePair>>(emptyList())
+    val duplicates: StateFlow<List<TransactionRepository.DuplicatePair>> = _duplicates
+
+    private val _scanningDuplicates = MutableStateFlow(false)
+    val scanningDuplicates: StateFlow<Boolean> = _scanningDuplicates
+
+    /** True once a sweep has run, so the UI can say "none found" rather than showing nothing at all. */
+    private val _duplicatesScanned = MutableStateFlow(false)
+    val duplicatesScanned: StateFlow<Boolean> = _duplicatesScanned
+
+    /** Look for the same payment stored twice. Nothing is deleted until [mergeDuplicates] is called. */
+    fun findDuplicates() {
+        if (_scanningDuplicates.value) return
+        _scanningDuplicates.value = true
+        viewModelScope.launch {
+            _duplicates.value = runCatching { c.transactions.findExistingDuplicates() }.getOrDefault(emptyList())
+            _duplicatesScanned.value = true
+            _scanningDuplicates.value = false
+        }
+    }
+
+    fun mergeDuplicates(onDone: (Int) -> Unit = {}) = viewModelScope.launch {
+        val pairs = _duplicates.value
+        c.transactions.mergeDuplicates(pairs)
+        _duplicates.value = emptyList()
+        onDone(pairs.size)
+    }
+
+    fun clearDuplicates() { _duplicates.value = emptyList(); _duplicatesScanned.value = false }
 
     // ---- SMS log ----
     suspend fun smsBody(e: SmsLogEntity): String? = withContext(Dispatchers.IO) { runCatching { c.importer.readBody(e.sender, e.receivedAt) }.getOrNull() }

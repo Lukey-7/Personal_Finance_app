@@ -40,9 +40,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.ui.AiUiState
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.components.money
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -104,6 +106,42 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
                 TextButton(onClick = onOpenSmsLog) { Text("Open SMS log: every message scanned and what happened to it") }
             }
 
+            Section("Clean up duplicates") {
+                Text(
+                    "Looks for the same payment stored twice - usually rows imported by an older version, before the app could spot a bank and a UPI app reporting one payment. Nothing is deleted until you confirm.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                val dupes by vm.duplicates.collectAsState()
+                val scanning by vm.scanningDuplicates.collectAsState()
+                val scanned by vm.duplicatesScanned.collectAsState()
+                OutlinedButton(onClick = { vm.findDuplicates() }, enabled = !scanning) {
+                    Text(if (scanning) "Scanning…" else "Find duplicates")
+                }
+                if (scanned && dupes.isEmpty() && !scanning) {
+                    Text("No duplicates found - every transaction looks distinct.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                }
+                if (dupes.isNotEmpty()) {
+                    val total = dupes.sumOf { it.amountPaise }
+                    Text(
+                        "${dupes.size} duplicate${if (dupes.size > 1) "s" else ""} worth ${money(total)} in total:",
+                        style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold
+                    )
+                    dupes.take(8).forEach { d ->
+                        Text(
+                            "• ${money(d.amountPaise)} ${d.keep.merchant} — keeping the ${d.keep.bankName ?: "first"} record, removing the ${d.drop.bankName ?: "other"} one",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    if (dupes.size > 8) Text("…and ${dupes.size - 8} more", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            vm.mergeDuplicates { n -> scope.launch { snackbar.showSnackbar("Removed $n duplicate transaction${if (n == 1) "" else "s"}") } }
+                        }) { Text("Remove ${dupes.size}") }
+                        TextButton(onClick = { vm.clearDuplicates() }) { Text("Cancel") }
+                    }
+                }
+            }
+
             Section("Calculation") {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -140,6 +178,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
                         TextButton(onClick = { vm.setApiKey(null); vm.clearAi() }) { Text("Remove key") }
                     }
                 } else {
+                    OutlinedButton(onClick = { showPayload = true }) { Text("What would be sent?") }
                     OutlinedTextField(
                         keyInput, { keyInput = it },
                         label = { Text("OpenAI API key (sk-...)") }, singleLine = true,

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Bitcoin Price Detail - Boro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {tertiary: "#5c5c5f", "primary-container": "#0074db", error: "#ba1a1a", "surface-container": "#ededf2", "on-tertiary-fixed": "#1b1b1e", "inverse-on-surface": "#f0f0f5", "on-secondary-fixed-variant": "#474746", "on-secondary-container": "#636262", "tertiary-fixed-dim": "#c7c6c9", "error-container": "#ffdad6", "on-tertiary-container": "#fefcff", "surface-container-low": "#f3f3f8", "secondary-container": "#e2dfde", secondary: "#5f5e5e", "surface-variant": "#e2e2e7", "on-surface": "#1a1c1f", "on-primary-fixed-variant": "#004689", "outline-variant": "#c0c6d6", "on-secondary": "#ffffff", "tertiary-container": "#747477", "surface-container-high": "#e8e8ed", outline: "#717785", "surface-container-lowest": "#ffffff", "surface-bright": "#f9f9fe", "on-surface-variant": "#404754", background: "#f9f9fe", "surface-dim": "#d9dade", "on-secondary-fixed": "#1c1b1b", "secondary-fixed-dim": "#c8c6c5", surface: "#f9f9fe", "inverse-primary": "#a8c8ff", "on-primary": "#ffffff", "secondary-fixed": "#e5e2e1", "primary-fixed-dim": "#a8c8ff", "on-error": "#ffffff", "on-tertiary": "#ffffff", "primary-fixed": "#d5e3ff", "inverse-surface": "#2e3034", "on-tertiary-fixed-variant": "#464649", primary: "#005baf", "surface-container-highest": "#e2e2e7", "on-background": "#1a1c1f", "on-primary-container": "#fefcff", "tertiary-fixed": "#e3e2e5", "on-primary-fixed": "#001b3c", "surface-tint": "#005eb3", "on-error-container": "#93000a", "app-orange": "#E35A20", "app-green": "#168A55"}, borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"}, spacing: {"page-margin": "24px", "safe-area-bottom": "34px", "row-padding": "16px", "section-gap": "40px", "element-gap": "12px", "stack-md": "16px", "stack-lg": "24px", "container-margin": "20px", gutter: "16px", unit: "4px", "stack-sm": "8px"}, fontFamily: {"display-numeric": ["Inter"], "button-label": ["Inter"], "body-main": ["Inter"], "label-muted": ["Inter"], "screen-title": ["Inter"], "title-sm": ["Inter"], "headline-md": ["Inter"], "body-base": ["Inter"], "display-lg": ["Inter"], "body-sm": ["Inter"], "label-caps": ["Inter"]}, fontSize: {"display-numeric": ["82px", {lineHeight: "100%", letterSpacing: "-0.04em", fontWeight: "400"}], "button-label": ["15px", {lineHeight: "20px", letterSpacing: "-0.01em", fontWeight: "600"}], "body-main": ["16px", {lineHeight: "24px", letterSpacing: "0", fontWeight: "400"}], "label-muted": ["13px", {lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "500"}], "screen-title": ["22px", {lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600"}], "title-sm": ["20px", {lineHeight: "25px", letterSpacing: "-0.005em", fontWeight: "600"}], "headline-md": ["28px", {lineHeight: "34px", letterSpacing: "-0.01em", fontWeight: "600"}], "body-base": ["17px", {lineHeight: "22px", letterSpacing: "-0.001em", fontWeight: "400"}], "display-lg": ["40px", {lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "600"}], "body-sm": ["15px", {lineHeight: "20px", fontWeight: "400"}], "label-caps": ["12px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}]}}}};</script>
+<style>
+        body { background-color: #FDFCFB; }
+        /* Hide scrollbar for clean iOS look */
+        ::-webkit-scrollbar { display: none; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="text-on-background font-body-main antialiased pb-safe-area-bottom relative min-h-screen">
+<!-- Top Navigation (Generated from JSON guidance, modified for specific screen intent) -->
+<!-- The user requested specific icons and no title, but we will use the semantic structure -->
+<header class="flex items-center px-page-margin h-[52px] bg-transparent pt-8 pb-4 justify-between sticky top-0 z-40 bg-[#FDFCFB]/90 backdrop-blur-md">
+<button class="hover:opacity-80 transition-all text-on-surface w-10 h-10 flex items-center justify-start">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</button>
+<div class="flex gap-4">
+<button class="hover:opacity-80 transition-all text-[#FF005E] w-10 h-10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]" style='font-variation-settings: "FILL" 1;'>star</span>
+</button>
+<button class="hover:opacity-80 transition-all text-on-surface w-10 h-10 flex items-center justify-end">
+<span class="material-symbols-outlined text-[24px]">ios_share</span>
+</button>
+</div>
+</header>
+<main class="flex flex-col w-full max-w-[393px] mx-auto overflow-hidden pb-40">
+<!-- Header Section -->
+<section class="px-page-margin pt-4 pb-section-gap flex flex-col gap-1">
+<div class="flex items-center gap-3 mb-2">
+<img alt="Bitcoin Logo" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+<h1 class="font-screen-title text-screen-title text-on-surface">Bitcoin</h1>
+</div>
+<!-- Financial Typography -->
+<div class="text-[38px] leading-tight font-medium tracking-tight text-on-surface mt-1">$78,451.51</div>
+<div class="text-[15px] font-medium text-app-green mt-1">+S$52,697.40 (108.28%)</div>
+</section>
+<!-- Chart Section -->
+<section class="w-full relative h-[240px] mb-8">
+<!-- Simplified abstract representation of chart -->
+<div class="absolute inset-0 w-full h-full">
+<!-- SVG Path imitating an upward trend in app-primary (#0000FF) -->
+<svg fill="none" height="100%" preserveaspectratio="none" viewbox="0 0 393 240" width="100%" xmlns="http://www.w3.org/2000/svg">
+<!-- Dotted fill pattern -->
+<defs>
+<pattern height="6" id="dotPattern" patternunits="userSpaceOnUse" width="6" x="0" y="0">
+<circle cx="2" cy="2" fill="rgba(255, 0, 94, 0.1)" r="1"></circle>
+</pattern>
+</defs>
+<path d="M0 200 C 50 210, 80 150, 150 160 C 220 170, 280 80, 393 40 L 393 240 L 0 240 Z" fill="url(#dotPattern)"></path>
+<!-- Main line -->
+<path d="M0 200 C 50 210, 80 150, 150 160 C 220 170, 280 80, 393 40" fill="none" stroke="#FF005E" stroke-linecap="round" stroke-width="2.5"></path>
+</svg>
+</div>
+<!-- Value Labels -->
+<div class="absolute top-2 right-page-margin font-label-muted text-label-muted text-secondary">High: 104K</div>
+<div class="absolute bottom-2 left-page-margin font-label-muted text-label-muted text-secondary">Low: 48K</div>
+</section>
+<!-- Time Selector -->
+<section class="px-page-margin mb-section-gap">
+<div class="flex justify-between items-center bg-surface-container-low rounded-full p-1">
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">1H</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">1D</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">1W</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">1M</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-on-surface bg-surface shadow-sm rounded-full">1Y</button>
+<button class="flex-1 py-2 font-label-muted text-label-muted text-secondary text-center rounded-full hover:bg-surface-variant transition-colors">All</button>
+</div>
+</section>
+<!-- Tabs -->
+<section class="px-page-margin flex border-b border-surface-variant mb-6">
+<button class="pb-3 mr-8 font-button-label text-button-label text-[#FF005E] border-b-2 border-[#FF005E] relative">
+                Balance
+            </button>
+<button class="pb-3 font-button-label text-button-label text-secondary hover:text-on-surface transition-colors">
+                Insights
+            </button>
+</section>
+<!-- Balance Section (Open Rows concept) -->
+<section class="px-page-margin flex justify-between items-center mb-section-gap">
+<div class="flex flex-col gap-1">
+<div class="text-[28px] font-semibold text-on-surface">S$4.95</div>
+<div class="font-body-main text-body-main text-secondary">0.00004884 BTC</div>
+</div>
+<button class="w-12 h-12 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined">swap_horiz</span>
+</button>
+</section>
+<!-- Transactions Section -->
+<section class="px-page-margin flex flex-col gap-4">
+<h2 class="font-screen-title text-[20px] font-semibold text-on-surface mb-2">Transactions</h2>
+<!-- Open Row for Transaction -->
+<div class="flex justify-between items-center py-row-padding">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-surface-container-low flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined">arrow_downward</span>
+</div>
+<div class="flex flex-col">
+<span class="font-body-main text-body-main text-on-surface font-medium">Bought BTC</span>
+<span class="font-label-muted text-label-muted text-secondary">Jan 12 • Pending</span>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-body-main text-body-main text-on-surface font-medium">+0.00004884 BTC</span>
+<span class="font-label-muted text-label-muted text-secondary">S$4.95</span>
+</div>
+</div>
+</section>
+</main><div class="fixed bottom-safe-area-bottom left-0 right-0 px-page-margin z-40 flex gap-4 bg-white/70 backdrop-blur-md border-t border-outline-variant/20 py-4" style="bottom: 0; padding-bottom: calc(env(safe-area-inset-bottom) + 80px);">
+<button class="flex-1 bg-[#FF005E] text-white font-button-label text-[16px] font-semibold py-4 rounded-full shadow-[0_8px_24px_rgba(255,0,94,0.2)] pointer-events-auto active:scale-95 transition-transform flex items-center justify-center gap-2">
+            Buy
+        </button>
+<button class="flex-1 bg-[#F4F6FF] text-[#FF005E] font-button-label text-[16px] font-semibold py-4 rounded-full pointer-events-auto active:scale-95 transition-transform flex items-center justify-center gap-2">
+            Deposit
+        </button>
+</div><nav class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex justify-center items-center px-4 w-full max-w-xs">
+<div class="w-full rounded-full border border-outline-variant/30 shadow-[0_8px_32px_rgba(0,0,0,0.08)] flex items-center justify-around py-2 px-4 bg-white/90 backdrop-blur-md">
+<button class="flex items-center justify-center text-on-surface-variant/70 w-12 h-12 hover:text-on-surface transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[28px]">home</span>
+</button>
+<button class="flex items-center justify-center text-[#FF005E] rounded-full w-12 h-12 transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[28px]" data-weight="fill">account_balance_wallet</span>
+</button>
+<button class="flex items-center justify-center text-on-surface-variant/70 w-12 h-12 hover:text-on-surface transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[28px]">swap_horiz</span>
+</button>
+<button class="flex items-center justify-center text-on-surface-variant/70 w-12 h-12 hover:text-on-surface transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[28px]">person</span>
+</button>
+</div>
+</nav>
+<!-- Sticky Actions Floating Above -->
+<!-- BottomNavBar (Generated from JSON) -->
+<!-- Destination count: 4, icons: ["home", "account_balance_wallet", "swap_horiz", "person"] -->
+<!-- We are highlighting the wallet/asset icon as we are looking at an asset detail, fitting the "Semantic Shell" mandate -->
+</body></html>
