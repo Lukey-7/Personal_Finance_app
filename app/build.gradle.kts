@@ -10,8 +10,8 @@ plugins {
 // Single source of truth for the version. Bump both for every release:
 //   versionCode: integer, +1 each release (Android uses it to decide what is an upgrade)
 //   versionName: semantic version MAJOR.MINOR.PATCH, matches the git tag vX.Y.Z
-val appVersionCode = 1
-val appVersionName = "1.0.0"
+val appVersionCode = 2
+val appVersionName = "1.1.0"
 
 // Release signing is read from keystore.properties (git-ignored). Without it, release falls back to the debug key.
 val keystoreProps = Properties().apply {
@@ -64,6 +64,14 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
+    sourceSets {
+        // Exported Room schemas as *debug* assets so MigrationTest (Robolectric reads the app's merged assets,
+        // not unit-test assets) can open a real v1 database and upgrade it. Release builds do not include them.
+        getByName("debug").assets.srcDir("$projectDir/schemas")
+    }
     applicationVariants.all {
         outputs.all {
             (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
@@ -98,7 +106,12 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.sqlcipher.android)
     implementation(libs.androidx.sqlite.ktx)
+    // On-device OCR for bill photos. Bundled model: ships in the APK, works offline, downloads nothing.
+    implementation(libs.mlkit.text.recognition)
 
     testImplementation(libs.junit)
+    testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.androidx.test.core)
+    testImplementation(libs.robolectric)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

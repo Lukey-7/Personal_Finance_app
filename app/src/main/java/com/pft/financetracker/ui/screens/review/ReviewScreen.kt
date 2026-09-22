@@ -54,7 +54,7 @@ fun ReviewScreen(vm: AppViewModel, onEnter: (Long) -> Unit, onBack: () -> Unit) 
                         }
                         Text(r.body, style = MaterialTheme.typography.bodySmall)
                         Text(
-                            "Reason: ${r.reason.replace('_', ' ')}" + (r.guessedAmount?.let { " · guessed ${money(it)}" } ?: "") + (r.guessedType?.let { " · $it" } ?: ""),
+                            "Reason: ${r.reason.replace('_', ' ')}" + (r.guessedAmountPaise?.let { " · guessed ${money(it)}" } ?: "") + (r.guessedType?.let { " · $it" } ?: ""),
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

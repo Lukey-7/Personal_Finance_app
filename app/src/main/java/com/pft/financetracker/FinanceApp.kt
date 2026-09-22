@@ -5,6 +5,8 @@ import android.content.Context
 import com.pft.financetracker.data.local.AppDatabase
 import com.pft.financetracker.data.prefs.SettingsRepository
 import com.pft.financetracker.data.repository.BudgetRepository
+import com.pft.financetracker.data.repository.SmsLogRepository
+import com.pft.financetracker.data.repository.SplitRepository
 import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.data.sms.SmsImporter
 import com.pft.financetracker.domain.parser.SmsParser
@@ -15,8 +17,10 @@ class AppContainer(context: Context) {
     val settings: SettingsRepository = SettingsRepository(context)
     val transactions: TransactionRepository = TransactionRepository(db.transactionDao(), db.reviewDao())
     val budgets: BudgetRepository = BudgetRepository(db.budgetDao())
+    val smsLog: SmsLogRepository = SmsLogRepository(db.smsLogDao())
+    val splits: SplitRepository = SplitRepository(db.splitDao())
     val parser: SmsParser = SmsParser()
-    val importer: SmsImporter = SmsImporter(context, parser, transactions, settings)
+    val importer: SmsImporter = SmsImporter(context, parser, transactions, smsLog, settings)
 }
 
 class FinanceApp : Application() {

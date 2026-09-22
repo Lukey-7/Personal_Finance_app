@@ -24,6 +24,7 @@ class SmsReceiver : BroadcastReceiver() {
         val sender = parts.first().displayOriginatingAddress ?: return
         if (!SmsReader.looksLikeServiceSender(sender)) return
         val body = parts.joinToString("") { it.messageBody ?: "" }
+        // timestampMillis is the operator's *sent* time; SmsReader uses DATE_SENT too, so hashes agree.
         val ts = parts.first().timestampMillis
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {

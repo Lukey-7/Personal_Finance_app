@@ -37,10 +37,11 @@ import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.TransactionRow
 import com.pft.financetracker.ui.components.dateOnly
+import com.pft.financetracker.ui.components.money
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Unit, onOpenReview: () -> Unit) {
+fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Unit, onOpenReview: () -> Unit, onOpenSmsLog: () -> Unit) {
     val txns by vm.transactions.collectAsState()
     val reviewCount by vm.reviewCount.collectAsState()
     var query by remember { mutableStateOf("") }
@@ -48,7 +49,7 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
 
     val filtered = txns.filter { t ->
         (filter == null || t.category == filter) &&
-            (query.isBlank() || t.merchant.contains(query, true) || (t.bankName ?: "").contains(query, true) || t.amount.toString().contains(query))
+            (query.isBlank() || t.merchant.contains(query, true) || (t.bankName ?: "").contains(query, true) || money(t.amountPaise).contains(query) || (t.refNumber ?: "").contains(query, true))
     }
     val grouped = filtered.groupBy { dateOnly(it.timestamp) }
 
@@ -59,6 +60,7 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
                     Badge { Text(reviewCount.toString()) }
                     Text("  Review")
                 }
+                TextButton(onClick = onOpenSmsLog) { Text("SMS log") }
             })
         },
         floatingActionButton = { FloatingActionButton(onClick = onAdd) { Icon(Icons.Filled.Add, "Add") } }

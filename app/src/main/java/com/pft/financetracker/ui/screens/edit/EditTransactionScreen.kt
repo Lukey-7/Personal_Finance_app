@@ -46,6 +46,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.categorize.Categorizer
 import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.Flow
+import com.pft.financetracker.domain.model.Money
+import com.pft.financetracker.domain.parser.FlowClassifier
+import com.pft.financetracker.ui.components.paiseToInput
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.ui.AppViewModel
@@ -60,6 +64,9 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
     var type by remember { mutableStateOf(TransactionType.DEBIT) }
     var category by remember { mutableStateOf(Category.OTHER) }
     var categoryTouched by remember { mutableStateOf(false) }
+    var flow by remember { mutableStateOf(Flow.EXPENSE) }
+    var flowTouched by remember { mutableStateOf(false) }
+    var refNumber by remember { mutableStateOf<String?>(null) }
     var bank by remember { mutableStateOf("") }
     var account by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
@@ -73,30 +80,32 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
     LaunchedEffect(id, reviewId) {
         if (id != null) vm.getTransaction(id)?.let { t ->
             existing = t
-            amount = if (t.amount % 1.0 == 0.0) t.amount.toLong().toString() else t.amount.toString()
+            amount = paiseToInput(t.amountPaise)
             merchant = t.merchant; type = t.type; category = t.category; categoryTouched = true
+            flow = t.flow; flowTouched = true; refNumber = t.refNumber
             bank = t.bankName ?: ""; account = t.accountRef ?: ""; note = t.note ?: ""; timestamp = t.timestamp; smsHash = t.smsHash
         }
         if (reviewId != null) vm.getReview(reviewId)?.let { r ->
             reviewBody = r.body
-            amount = r.guessedAmount?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: ""
+            amount = r.guessedAmountPaise?.let { paiseToInput(it) } ?: ""
             type = r.guessedType?.let { runCatching { TransactionType.valueOf(it) }.getOrNull() } ?: TransactionType.DEBIT
             timestamp = r.receivedAt; smsHash = r.smsHash; bank = r.sender
         }
         loaded = true
     }
 
-    // Auto-suggest category while the user has not picked one manually.
-    LaunchedEffect(merchant, type) {
+    // Auto-suggest category and flow while the user has not picked them manually.
+    LaunchedEffect(merchant, type, category) {
         if (!categoryTouched && merchant.length >= 3) category = Categorizer.categorize(merchant, type)
+        if (!flowTouched) flow = FlowClassifier.classify(type, reviewBody ?: "", merchant, category)
     }
 
-    val amountValue = amount.replace(",", "").toDoubleOrNull()
+    val amountValue = Money.parsePaise(amount)
     val valid = amountValue != null && amountValue > 0 && merchant.isNotBlank()
 
     fun build() = Transaction(
         id = existing?.id ?: 0,
-        amount = amountValue ?: 0.0,
+        amountPaise = amountValue ?: 0L,
         type = type,
         merchant = merchant.trim(),
         category = category,
@@ -104,8 +113,10 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
         bankName = bank.trim().ifBlank { null },
         accountRef = account.trim().takeLast(4).ifBlank { null },
         source = existing?.source ?: if (reviewId != null) Transaction.Source.SMS else Transaction.Source.MANUAL,
+        flow = flow,
         note = note.trim().ifBlank { null },
         smsHash = smsHash,
+        refNumber = refNumber,
         confidence = existing?.confidence ?: 100,
         needsReview = false,
     )
@@ -141,6 +152,23 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
                     FilterChip(selected = category == c, onClick = { category = c; categoryTouched = true }, label = { Text(c.label) })
                 }
             }
+            Text("Counts as", style = MaterialTheme.typography.labelLarge)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                val options = if (type == TransactionType.DEBIT) listOf(Flow.EXPENSE, Flow.TRANSFER, Flow.INVESTMENT, Flow.CASH, Flow.SETTLEMENT) else listOf(Flow.INCOME, Flow.REFUND, Flow.TRANSFER, Flow.INVESTMENT, Flow.SETTLEMENT)
+                options.forEach { f -> FilterChip(selected = flow == f, onClick = { flow = f; flowTouched = true }, label = { Text(f.label) }) }
+            }
+            Text(
+                when (flow) {
+                    Flow.EXPENSE -> "Counted in your spend."
+                    Flow.CASH -> "ATM cash. Counted in spend unless turned off in Settings."
+                    Flow.INCOME -> "Counted as income."
+                    Flow.REFUND -> "Reduces your spend (and the matching category)."
+                    Flow.TRANSFER -> "Money between your own accounts or a card bill payment. Not spend, not income."
+                    Flow.INVESTMENT -> "Shown separately. Not spend."
+                    Flow.SETTLEMENT -> "A friend paying you back for a split, or you paying them. Not spend, not income."
+                },
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             OutlinedButton(onClick = { showDate = true }, modifier = Modifier.fillMaxWidth()) { Text("Date: ${dateOnly(timestamp)}") }
             OutlinedTextField(bank, { bank = it }, label = { Text("Bank / app (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(account, { account = it.filter { ch -> ch.isDigit() }.take(4) }, label = { Text("Account last 4 (optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())

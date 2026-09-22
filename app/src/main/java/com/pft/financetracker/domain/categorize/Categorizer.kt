@@ -11,10 +11,6 @@ import java.util.Locale
 object Categorizer {
     fun categorize(merchant: String, type: TransactionType, bankName: String? = null): Category {
         val text = merchant.lowercase(Locale.ROOT)
-        if (type == TransactionType.CREDIT) {
-            // Credits default to income unless clearly a refund from a shop (still income for cashflow purposes).
-            return Category.INCOME
-        }
         var best: Category? = null
         var bestLen = 0
         for (cat in Category.entries) {
@@ -25,7 +21,8 @@ object Categorizer {
                 }
             }
         }
-        return best ?: Category.OTHER
+        // Credits with no better match are income; the Flow (refund vs salary) is decided by FlowClassifier.
+        return best ?: if (type == TransactionType.CREDIT) Category.INCOME else Category.OTHER
     }
 
     private fun containsWord(text: String, kw: String): Boolean {
