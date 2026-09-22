@@ -54,6 +54,10 @@ import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.dateOnly
+import androidx.compose.material3.TopAppBarDefaults
+import com.pft.financetracker.ui.components.CapsLabel
+import com.pft.financetracker.ui.components.PillChip
+import com.pft.financetracker.ui.components.SoftPanel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,20 +125,24 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
         needsReview = false,
     )
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text(if (existing != null) "Edit transaction" else if (reviewId != null) "Review SMS" else "Add transaction") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-            actions = { if (existing != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, "Delete") } }
-        )
-    }) { padding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text(if (existing != null) "Edit transaction" else if (reviewId != null) "Review SMS" else "Add transaction") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                actions = { if (existing != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, "Delete") } },
+            )
+        },
+    ) { padding ->
         if (!loaded) return@Scaffold
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             reviewBody?.let {
-                Card { Column(Modifier.padding(12.dp)) {
-                    Text("Original message", style = MaterialTheme.typography.labelLarge)
+                SoftPanel {
+                    CapsLabel("Original message")
                     Text(it, style = MaterialTheme.typography.bodySmall)
-                } }
+                }
             }
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 TransactionType.entries.forEachIndexed { i, t ->
@@ -149,13 +157,13 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
             Text("Category", style = MaterialTheme.typography.labelLarge)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Category.entries.forEach { c ->
-                    FilterChip(selected = category == c, onClick = { category = c; categoryTouched = true }, label = { Text(c.label) })
+                    PillChip(category == c, c.label) { category = c; categoryTouched = true }
                 }
             }
             Text("Counts as", style = MaterialTheme.typography.labelLarge)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 val options = if (type == TransactionType.DEBIT) listOf(Flow.EXPENSE, Flow.TRANSFER, Flow.INVESTMENT, Flow.CASH, Flow.SETTLEMENT) else listOf(Flow.INCOME, Flow.REFUND, Flow.TRANSFER, Flow.INVESTMENT, Flow.SETTLEMENT)
-                options.forEach { f -> FilterChip(selected = flow == f, onClick = { flow = f; flowTouched = true }, label = { Text(f.label) }) }
+                options.forEach { f -> PillChip(flow == f, f.label) { flow = f; flowTouched = true } }
             }
             Text(
                 when (flow) {

@@ -125,6 +125,10 @@ Open the project folder, let Gradle sync, then use **Build › Build APK(s)**.
 
 ### From the command line
 
+On a machine where the Gradle wrapper cannot reach `services.gradle.org`, use the helpers described in
+[docs/RUNNING.md](docs/RUNNING.md) (`build.cmd` on Windows, `build.sh` in Git Bash), which point Gradle at
+a local JDK 17 and Gradle 8.9. Otherwise the wrapper below works as normal.
+
 Create `local.properties` in the project root pointing at your SDK. This file is git-ignored.
 
 ```properties

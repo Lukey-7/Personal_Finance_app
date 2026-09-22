@@ -28,6 +28,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.PrimaryPill
 
 @Composable
 fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
@@ -51,8 +53,8 @@ fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
             style = MaterialTheme.typography.bodyLarge
         )
         Spacer(Modifier.height(20.dp))
-        Card {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        FinCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Why SMS permission?", style = MaterialTheme.typography.titleMedium)
                 Bullet("Reads only alphanumeric sender IDs (like VM-HDFCBK). Personal messages from phone numbers are skipped.")
                 Bullet("Stores only the parsed amount, merchant, date and last-4 account digits. Raw SMS text is not kept, except messages you choose to review.")
@@ -61,10 +63,7 @@ fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
             }
         }
         Spacer(Modifier.height(24.dp))
-        Button(
-            onClick = { launcher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) },
-            modifier = Modifier.fillMaxWidth()
-        ) { Text("Allow SMS access & import") }
+        PrimaryPill("Allow SMS access & import", onClick = { launcher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) })
         TextButton(onClick = { vm.setOnboarded(true); onDone() }, modifier = Modifier.fillMaxWidth()) {
             Text("Skip, I will add transactions manually")
         }

@@ -29,6 +29,10 @@ import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.TransactionRow
 import com.pft.financetracker.ui.components.money
+import androidx.compose.material3.TopAppBarDefaults
+import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.CapsLabel
 
 /** The list behind one number on the dashboard, with its total, so every figure can be checked by hand. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,16 +45,23 @@ fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: C
     val total = list.sumOf { it.amountPaise }
     val title = (category?.label ?: bucket.name.lowercase().replaceFirstChar { it.uppercase() }) + " · " + period.label
 
-    Scaffold(topBar = {
-        TopAppBar(title = { Text(title) }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
-    }) { padding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text(title) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            )
+        },
+    ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
-                Card(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text("${list.size} transactions", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FinCard(Modifier.padding(Gutter)) {
+                    Column {
+                        CapsLabel("${list.size} transactions")
                         Row(Modifier.fillMaxWidth()) {
-                            Text(money(total, decimals = true), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                            Text(money(total, decimals = true), style = MaterialTheme.typography.displaySmall)
                         }
                         Text("Sum of the amounts below. Tap any row to correct it; totals update immediately.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

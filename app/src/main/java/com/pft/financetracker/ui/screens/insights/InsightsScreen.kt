@@ -33,6 +33,10 @@ import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.BarChart
 import com.pft.financetracker.ui.components.money
+import androidx.compose.material3.TopAppBarDefaults
+import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.PillChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,17 +50,26 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit) {
     val trends = if (weekly) InsightsEngine.categoryTrends(txns, Periods.week(), Periods.week(-1)) else InsightsEngine.categoryTrends(txns, Periods.month(), Periods.month(-1))
     val suggestions = InsightsEngine.suggestions(txns, budgets)
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Insights") }, actions = { TextButton(onClick = onOpenBudgets) { Text("Budgets") } }) }) { padding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("Insights") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                actions = { TextButton(onClick = onOpenBudgets) { Text("Budgets") } },
+            )
+        },
+    ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !weekly, onClick = { weekly = false }, label = { Text("Monthly") })
-                    FilterChip(selected = weekly, onClick = { weekly = true }, label = { Text("Weekly") })
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PillChip(!weekly, "Monthly") { weekly = false }
+                    PillChip(weekly, "Weekly") { weekly = true }
                 }
             }
             item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
+                FinCard {
+                    Column {
                         Text("Net spending trend", style = MaterialTheme.typography.titleMedium)
                         Text("Expenses minus refunds. Transfers and investments excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
@@ -92,10 +105,15 @@ fun InsightCard(i: Insight) {
         Insight.Severity.GOOD -> MaterialTheme.colorScheme.primaryContainer
         Insight.Severity.INFO -> MaterialTheme.colorScheme.surfaceVariant
     }
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = container)) {
-        Column(Modifier.padding(14.dp)) {
-            Text(i.title, style = MaterialTheme.typography.titleSmall)
-            Text(i.body, style = MaterialTheme.typography.bodySmall)
+    Card(
+        Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = container),
+        elevation = CardDefaults.cardElevation(0.dp),
+    ) {
+        Column(Modifier.padding(18.dp)) {
+            Text(i.title, style = MaterialTheme.typography.titleMedium)
+            Text(i.body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -78,6 +78,9 @@ import com.pft.financetracker.ui.components.dateOnly
 import com.pft.financetracker.ui.components.money
 import com.pft.financetracker.ui.components.paiseToInput
 import java.io.File
+import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.PillChip
+import com.pft.financetracker.ui.components.PrimaryPill
 
 /** Editable item row state. Strings so the user can type freely; parsed on use. */
 private class ItemState(name: String, qty: Int, price: Long, assigned: Set<Int>) {
@@ -211,7 +214,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                 }
                 Text("Category for your share", style = MaterialTheme.typography.labelLarge)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Category.spendCategories.forEach { c -> FilterChip(selected = category == c, onClick = { category = c }, label = { Text(c.label) }) }
+                    Category.spendCategories.forEach { c -> PillChip(category == c, c.label) { category = c } }
                 }
             }
 
@@ -227,7 +230,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                         }
                         if (mode == SplitMode.BY_ITEM) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             people.forEachIndexed { pi, name ->
-                                FilterChip(selected = pi in it.assigned, onClick = { if (pi in it.assigned) it.assigned.remove(pi) else it.assigned.add(pi) }, label = { Text(name) })
+                                PillChip(pi in it.assigned, name) { if (pi in it.assigned) it.assigned.remove(pi) else it.assigned.add(pi) }
                             }
                             if (it.assigned.isEmpty()) Text("everyone", Modifier.padding(top = 10.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -271,7 +274,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                 }
                 Text("Who paid the bill?", style = MaterialTheme.typography.labelLarge)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    people.forEachIndexed { i, name -> FilterChip(selected = payer == i, onClick = { payer = i }, label = { Text(name) }) }
+                    people.forEachIndexed { i, name -> PillChip(payer == i, name) { payer = i } }
                 }
             }
 
@@ -328,10 +331,11 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Button(
+                PrimaryPill(
+                    text = "Save split",
                     enabled = result != null && people.size >= 2,
-                    onClick = {
-                        val r = result ?: return@Button
+                    onClick = onClick@{
+                        val r = result ?: return@onClick
                         val split = Split(
                             title = title.trim().ifBlank { "Split ${dateOnly(date)}" },
                             totalPaise = r.totalPaise, date = date, mode = mode, payerIndex = payer,
@@ -340,8 +344,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                         )
                         vm.saveSplit(split, billItems, category) { id -> vm.clearOcr(); onSaved(id) }
                     },
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Save split") }
+                )
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -359,10 +362,8 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
 
 @Composable
 private fun Section(title: String, content: @Composable () -> Unit) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            content()
-        }
+    FinCard {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        content()
     }
 }
