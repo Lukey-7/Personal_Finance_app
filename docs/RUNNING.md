@@ -58,7 +58,12 @@ build.cmd assembleDebug
 adb install -r app\build\outputs\apk\debug\FinTrack-v1.1.0-arm64-v8a-debug.apk
 ```
 
-The app then starts with that key already saved, and **Settings → Generate summary** works immediately.
+The app then starts with that key already saved, and **Settings → Generate summary** works immediately -
+no typing on the device.
+
+Verified end to end with throwaway keys: the key is picked up, the request reaches OpenAI, and the reply
+is surfaced verbatim (an invalid key comes back as *"Incorrect API key provided: sk-…"*). Rebuilding with
+a different key replaces the previous one.
 
 In PowerShell the first line is instead:
 
@@ -73,7 +78,8 @@ read it. That is an acceptable trade for a build that never leaves your machine,
 you share. So:
 
 - Release builds always compile `SEED_OPENAI_KEY` as `""`, whatever is in the environment.
-- The seed is applied only when no key has been saved yet, so it never overwrites one you entered.
+- The seed replaces a key a **previous build** seeded, so rebuilding with a different key takes effect
+  without clearing app data. A key you typed into Settings yourself is never overwritten.
 - The key is never logged, and `OpenAiClient` already strips anything resembling a key from error text.
 - Do not send anyone a debug APK built this way. Use the release APKs for that.
 
