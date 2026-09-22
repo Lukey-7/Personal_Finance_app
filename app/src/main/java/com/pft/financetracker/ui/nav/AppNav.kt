@@ -2,10 +2,10 @@ package com.pft.financetracker.ui.nav
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.CallSplit
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -27,26 +27,41 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.pft.financetracker.domain.insights.InsightsEngine
+import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.screens.budgets.BudgetsScreen
 import com.pft.financetracker.ui.screens.dashboard.DashboardScreen
+import com.pft.financetracker.ui.screens.drilldown.DrillDownScreen
 import com.pft.financetracker.ui.screens.edit.EditTransactionScreen
 import com.pft.financetracker.ui.screens.insights.InsightsScreen
 import com.pft.financetracker.ui.screens.onboarding.OnboardingScreen
 import com.pft.financetracker.ui.screens.review.ReviewScreen
 import com.pft.financetracker.ui.screens.settings.SettingsScreen
+import com.pft.financetracker.ui.screens.smslog.SmsLogScreen
+import com.pft.financetracker.ui.screens.split.NewSplitScreen
+import com.pft.financetracker.ui.screens.split.SplitDetailScreen
+import com.pft.financetracker.ui.screens.split.SplitHomeScreen
 import com.pft.financetracker.ui.screens.transactions.TransactionsScreen
 
 object Routes {
     const val ONBOARDING = "onboarding"
     const val HOME = "home"
     const val TRANSACTIONS = "transactions"
+    const val SPLIT = "split"
     const val INSIGHTS = "insights"
-    const val BUDGETS = "budgets"
     const val SETTINGS = "settings"
+    const val BUDGETS = "budgets"
     const val REVIEW = "review"
+    const val SMS_LOG = "smslog?runId={runId}"
+    fun smsLog(runId: Long? = null) = "smslog?runId=${runId ?: -1}"
     const val EDIT = "edit?id={id}&reviewId={reviewId}"
     fun edit(id: Long? = null, reviewId: Long? = null) = "edit?id=${id ?: -1}&reviewId=${reviewId ?: -1}"
+    const val DRILL = "drill/{bucket}?category={category}"
+    fun drill(bucket: InsightsEngine.Bucket, category: Category? = null) = "drill/${bucket.name}?category=${category?.name ?: ""}"
+    const val NEW_SPLIT = "split/new"
+    const val SPLIT_DETAIL = "split/{id}"
+    fun splitDetail(id: Long) = "split/$id"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -54,8 +69,8 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 private val tabs = listOf(
     Tab(Routes.HOME, "Home", Icons.Filled.Home),
     Tab(Routes.TRANSACTIONS, "Activity", Icons.AutoMirrored.Filled.List),
+    Tab(Routes.SPLIT, "Split", Icons.Filled.CallSplit),
     Tab(Routes.INSIGHTS, "Insights", Icons.Filled.Insights),
-    Tab(Routes.BUDGETS, "Budgets", Icons.Filled.Savings),
     Tab(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
 )
 
@@ -109,7 +124,9 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                     onEdit = { nav.navigate(Routes.edit(id = it)) },
                     onOpenReview = { nav.navigate(Routes.REVIEW) },
                     onOpenTransactions = { nav.navigate(Routes.TRANSACTIONS) },
-                    onOpenInsights = { nav.navigate(Routes.INSIGHTS) },
+                    onOpenBudgets = { nav.navigate(Routes.BUDGETS) },
+                    onOpenSmsLog = { nav.navigate(Routes.smsLog(it)) },
+                    onDrill = { bucket, cat -> nav.navigate(Routes.drill(bucket, cat)) },
                 )
             }
             composable(Routes.TRANSACTIONS) {
@@ -118,13 +135,34 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                     onAdd = { nav.navigate(Routes.edit()) },
                     onEdit = { nav.navigate(Routes.edit(id = it)) },
                     onOpenReview = { nav.navigate(Routes.REVIEW) },
+                    onOpenSmsLog = { nav.navigate(Routes.smsLog()) },
                 )
             }
-            composable(Routes.INSIGHTS) { InsightsScreen(vm) }
-            composable(Routes.BUDGETS) { BudgetsScreen(vm) }
-            composable(Routes.SETTINGS) { SettingsScreen(vm) }
+            composable(Routes.SPLIT) {
+                SplitHomeScreen(vm, onNew = { nav.navigate(Routes.NEW_SPLIT) }, onOpen = { nav.navigate(Routes.splitDetail(it)) })
+            }
+            composable(Routes.NEW_SPLIT) {
+                NewSplitScreen(vm, onBack = { nav.popBackStack() }, onSaved = { id -> nav.navigate(Routes.splitDetail(id)) { popUpTo(Routes.SPLIT) } })
+            }
+            composable(Routes.SPLIT_DETAIL, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                SplitDetailScreen(vm, entry.arguments?.getLong("id") ?: -1L, onBack = { nav.popBackStack() }, onOpenTransaction = { nav.navigate(Routes.edit(id = it)) })
+            }
+            composable(Routes.INSIGHTS) { InsightsScreen(vm, onOpenBudgets = { nav.navigate(Routes.BUDGETS) }) }
+            composable(Routes.BUDGETS) { BudgetsScreen(vm, onBack = { nav.popBackStack() }) }
+            composable(Routes.SETTINGS) { SettingsScreen(vm, onOpenSmsLog = { nav.navigate(Routes.smsLog()) }) }
             composable(Routes.REVIEW) {
                 ReviewScreen(vm, onEnter = { nav.navigate(Routes.edit(reviewId = it)) }, onBack = { nav.popBackStack() })
+            }
+            composable(Routes.SMS_LOG, arguments = listOf(navArgument("runId") { type = NavType.LongType; defaultValue = -1L })) { entry ->
+                SmsLogScreen(vm, runId = entry.arguments?.getLong("runId")?.takeIf { it > 0 }, onBack = { nav.popBackStack() }, onOpenTransaction = { nav.navigate(Routes.edit(id = it)) }, onOpenReview = { nav.navigate(Routes.REVIEW) })
+            }
+            composable(
+                Routes.DRILL,
+                arguments = listOf(navArgument("bucket") { type = NavType.StringType }, navArgument("category") { type = NavType.StringType; defaultValue = "" })
+            ) { entry ->
+                val bucket = runCatching { InsightsEngine.Bucket.valueOf(entry.arguments?.getString("bucket") ?: "") }.getOrDefault(InsightsEngine.Bucket.ALL)
+                val cat = entry.arguments?.getString("category")?.takeIf { it.isNotEmpty() }?.let { Category.fromName(it) }
+                DrillDownScreen(vm, bucket, cat, onBack = { nav.popBackStack() }, onEdit = { nav.navigate(Routes.edit(id = it)) })
             }
             composable(
                 Routes.EDIT,
@@ -135,7 +173,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             ) { entry ->
                 val id = entry.arguments?.getLong("id")?.takeIf { it >= 0 }
                 val reviewId = entry.arguments?.getLong("reviewId")?.takeIf { it >= 0 }
-                EditTransactionScreen(vm, id = id, reviewId = reviewId, onBack = { nav.popBackStack() })
+                EditTransactionScreen(vm, id, reviewId) { nav.popBackStack() }
             }
         }
     }

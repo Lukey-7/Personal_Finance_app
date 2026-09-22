@@ -2,6 +2,7 @@ package com.pft.financetracker.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.ui.theme.CategoryColors
 
-data class Slice(val label: String, val value: Double, val color: Color)
+data class Slice(val label: String, val value: Double, val color: Color, val category: com.pft.financetracker.domain.model.Category? = null)
 
 fun colorFor(index: Int): Color = CategoryColors[index % CategoryColors.size]
 
@@ -56,11 +57,12 @@ fun DonutChart(slices: List<Slice>, modifier: Modifier = Modifier, centerText: S
 }
 
 @Composable
-fun Legend(slices: List<Slice>, modifier: Modifier = Modifier) {
+fun Legend(slices: List<Slice>, modifier: Modifier = Modifier, onClick: ((com.pft.financetracker.domain.model.Category) -> Unit)? = null) {
     val total = slices.sumOf { it.value }.takeIf { it > 0 } ?: 1.0
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         slices.forEach { s ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            val rowMod = if (onClick != null && s.category != null) Modifier.clickable { onClick(s.category) } else Modifier
+            Row(rowMod, verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(10.dp).background(s.color, CircleShape))
                 Spacer(Modifier.width(8.dp))
                 Text(s.label, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)

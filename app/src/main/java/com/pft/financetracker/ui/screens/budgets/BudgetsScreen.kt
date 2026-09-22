@@ -12,6 +12,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -40,22 +44,22 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BudgetsScreen(vm: AppViewModel) {
+fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
     val txns by vm.transactions.collectAsState()
     val budgets by vm.budgets.collectAsState()
     val summary = InsightsEngine.summarize(txns, Periods.month())
     var editing by remember { mutableStateOf<Category?>(null) }
     var input by remember { mutableStateOf("") }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Budgets · ${summary.period.label}") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("Budgets · ${summary.period.label}") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Text("Tap a category to set a monthly limit. Alerts show when you cross it.", style = MaterialTheme.typography.bodyMedium) }
             items(Category.spendCategories) { cat ->
-                val limit = budgets.firstOrNull { it.category == cat }?.monthlyLimit
-                val spent = summary.byCategory.firstOrNull { it.category == cat }?.amount ?: 0.0
-                val frac = if (limit != null && limit > 0) (spent / limit).toFloat() else 0f
+                val limit = budgets.firstOrNull { it.category == cat }?.monthlyLimitPaise
+                val spent = summary.byCategory.firstOrNull { it.category == cat }?.amountPaise ?: 0L
+                val frac = if (limit != null && limit > 0) (spent.toDouble() / limit).toFloat() else 0f
                 val over = limit != null && spent > limit
-                Card(Modifier.fillMaxWidth().clickable { editing = cat; input = limit?.roundToInt()?.toString() ?: "" }) {
+                Card(Modifier.fillMaxWidth().clickable { editing = cat; input = limit?.let { (it / 100).toString() } ?: "" }) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(cat.label, style = MaterialTheme.typography.titleSmall)
@@ -86,7 +90,7 @@ fun BudgetsScreen(vm: AppViewModel) {
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true
                 )
             },
-            confirmButton = { TextButton(onClick = { vm.setBudget(cat, input.toDoubleOrNull() ?: 0.0); editing = null }) { Text("Save") } },
+            confirmButton = { TextButton(onClick = { vm.setBudget(cat, (input.toLongOrNull() ?: 0L) * 100); editing = null }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { editing = null }) { Text("Cancel") } }
         )
     }

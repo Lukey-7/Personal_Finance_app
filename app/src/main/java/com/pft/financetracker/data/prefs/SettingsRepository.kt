@@ -40,6 +40,14 @@ class SettingsRepository(context: Context) {
     private val _autoImport = MutableStateFlow(plain.getBoolean(KEY_AUTO_IMPORT, true))
     val autoImport: StateFlow<Boolean> = _autoImport
 
+    /** Whether ATM / cash withdrawals count towards "spend". Default on: cash out is usually spent. */
+    private val _countCashAsSpend = MutableStateFlow(plain.getBoolean(KEY_CASH_SPEND, true))
+    val countCashAsSpend: StateFlow<Boolean> = _countCashAsSpend
+
+    /** Display name used for "me" in bill splits. */
+    private val _myName = MutableStateFlow(plain.getString(KEY_MY_NAME, "Me") ?: "Me")
+    val myName: StateFlow<String> = _myName
+
     init {
         _hasApiKey.value = runCatching { !secure.getString(KEY_API, null).isNullOrBlank() }.getOrDefault(false)
     }
@@ -56,6 +64,8 @@ class SettingsRepository(context: Context) {
     fun setOnboarded(v: Boolean) { plain.edit().putBoolean(KEY_ONBOARDED, v).apply(); _onboarded.value = v }
     fun setLastImportAt(t: Long) { plain.edit().putLong(KEY_LAST_IMPORT, t).apply(); _lastImportAt.value = t }
     fun setAutoImport(v: Boolean) { plain.edit().putBoolean(KEY_AUTO_IMPORT, v).apply(); _autoImport.value = v }
+    fun setCountCashAsSpend(v: Boolean) { plain.edit().putBoolean(KEY_CASH_SPEND, v).apply(); _countCashAsSpend.value = v }
+    fun setMyName(v: String) { val n = v.trim().ifBlank { "Me" }; plain.edit().putString(KEY_MY_NAME, n).apply(); _myName.value = n }
 
     fun clearAll() {
         runCatching { secure.edit().clear().apply() }
@@ -64,6 +74,8 @@ class SettingsRepository(context: Context) {
         _onboarded.value = false
         _lastImportAt.value = 0L
         _autoImport.value = true
+        _countCashAsSpend.value = true
+        _myName.value = "Me"
     }
 
     private companion object {
@@ -71,5 +83,7 @@ class SettingsRepository(context: Context) {
         const val KEY_ONBOARDED = "onboarded"
         const val KEY_LAST_IMPORT = "last_import_at"
         const val KEY_AUTO_IMPORT = "auto_import"
+        const val KEY_CASH_SPEND = "cash_as_spend"
+        const val KEY_MY_NAME = "my_name"
     }
 }

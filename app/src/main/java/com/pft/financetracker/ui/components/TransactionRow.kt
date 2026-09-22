@@ -20,10 +20,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.Income
+import com.pft.financetracker.ui.theme.Neutral
+
+/** Money colour by meaning: red = spend, green = income/refund, grey = moved between your own pockets. */
+fun flowColor(t: Transaction) = when (t.flow) {
+    Flow.EXPENSE, Flow.CASH -> Expense
+    Flow.INCOME, Flow.REFUND -> Income
+    Flow.TRANSFER, Flow.INVESTMENT, Flow.SETTLEMENT -> Neutral
+}
 
 @Composable
 fun TransactionRow(t: Transaction, onClick: () -> Unit) {
@@ -38,8 +47,9 @@ fun TransactionRow(t: Transaction, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(t.merchant, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val flowTag = if (t.flow != Flow.EXPENSE && t.flow != Flow.INCOME) t.flow.label else null
             Text(
-                listOfNotNull(t.category.label, t.bankName, t.accountRef?.let { "••$it" }, shortDate(t.timestamp)).joinToString(" · "),
+                listOfNotNull(flowTag, t.category.label, t.bankName, t.accountRef?.let { "••$it" }, shortDate(t.timestamp)).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -48,10 +58,10 @@ fun TransactionRow(t: Transaction, onClick: () -> Unit) {
         Spacer(Modifier.width(8.dp))
         val sign = if (t.type == TransactionType.CREDIT) "+" else "-"
         Text(
-            sign + money(t.amount),
+            sign + money(t.amountPaise),
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.SemiBold,
-            color = if (t.type == TransactionType.CREDIT) Income else Expense
+            color = flowColor(t)
         )
     }
 }

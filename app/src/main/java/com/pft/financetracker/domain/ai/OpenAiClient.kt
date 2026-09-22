@@ -1,6 +1,5 @@
 package com.pft.financetracker.domain.ai
 
-import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.PeriodSummary
 import com.pft.financetracker.domain.model.Budget
 import kotlinx.coroutines.Dispatchers
@@ -31,10 +30,14 @@ class OpenAiClient(private val model: String = "gpt-4o-mini") {
         val o = JSONObject()
         o.put("currency", "INR")
         o.put("period", current.period.label)
-        o.put("total_spend", current.spend.roundToInt())
+        // Net figures: expenses minus refunds. Transfers, card-bill payments and investments are excluded.
+        o.put("net_spend", current.spend.roundToInt())
+        o.put("gross_spend", Math.round(current.grossSpendPaise / 100.0))
+        o.put("refunds", Math.round(current.refundsPaise / 100.0))
         o.put("total_income", current.income.roundToInt())
-        o.put("transaction_count", current.count)
-        o.put("previous_period_spend", previous.spend.roundToInt())
+        o.put("investments", Math.round(current.investmentsPaise / 100.0))
+        o.put("transaction_count", current.expenseCount)
+        o.put("previous_period_net_spend", previous.spend.roundToInt())
         val cats = JSONArray()
         current.byCategory.forEach { cs ->
             val prev = previous.byCategory.firstOrNull { it.category == cs.category }?.amount ?: 0.0
@@ -93,7 +96,4 @@ class OpenAiClient(private val model: String = "gpt-4o-mini") {
     /** Make sure an error string can never echo the key back into the UI. */
     private fun sanitize(s: String) = s.replace(Regex("""sk-[A-Za-z0-9_\-]{8,}"""), "sk-***")
 
-    companion object {
-        fun fmt(v: Double) = InsightsEngine.fmt(v)
-    }
 }

@@ -11,3 +11,4 @@
 *.keystore
 *.jks
 keystore.properties
+build.sh

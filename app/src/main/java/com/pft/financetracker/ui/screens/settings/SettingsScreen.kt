@@ -52,12 +52,16 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: AppViewModel) {
+fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     val hasKey by vm.hasApiKey.collectAsState()
     val autoImport by vm.autoImport.collectAsState()
+    val cashAsSpend by vm.countCashAsSpend.collectAsState()
+    val myName by vm.myName.collectAsState()
+    var nameInput by remember(myName) { mutableStateOf(myName) }
+    var exportingSplits by remember { mutableStateOf(false) }
     val aiState by vm.aiState.collectAsState()
     var keyInput by remember { mutableStateOf("") }
     var showPayload by remember { mutableStateOf(false) }
@@ -72,7 +76,7 @@ fun SettingsScreen(vm: AppViewModel) {
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
-            val csv = vm.exportCsv()
+            val csv = if (exportingSplits) vm.exportSplitsCsv() else vm.exportCsv()
             val ok = withContext(Dispatchers.IO) {
                 runCatching { ctx.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray(Charsets.UTF_8)) } }.isSuccess
             }
@@ -97,6 +101,30 @@ fun SettingsScreen(vm: AppViewModel) {
                         OutlinedButton(onClick = { vm.scanInbox(full = true) }) { Text("Rescan last 12 months") }
                     }
                 }
+                TextButton(onClick = onOpenSmsLog) { Text("Open SMS log: every message scanned and what happened to it") }
+            }
+
+            Section("Calculation") {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Count ATM cash as spend")
+                        Text("Off: cash withdrawals are shown separately and left out of spend totals.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = cashAsSpend, onCheckedChange = { vm.setCountCashAsSpend(it) })
+                }
+                Text("Spend = expenses minus refunds. Transfers between your accounts, credit-card bill payments, investments and split settlements are never counted. Tap any number on the Home tab to see the transactions behind it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Section("Bill splits") {
+                OutlinedTextField(nameInput, { nameInput = it }, label = { Text("Your name in splits") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { vm.setMyName(nameInput) }, enabled = nameInput.trim() != myName) { Text("Save name") }
+                    OutlinedButton(onClick = {
+                        exportingSplits = true
+                        exportLauncher.launch("fintrack-splits-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ENGLISH).format(Date()) + ".csv")
+                    }) { Text("Export splits CSV") }
+                }
+                Text("Bill photos are read on this phone with an offline text recogniser and are not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             Section("AI monthly summary (optional)") {
@@ -133,6 +161,7 @@ fun SettingsScreen(vm: AppViewModel) {
                 Text("All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting.", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = {
+                        exportingSplits = false
                         val name = "fintrack-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ENGLISH).format(Date()) + ".csv"
                         exportLauncher.launch(name)
                     }) { Text("Export CSV") }
@@ -153,7 +182,7 @@ fun SettingsScreen(vm: AppViewModel) {
     if (confirmClear) AlertDialog(
         onDismissRequest = { confirmClear = false },
         title = { Text("Delete everything?") },
-        text = { Text("All transactions, budgets, review items and the saved API key will be permanently erased from this device.") },
+        text = { Text("All transactions, budgets, splits, the SMS log, review items and the saved API key will be permanently erased from this device.") },
         confirmButton = { TextButton(onClick = { confirmClear = false; vm.clearAllData { scope.launch { snackbar.showSnackbar("All data cleared") } } }) { Text("Delete all") } },
         dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
     )

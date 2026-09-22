@@ -17,6 +17,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -35,7 +36,7 @@ import com.pft.financetracker.ui.components.money
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InsightsScreen(vm: AppViewModel) {
+fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit) {
     val txns by vm.transactions.collectAsState()
     val budgets by vm.budgets.collectAsState()
     var weekly by remember { mutableStateOf(false) }
@@ -45,7 +46,7 @@ fun InsightsScreen(vm: AppViewModel) {
     val trends = if (weekly) InsightsEngine.categoryTrends(txns, Periods.week(), Periods.week(-1)) else InsightsEngine.categoryTrends(txns, Periods.month(), Periods.month(-1))
     val suggestions = InsightsEngine.suggestions(txns, budgets)
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Insights") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("Insights") }, actions = { TextButton(onClick = onOpenBudgets) { Text("Budgets") } }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -56,7 +57,8 @@ fun InsightsScreen(vm: AppViewModel) {
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
-                        Text("Spending trend", style = MaterialTheme.typography.titleMedium)
+                        Text("Net spending trend", style = MaterialTheme.typography.titleMedium)
+                        Text("Expenses minus refunds. Transfers and investments excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
                         BarChart(series)
                         val cur = series.last().second
