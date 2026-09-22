@@ -29,25 +29,32 @@ import androidx.compose.ui.unit.dp
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.fullDate
 import com.pft.financetracker.ui.components.money
+import androidx.compose.material3.TopAppBarDefaults
+import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.Gutter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(vm: AppViewModel, onEnter: (Long) -> Unit, onBack: () -> Unit) {
     val queue by vm.reviewQueue.collectAsState()
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text("Needs review (${queue.size})") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }
-        )
-    }) { padding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("Needs review (${queue.size})") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            )
+        },
+    ) { padding ->
         if (queue.isEmpty()) {
             Text("Nothing to review. Messages the parser is unsure about will appear here.", Modifier.padding(padding).padding(16.dp))
             return@Scaffold
         }
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(queue, key = { it.id }) { r ->
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FinCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(r.sender, style = MaterialTheme.typography.labelLarge)
                             Text(fullDate(r.receivedAt), style = MaterialTheme.typography.labelSmall)

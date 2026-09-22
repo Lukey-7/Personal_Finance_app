@@ -50,6 +50,7 @@ import com.pft.financetracker.ui.components.dateOnly
 import com.pft.financetracker.ui.components.money
 import com.pft.financetracker.ui.components.paiseToInput
 import com.pft.financetracker.ui.theme.Income
+import com.pft.financetracker.ui.components.FinCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,9 +86,9 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
     }) { padding ->
         if (split == null) { Text("Split not found.", Modifier.padding(padding).padding(16.dp)); return@Scaffold }
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(money(split.totalPaise, true), style = MaterialTheme.typography.headlineMedium)
+            FinCard {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(money(split.totalPaise, true), style = MaterialTheme.typography.displaySmall)
                     Text("${dateOnly(split.date)} · ${split.mode.label} · paid by ${split.people.getOrNull(split.payerIndex)?.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     split.myShare?.let { Text("Your share: ${money(it.amountPaise, true)} (counted as your spend)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold) }
                     split.linkedTransactionId?.let { txId -> TextButton(onClick = { onOpenTransaction(txId) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text("Open linked transaction") } }
@@ -96,8 +97,8 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
             }
 
             Text("Who pays what", style = MaterialTheme.typography.titleMedium)
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FinCard {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     split.shares.forEach { sh ->
                         val person = split.people.getOrNull(sh.personIndex)
                         val isPayer = sh.personIndex == split.payerIndex
@@ -130,8 +131,8 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
 
             if (items.isNotEmpty()) {
                 Text("Items", style = MaterialTheme.typography.titleMedium)
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FinCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         items.forEach { it ->
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Column(Modifier.weight(1f)) {

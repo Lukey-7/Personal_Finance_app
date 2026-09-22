@@ -30,6 +30,20 @@ class FinanceApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        seedDebugApiKey()
+    }
+
+    /**
+     * Debug builds can start with an OpenAI key taken from the OPENAI_API_KEY environment variable at
+     * build time, so AI mode can be exercised without typing a key into the phone. It is only applied
+     * when no key has been saved yet, so it never overwrites one you entered, and the field is always
+     * empty in release builds. The key is never logged.
+     */
+    private fun seedDebugApiKey() {
+        if (!BuildConfig.DEBUG) return
+        val seed = BuildConfig.SEED_OPENAI_KEY
+        if (seed.isBlank()) return
+        if (container.settings.getApiKey().isNullOrBlank()) container.settings.setApiKey(seed)
     }
 }
 

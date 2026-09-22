@@ -41,6 +41,9 @@ import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.money
 import com.pft.financetracker.ui.theme.Expense
 import kotlin.math.roundToInt
+import androidx.compose.material3.TopAppBarDefaults
+import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.Gutter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +54,16 @@ fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
     var editing by remember { mutableStateOf<Category?>(null) }
     var input by remember { mutableStateOf("") }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Budgets · ${summary.period.label}") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) }) { padding ->
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("Budgets · ${summary.period.label}") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            )
+        },
+    ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Text("Tap a category to set a monthly limit. Alerts show when you cross it.", style = MaterialTheme.typography.bodyMedium) }
             items(Category.spendCategories) { cat ->
@@ -59,8 +71,8 @@ fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
                 val spent = summary.byCategory.firstOrNull { it.category == cat }?.amountPaise ?: 0L
                 val frac = if (limit != null && limit > 0) (spent.toDouble() / limit).toFloat() else 0f
                 val over = limit != null && spent > limit
-                Card(Modifier.fillMaxWidth().clickable { editing = cat; input = limit?.let { (it / 100).toString() } ?: "" }) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FinCard(onClick = { editing = cat; input = limit?.let { (it / 100).toString() } ?: "" }) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(cat.label, style = MaterialTheme.typography.titleSmall)
                             Text(if (limit != null) "${money(spent)} / ${money(limit)}" else "${money(spent)} · no limit", style = MaterialTheme.typography.bodySmall)

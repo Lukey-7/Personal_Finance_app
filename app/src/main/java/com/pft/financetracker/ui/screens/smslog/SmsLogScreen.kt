@@ -53,6 +53,10 @@ import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.Income
 import com.pft.financetracker.ui.theme.Neutral
 import kotlinx.coroutines.launch
+import androidx.compose.material3.TopAppBarDefaults
+import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.PillChip
 
 /**
  * Every SMS the importer looked at, with what happened to it and why. Bodies are not stored; tapping a row
@@ -77,7 +81,14 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("SMS log") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }) },
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("SMS log") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbar) }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
@@ -87,10 +98,10 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
             )
             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp), placeholder = { Text("Search sender, reason, amount") }, singleLine = true)
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (runId != null) FilterChip(selected = onlyThisRun, onClick = { onlyThisRun = !onlyThisRun }, label = { Text("This import") })
-                FilterChip(selected = outcome == null, onClick = { outcome = null }, label = { Text("All (${all.size})") })
+                if (runId != null) PillChip(onlyThisRun, "This import") { onlyThisRun = !onlyThisRun }
+                PillChip(outcome == null, "All (${all.size})") { outcome = null }
                 listOf(Outcomes.SAVED to "Saved", Outcomes.REVIEW to "Review", Outcomes.DUPLICATE to "Duplicate", Outcomes.IGNORED to "Ignored").forEach { (k, label) ->
-                    FilterChip(selected = outcome == k, onClick = { outcome = if (outcome == k) null else k }, label = { Text("$label (${counts[k] ?: 0})") })
+                    PillChip(outcome == k, "$label (${counts[k] ?: 0})") { outcome = if (outcome == k) null else k }
                 }
             }
             if (list.isEmpty()) Text("No log entries match.", Modifier.padding(16.dp))
@@ -138,8 +149,8 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
 
 @Composable
 private fun LogRow(e: SmsLogEntity, onClick: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable(onClick = onClick)) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    FinCard(Modifier.padding(horizontal = Gutter, vertical = 4.dp), onClick = onClick, padding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(e.sender, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)

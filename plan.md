@@ -23,7 +23,7 @@ Legend: `[x]` done and verified · `[~]` in progress · `[ ]` not started
 | Phase 6 — AI mode (unchanged privacy) | Done | payload uses the corrected net figures |
 | Device testing (emulator) | Done | `docs/DEVICE-TEST-v1.1.md`; found and fixed 3 defects |
 | Post-test fixes | Done | regression tests green |
-| Buro UI redesign | Done | screens migrated; verified by screenshot on a debug build |
+| Buro UI redesign | Done | all 11 screens migrated; each walked and captured on a debug build |
 | Open problems (duplicates, split rounding, APK size) | Done | all three fixed and verified on device |
 | Second device pass (airplane, camera, settle, CSV, review, clear) | Done | `docs/DEVICE-TEST-v1.1.md` second pass |
 | Phase 7 — Release (docs, tag, APK) | **Partly done** | docs done; tag + APK await your go-ahead |
@@ -144,7 +144,7 @@ numbers treated as the hero element.
 - [x] Visual check on a device — `FLAG_SECURE` is now release-only, so debug builds screenshot normally
 - [x] Two layout bugs fixed: nested Scaffolds double-applied the status-bar inset; the nav bar was stock
 - [x] Reference assets committed under `stitch_buro_fintech_app/` (7.9 MB) so the palette can be re-derived
-- [ ] *Remaining polish:* insights, budgets, smslog, review, drilldown, edit and onboarding still use stock Material surfaces. They inherit the new palette, type and shapes, so they are consistent, but do not yet use `FinCard` / `SoftPanel`.
+- [x] **All 11 screens migrated** onto `FinCard` / `SoftPanel` / `PillChip` / `PrimaryPill` / `CapsLabel`: dashboard, transactions, insights, budgets, split home, split detail, new split, smslog, review, drilldown, edit, settings, onboarding. Every screen walked on a debug build, captured, no crashes.
 
 ---
 
@@ -170,7 +170,8 @@ numbers treated as the hero element.
 
 - **The OpenAI request itself.** It needs your own key; I have not asked for one or entered one. Everything
   around it is verified: with no key the app offers only the key field and *What would be sent?*, and
-  nothing leaves the phone.
+  nothing leaves the phone. To try it, set `OPENAI_API_KEY` and build a debug APK — see
+  [docs/RUNNING.md](docs/RUNNING.md).
 - **OCR on real, creased, dimly lit receipts.** The emulator camera only offers a synthetic scene, so the
   capture path was verified end to end (FileProvider → system camera → recognition → graceful "no text")
   while accuracy was proven through the gallery path on a rendered bill.

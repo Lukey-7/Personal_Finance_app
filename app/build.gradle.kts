@@ -46,10 +46,19 @@ android {
         debug {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
+            // Convenience for testing AI mode: set OPENAI_API_KEY in your shell before building and the
+            // debug app starts with that key already saved, so you never type it into the phone.
+            //
+            // DEBUG ONLY, and deliberately so: this bakes the key into the APK, where anyone holding the
+            // file can read it. Never use it for a build you share. Release builds always get "".
+            val envKey = (System.getenv("OPENAI_API_KEY") ?: "").filter { it.isLetterOrDigit() || it in "-_" }
+            buildConfigField("String", "SEED_OPENAI_KEY", "\"$envKey\"")
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            // A released build never carries a key, whatever is in the environment.
+            buildConfigField("String", "SEED_OPENAI_KEY", "\"\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
