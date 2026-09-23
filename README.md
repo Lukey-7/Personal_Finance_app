@@ -37,7 +37,7 @@ per architecture.
 | Database | Encrypted with SQLCipher. A random 256-bit key is created per install and kept in EncryptedSharedPreferences backed by the Android Keystore. `secure_delete` is on, so cleared rows are overwritten. |
 | API key | Stored only in EncryptedSharedPreferences using AES-256-GCM with a Keystore master key. Never hardcoded, logged or exported. |
 | SMS | Only messages from alphanumeric sender IDs such as `VM-HDFCBK` are read. Personal messages from phone numbers are skipped. Only parsed fields are stored. Raw text is kept only for messages waiting in the review queue, and is deleted when you resolve them. The SMS log stores sender, time, outcome, reason and amount, never the body. |
-| Bill photos | Read on the phone by ML Kit Text Recognition with the **bundled** model (`com.google.mlkit:text-recognition`): no model download, works in airplane mode. The camera capture goes to a temp file in app-private cache and is deleted after recognition; gallery images are read through the system Photo Picker without a storage permission. No image is stored. ML Kit is a Google library; recognition needs no network, but like any Google Play services component it may report usage metrics through Play services if your device allows that. |
+| Bill photos | Read on the phone by ML Kit Text Recognition with the **bundled** model (`com.google.mlkit:text-recognition`): no model download, works in airplane mode. The camera capture goes to a temp file in app-private cache and is deleted after recognition, whether or not it succeeded; gallery images are read through the system Photo Picker without a storage permission. No image is stored. It sends nothing — see [Does the OCR phone home?](#does-the-ocr-phone-home) for how that was checked. |
 | Network | The only network call in the codebase goes to `https://api.openai.com`, and only when you tap **Generate summary**. Cleartext HTTP is disabled app-wide. |
 | Data sent to OpenAI | Category totals, counts, budgets, and this and last month's totals. No merchant names, SMS text, bank names or account numbers. Settings has a **What is sent?** button that shows the exact payload. |
 | Backups | `allowBackup=false` and data-extraction rules exclude everything from cloud backup and device-to-device transfer. |
@@ -48,6 +48,45 @@ per architecture.
 | CSV export | Written to a location you pick through the system file picker. Cells are escaped against spreadsheet formula injection. |
 
 Two things are outside the app's control. An exported CSV is plain text, so treat it like a bank statement. If you use the AI feature, OpenAI's own data policy applies to the aggregated numbers you send.
+
+## Does the OCR phone home?
+
+ML Kit is a Google library, so the fair question is whether reading a bill quietly reports anything. For
+this app the answer is no, and it was checked three independent ways rather than taken on trust.
+
+**1. Nothing in the dependencies can log.** None of the ML Kit or Play-services artifacts the app ships
+contains Google's telemetry transports — no `clearcut`, `phenotype`, `datatransport` or `firelog` code in
+`mlkit:common`, `mlkit:text-recognition`, `mlkit:vision-common`, `play-services-base`,
+`play-services-basement` or `play-services-mlkit-text-recognition`.
+
+**2. The built APK has exactly one network endpoint.** Scanning the release APK — both the compiled dex
+and all three native libraries, including the 10.6 MB OCR pipeline — turns up a single URL the app could
+call:
+
+```
+https://api.openai.com/v1/chat/completions
+```
+
+Every other URL in the binary is a documentation or bug-tracker string (TensorFlow Lite guides, an
+Android reference page, the LLVM toolchain), not an endpoint.
+
+**3. A recognition sends zero bytes.** On a device with networking up, the app's uid was measured through
+the framework's own per-uid accounting across a cold launch and a full OCR recognition:
+
+| | rx | tx |
+|---|---|---|
+| after launch | 0 | 0 |
+| after recognising a bill | 0 | 0 |
+| *system uid, same moment (control)* | *124,041* | *96,050* |
+
+The control line matters: the counter was demonstrably working and reporting six-figure traffic for
+another uid at the same moment this app reported nothing.
+
+**On the manifest flag.** There is no ML Kit logging flag to set, because in this configuration there is
+no logging component to switch off. That only becomes a question with the *unbundled* recogniser
+(`play-services-mlkit-text-recognition` on its own), which hands the work to Google Play services — a
+separate app with its own telemetry, outside any setting this app controls. FinTrack deliberately uses
+the bundled model instead, which is also why the APK is larger and why OCR works in airplane mode.
 
 ## Design
 
