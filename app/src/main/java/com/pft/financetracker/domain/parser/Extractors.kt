@@ -18,9 +18,10 @@ import java.util.regex.Pattern
 object TextFilters {
     /** If ANY of these match, the message is not a completed transaction. Order = first reason wins. */
     val ignoreRules: List<Pair<String, Regex>> = listOf(
+        "not_moved" to Regex("""\b(?:not|never)\s+(?:been\s+)?(?:debited|credited|deducted|charged|processed)\b|\bwasn'?t\s+(?:debited|charged)\b""", RegexOption.IGNORE_CASE),
         "otp" to Regex("""\b(otp|one[\s-]?time[\s-]?password|verification code|passcode)\b""", RegexOption.IGNORE_CASE),
         "promo" to Regex("""\b(offer|cashback up ?to|apply now|pre-?approved|avail now|hurry|limited period|click|t&c|tnc apply|congratulations|win|voucher|coupon|discount|sale|exclusive|upgrade to|get up ?to)\b""", RegexOption.IGNORE_CASE),
-        "future" to Regex("""\b(will be (debited|credited|deducted)|autopay (?:will|is) (?:scheduled|due)|is scheduled (?:for|on))\b""", RegexOption.IGNORE_CASE),
+        "future" to Regex("""\b(will be (debited|credited|deducted|refunded|reversed)|autopay (?:will|is) (?:scheduled|due)|is scheduled (?:for|on))\b""", RegexOption.IGNORE_CASE),
         "future_soft" to Regex("""\b(due on|is due|payment due|reminder|scheduled|upcoming)\b""", RegexOption.IGNORE_CASE),
         "failed" to Regex("""\b(failed|declined|unsuccessful|could not be processed|not processed|reversed due|cancelled|rejected)\b""", RegexOption.IGNORE_CASE),
         "request" to Regex("""\b(has requested|payment request|collect request|requesting|requested money)\b""", RegexOption.IGNORE_CASE),
@@ -36,18 +37,25 @@ object TextFilters {
     )
 
     /** A verb that only appears once money has actually moved. */
-    val completedVerb = Regex("""\b(debited|credited|spent|withdrawn|deducted|paid|received|transferred)\b""", RegexOption.IGNORE_CASE)
+    val completedVerb = Regex("""\b(debited|credited|spent|withdrawn|deducted|paid|received|transferred|refunded|reversed)\b""", RegexOption.IGNORE_CASE)
 
-    /** Rules that are only allowed to drop a message when it has no completed-transaction verb + amount. */
-    private val softRules = setOf("promo", "future_soft", "login", "statement", "request")
+    /** "will be debited", "to be refunded", "if amount debited": the verb describes something that has not happened. */
+    private val notYet = Regex("""\b(?:will|shall|would|to\s+be|if|in\s+case)\b[^.;,]{0,20}$""", RegexOption.IGNORE_CASE)
+
+    /** Only "money did not move" is final. Every other rule yields to a message that reports a completed movement. */
+    private val hardRules = setOf("not_moved")
+
+    fun hasCompletedMove(body: String): Boolean =
+        completedVerb.findAll(body).any { m -> !notYet.containsMatchIn(body.substring(maxOf(0, m.range.first - 30), m.range.first)) } &&
+            AmountExtractor.candidates(body).any { !it.isBalance }
 
     fun ignoreReason(body: String): String? {
-        val completed = completedVerb.containsMatchIn(body) && AmountExtractor.candidates(body).any { !it.isBalance }
+        val completed = hasCompletedMove(body)
         for ((reason, rx) in ignoreRules) {
             if (rx.containsMatchIn(body)) {
-                // Real transactions often carry promo/login-ish words ("cashback credited", "click here if not you",
-                // "complete KYC"). Never drop a message that clearly reports money moving; let scoring decide.
-                if (reason in softRules && completed) continue
+                // Real transactions carry OTP footers, "failed ... reversed", "cancelled order" refunds, promo and
+                // login wording. Never drop a message that clearly reports money moving; let scoring decide.
+                if (reason !in hardRules && completed) continue
                 return reason
             }
         }
