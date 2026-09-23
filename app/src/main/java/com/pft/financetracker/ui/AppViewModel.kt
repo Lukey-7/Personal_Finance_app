@@ -87,6 +87,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val recentPeople: StateFlow<List<String>> = c.splits.recentPeople.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val hasApiKey: StateFlow<Boolean> = c.settings.hasApiKey
+    val apiKeyBuiltIn: StateFlow<Boolean> = c.settings.apiKeyBuiltIn
     val onboarded: StateFlow<Boolean> = c.settings.onboarded
     val autoImport: StateFlow<Boolean> = c.settings.autoImport
     val lastImportAt: StateFlow<Long> = c.settings.lastImportAt
