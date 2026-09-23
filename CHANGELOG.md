@@ -13,6 +13,14 @@ Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Re
 - "Rescan the last 12 months" no longer brings back transactions you deleted or review items you dismissed. It recovers messages an older version ignored, and corrects rows an older version stored backwards, except rows you edited yourself.
 - Database version 3 (adds two columns; existing data migrates in place).
 
+### Bill reading (OCR)
+- Bills printed in Hindi: ML Kit's bundled Devanagari recogniser now runs alongside the Latin one, and its reading is used when a bill actually contains Hindi script. Hindi labels (कुल योग, उप योग, जीएसटी, छूट), Devanagari digits and "रु." are understood. About 4 MB more per APK.
+- Item / Qty / Amount bills now keep the quantity and unit price instead of gluing the quantity onto the name.
+- Tilted photos no longer pair each price with the item above it: rows are straightened using the recognised text's angle.
+- OCR slips in amounts are repaired ("360.0e", "1,551. 00", "120,00"), so a misread digit no longer drops a line or the total.
+- Invoice numbers and dates are no longer read as items, and "You saved Rs.50" is no longer counted as a second discount.
+- Checked end to end on the emulator with photographed test receipts (clean, tilted, faded, angled, dim, Hinglish): items, quantities, totals and discounts all read exactly. Bills that print prices in Devanagari digits still need their item prices typed in; ML Kit misreads those digits.
+
 ## [1.1.0] - 2026-09-23
 
 Focus: numbers you can trust, a log of every SMS, and bill splitting with on-device OCR. Existing data is migrated in place.
