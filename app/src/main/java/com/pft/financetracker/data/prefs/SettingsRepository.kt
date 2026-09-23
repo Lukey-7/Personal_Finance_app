@@ -9,7 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 /**
  * All user settings. The OpenAI API key is stored in EncryptedSharedPreferences backed by an
- * AES-256-GCM key in the Android Keystore. It is never logged, never exported, never hardcoded.
+ * AES-256-GCM key in the Android Keystore. It is never logged or exported. A key can be built into the app
+ * at build time (see app/build.gradle.kts); it is copied in here once and can then be changed or removed.
  */
 class SettingsRepository(context: Context) {
 
@@ -54,27 +55,35 @@ class SettingsRepository(context: Context) {
 
     fun getApiKey(): String? = runCatching { secure.getString(KEY_API, null)?.takeIf { it.isNotBlank() } }.getOrNull()
 
+    /** True while the saved key is the one built into the app, false once you have set or removed it yourself. */
+    private val _apiKeyBuiltIn = MutableStateFlow(plain.getBoolean(KEY_API_SEEDED, false))
+    val apiKeyBuiltIn: StateFlow<Boolean> = _apiKeyBuiltIn
+
     fun setApiKey(key: String?) {
         val trimmed = key?.trim()
         if (trimmed.isNullOrEmpty()) secure.edit().remove(KEY_API).apply()
         else secure.edit().putString(KEY_API, trimmed).apply()
-        // A key typed by hand is the user's own; only the debug seeder marks one as seeded.
-        plain.edit().putBoolean(KEY_API_SEEDED, false).apply()
+        // Setting or removing a key by hand makes the key yours: the built-in one is not put back on the
+        // next launch, not even after a removal. Clear all data resets this along with everything else.
+        plain.edit().putBoolean(KEY_API_SEEDED, false).putBoolean(KEY_API_USER_MANAGED, true).apply()
+        _apiKeyBuiltIn.value = false
         _hasApiKey.value = !trimmed.isNullOrEmpty()
     }
 
     /**
-     * Debug-build helper: adopt a key supplied at build time from OPENAI_API_KEY. It replaces a key that a
-     * previous build seeded (so rebuilding with a different key actually takes effect) but never one you
-     * entered yourself.
+     * Adopt the key built into the app (OPENAI_API_KEY at build time). It replaces a key that a previous
+     * build put there, so rebuilding with a different key takes effect, but never a key you typed or
+     * removed yourself in Settings.
      */
     fun seedApiKey(key: String) {
+        if (plain.getBoolean(KEY_API_USER_MANAGED, false)) return
         val current = getApiKey()
         val seededBefore = plain.getBoolean(KEY_API_SEEDED, false)
         if (!current.isNullOrBlank() && !seededBefore) return
         if (current == key) return
         secure.edit().putString(KEY_API, key).apply()
         plain.edit().putBoolean(KEY_API_SEEDED, true).apply()
+        _apiKeyBuiltIn.value = true
         _hasApiKey.value = true
     }
 
@@ -88,6 +97,7 @@ class SettingsRepository(context: Context) {
         runCatching { secure.edit().clear().apply() }
         plain.edit().clear().apply()
         _hasApiKey.value = false
+        _apiKeyBuiltIn.value = false
         _onboarded.value = false
         _lastImportAt.value = 0L
         _autoImport.value = true
@@ -103,5 +113,6 @@ class SettingsRepository(context: Context) {
         const val KEY_CASH_SPEND = "cash_as_spend"
         const val KEY_MY_NAME = "my_name"
         const val KEY_API_SEEDED = "api_key_seeded"
+        const val KEY_API_USER_MANAGED = "api_key_user_managed"
     }
 }

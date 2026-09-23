@@ -30,18 +30,17 @@ class FinanceApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        seedDebugApiKey()
+        seedBuiltInApiKey()
     }
 
     /**
-     * Debug builds can start with an OpenAI key taken from the OPENAI_API_KEY environment variable at
-     * build time, so AI mode can be exercised without typing a key into the phone. It is only applied
-     * when no key has been saved yet or when a previous build seeded the one that is there, so rebuilding
-     * with a different key takes effect while a key you typed is never overwritten. The field is always
-     * empty in release builds, and the key is never logged.
+     * A build can carry a built-in OpenAI key (OPENAI_API_KEY at build time: every debug build, and a
+     * release only when FINTRACK_EMBED_KEY=1 asks for a personal build). It is copied into encrypted
+     * storage when no key is saved yet, or when a previous build put the current one there, so rebuilding
+     * with a new key takes effect. Once you change or remove the key in Settings it is yours and is never
+     * overwritten. Ordinary release builds carry no key, and the key is never logged.
      */
-    private fun seedDebugApiKey() {
-        if (!BuildConfig.DEBUG) return
+    private fun seedBuiltInApiKey() {
         val seed = BuildConfig.SEED_OPENAI_KEY
         if (seed.isBlank()) return
         container.settings.seedApiKey(seed)

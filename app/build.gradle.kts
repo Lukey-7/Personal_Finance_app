@@ -20,6 +20,16 @@ val keystoreProps = Properties().apply {
 }
 val hasReleaseKey = keystoreProps.getProperty("storeFile")?.let { file(it).exists() } == true
 
+// Built-in OpenAI key. OPENAI_API_KEY in the shell is baked into every debug build, and into a release
+// build only when FINTRACK_EMBED_KEY=1 is also set: a *personal* build for your own phone. Anyone holding
+// such an APK can extract the key, so those files are named "-personal" and must never be shared or
+// attached to a GitHub release. The app still lets you change or remove the key in Settings.
+val buildKey = (System.getenv("OPENAI_API_KEY") ?: "").filter { it.isLetterOrDigit() || it in "-_" }
+val personalRelease = System.getenv("FINTRACK_EMBED_KEY") == "1" && buildKey.isNotEmpty()
+if (System.getenv("FINTRACK_EMBED_KEY") == "1" && buildKey.isEmpty()) {
+    logger.warn("FINTRACK_EMBED_KEY=1 but OPENAI_API_KEY is empty: the release build will have no built-in key.")
+}
+
 android {
     namespace = "com.pft.financetracker"
     compileSdk = 35
@@ -46,19 +56,15 @@ android {
         debug {
             isMinifyEnabled = false
             applicationIdSuffix = ".debug"
-            // Convenience for testing AI mode: set OPENAI_API_KEY in your shell before building and the
-            // debug app starts with that key already saved, so you never type it into the phone.
-            //
-            // DEBUG ONLY, and deliberately so: this bakes the key into the APK, where anyone holding the
-            // file can read it. Never use it for a build you share. Release builds always get "".
-            val envKey = (System.getenv("OPENAI_API_KEY") ?: "").filter { it.isLetterOrDigit() || it in "-_" }
-            buildConfigField("String", "SEED_OPENAI_KEY", "\"$envKey\"")
+            // The app starts with OPENAI_API_KEY already saved, so you never type it into the phone.
+            // This bakes the key into the APK: never share a debug build made with it set.
+            buildConfigField("String", "SEED_OPENAI_KEY", "\"$buildKey\"")
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            // A released build never carries a key, whatever is in the environment.
-            buildConfigField("String", "SEED_OPENAI_KEY", "\"\"")
+            // No key unless this is an explicitly requested personal build (see buildKey above).
+            buildConfigField("String", "SEED_OPENAI_KEY", "\"${if (personalRelease) buildKey else ""}\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
@@ -98,7 +104,9 @@ android {
         outputs.all {
             val abi = (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
                 .filters.find { it.filterType == "ABI" }?.identifier
-            outputFileName = "FinTrack-v${versionName}-${abi ?: "universal"}-${buildType.name}.apk"
+            // A release with a built-in key is marked in its file name, so it cannot be mistaken for one to share.
+            val personal = if (buildType.name == "release" && personalRelease) "-personal" else ""
+            outputFileName = "FinTrack-v${versionName}-${abi ?: "universal"}-${buildType.name}$personal.apk"
         }
     }
     packaging {

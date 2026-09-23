@@ -68,6 +68,7 @@ import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.KeyOff
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.ManageHistory
@@ -98,6 +99,8 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
     var exportingSplits by remember { mutableStateOf(false) }
     val aiState by vm.aiState.collectAsState()
     var keyInput by remember { mutableStateOf("") }
+    val keyBuiltIn by vm.apiKeyBuiltIn.collectAsState()
+    var changingKey by remember { mutableStateOf(false) }
     var showPayload by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
     var smsGranted by remember { mutableStateOf(vm.hasSmsPermission()) }
@@ -233,14 +236,37 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.width(8.dp))
-                        Text("API key saved, encrypted with Android Keystore", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            if (keyBuiltIn) "Using the key built into this app, encrypted with Android Keystore"
+                            else "Using your own key, encrypted with Android Keystore",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         val pad = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
                         Button(onClick = { vm.generateAiSummary() }, Modifier.weight(1f), enabled = aiState !is AiUiState.Loading, contentPadding = pad) { Text("Generate", maxLines = 1) }
                         OutlinedButton(onClick = { showPayload = true }, Modifier.weight(1f), contentPadding = pad) { Text("What is sent?", maxLines = 1) }
                     }
-                    ActionRow("Remove key", Icons.Outlined.KeyOff, { vm.setApiKey(null); vm.clearAi() })
+                    // Change replaces the key in place; either action makes the key yours, so the built-in
+                    // one is not restored on the next launch.
+                    Column {
+                        if (changingKey) {
+                            OutlinedTextField(
+                                keyInput, { keyInput = it },
+                                label = { Text("OpenAI API key (sk-...)") }, singleLine = true,
+                                visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                                Button(onClick = { vm.setApiKey(keyInput); keyInput = ""; changingKey = false; vm.clearAi() }, enabled = keyInput.trim().length > 20) { Text("Save new key") }
+                                TextButton(onClick = { keyInput = ""; changingKey = false }) { Text("Cancel") }
+                            }
+                        } else {
+                            ActionRow("Change key", Icons.Outlined.Key, { changingKey = true })
+                        }
+                        ActionRow("Remove key", Icons.Outlined.KeyOff, { vm.setApiKey(null); vm.clearAi(); changingKey = false })
+                    }
                 } else {
                     OutlinedButton(onClick = { showPayload = true }) { Text("What would be sent?") }
                     OutlinedTextField(
