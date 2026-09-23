@@ -13,8 +13,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import com.pft.financetracker.ui.components.ChipRow
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.PrimaryPill
+import com.pft.financetracker.ui.components.categoryIcon
+import com.pft.financetracker.ui.components.edgeToEdge
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -129,15 +137,21 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(if (existing != null) "Edit transaction" else if (reviewId != null) "Review SMS" else "Add transaction") },
+                // Decided from the route, not the loaded row: the row arrives a frame later, and deciding
+                // from it made an edit screen open titled "Add transaction" for that first frame.
+                title = { Text(if (id != null) "Edit transaction" else if (reviewId != null) "Review SMS" else "Add transaction") },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-                actions = { if (existing != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, "Delete") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
+                actions = { if (existing != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Outlined.Delete, "Delete transaction") } },
             )
         },
     ) { padding ->
         if (!loaded) return@Scaffold
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+                .padding(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             reviewBody?.let {
                 SoftPanel {
                     CapsLabel("Original message")
@@ -155,13 +169,13 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
             OutlinedTextField(amount, { amount = it }, label = { Text("Amount (₹)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(merchant, { merchant = it }, label = { Text("Merchant / payee") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Text("Category", style = MaterialTheme.typography.labelLarge)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ChipRow(Modifier.edgeToEdge(), inset = Gutter) {
                 Category.entries.forEach { c ->
-                    PillChip(category == c, c.label) { category = c; categoryTouched = true }
+                    PillChip(category == c, c.label, icon = categoryIcon(c)) { category = c; categoryTouched = true }
                 }
             }
             Text("Counts as", style = MaterialTheme.typography.labelLarge)
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ChipRow(Modifier.edgeToEdge(), inset = Gutter) {
                 val options = if (type == TransactionType.DEBIT) listOf(Flow.EXPENSE, Flow.TRANSFER, Flow.INVESTMENT, Flow.CASH, Flow.SETTLEMENT) else listOf(Flow.INCOME, Flow.REFUND, Flow.TRANSFER, Flow.INVESTMENT, Flow.SETTLEMENT)
                 options.forEach { f -> PillChip(flow == f, f.label) { flow = f; flowTouched = true } }
             }
@@ -177,19 +191,20 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
                 },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            OutlinedButton(onClick = { showDate = true }, modifier = Modifier.fillMaxWidth()) { Text("Date: ${dateOnly(timestamp)}") }
+            OutlinedButton(onClick = { showDate = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                Icon(Icons.Outlined.CalendarToday, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(dateOnly(timestamp))
+            }
             OutlinedTextField(bank, { bank = it }, label = { Text("Bank / app (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(account, { account = it.filter { ch -> ch.isDigit() }.take(4) }, label = { Text("Account last 4 (optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") }, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(4.dp))
-            Button(
+            PrimaryPill(
+                text = "Save",
                 enabled = valid,
                 onClick = {
                     val t = build()
                     if (reviewId != null) vm.resolveReview(reviewId, t) { onBack() } else vm.save(t) { onBack() }
                 },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Save") }
+            )
             if (reviewId != null) TextButton(onClick = { vm.dismissReview(reviewId); onBack() }, modifier = Modifier.fillMaxWidth()) { Text("Not a transaction, dismiss") }
         }
     }

@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -44,7 +44,7 @@ fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Filled.Lock, null, tint = MaterialTheme.colorScheme.primary)
+        Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.height(12.dp))
         Text("Your money, on your phone only", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(8.dp))
@@ -73,7 +73,7 @@ fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
 @Composable
 private fun Bullet(text: String) {
     Row(verticalAlignment = Alignment.Top) {
-        Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+        Icon(Icons.Outlined.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(8.dp))
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }

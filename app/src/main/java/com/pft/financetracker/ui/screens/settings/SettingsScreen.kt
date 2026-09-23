@@ -57,6 +57,32 @@ import java.util.Date
 import java.util.Locale
 import androidx.compose.material3.TopAppBarDefaults
 import com.pft.financetracker.ui.components.FinCard
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.CallSplit
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.DeleteForever
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.KeyOff
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.ManageHistory
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Sms
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.pft.financetracker.ui.components.ActionRow
+import com.pft.financetracker.ui.components.CardTitle
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.LocalBottomBarPadding
+import com.pft.financetracker.ui.components.bottomPadding
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -94,34 +120,47 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SnackbarHost(snackbar, Modifier.padding(bottom = LocalBottomBarPadding.current)) },
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+                .padding(start = Gutter, top = 8.dp, end = Gutter, bottom = bottomPadding()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
 
-            Section("SMS import") {
+            Section("SMS import", Icons.Outlined.Sms) {
                 if (!smsGranted) {
                     Text("SMS permission not granted. Transactions can still be added manually.", style = MaterialTheme.typography.bodyMedium)
                     Button(onClick = { permLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) }) { Text("Grant SMS permission") }
                 } else {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    // The whole row is the toggle, so TalkBack reads "Auto-import new SMS, switch, on" rather
+                    // than an unnamed switch, and the label is a tap target too.
+                    Row(
+                        Modifier.fillMaxWidth().toggleable(value = autoImport, role = Role.Switch, onValueChange = { vm.setAutoImport(it) }),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
                         Text("Auto-import new SMS", Modifier.weight(1f))
-                        Switch(checked = autoImport, onCheckedChange = { vm.setAutoImport(it) })
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { vm.scanInbox(full = false) }) { Text("Scan new") }
-                        OutlinedButton(onClick = { vm.scanInbox(full = true) }) { Text("Rescan last 12 months") }
+                        Switch(checked = autoImport, onCheckedChange = null)
                     }
                 }
-                TextButton(onClick = onOpenSmsLog) { Text("Open SMS log: every message scanned and what happened to it") }
+                // Rows rather than side-by-side buttons: they wrap at any font size instead of clipping.
+                Column {
+                    if (smsGranted) {
+                        ActionRow("Scan for new SMS", Icons.Outlined.Sync, { vm.scanInbox(full = false) })
+                        ActionRow("Rescan the last 12 months", Icons.Outlined.ManageHistory, { vm.scanInbox(full = true) })
+                    }
+                    ActionRow("SMS log: every message scanned and what happened to it", Icons.Outlined.History, onOpenSmsLog)
+                }
             }
 
-            Section("Clean up duplicates") {
+            Section("Clean up duplicates", Icons.Outlined.CleaningServices) {
                 Text(
                     "Looks for the same payment stored twice - usually rows imported by an older version, before the app could spot a bank and a UPI app reporting one payment. Nothing is deleted until you confirm.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -157,41 +196,51 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
                 }
             }
 
-            Section("Calculation") {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Section("Calculation", Icons.Outlined.Calculate) {
+                Row(
+                    Modifier.fillMaxWidth().toggleable(value = cashAsSpend, role = Role.Switch, onValueChange = { vm.setCountCashAsSpend(it) }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
                     Column(Modifier.weight(1f)) {
                         Text("Count ATM cash as spend")
                         Text("Off: cash withdrawals are shown separately and left out of spend totals.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Switch(checked = cashAsSpend, onCheckedChange = { vm.setCountCashAsSpend(it) })
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = cashAsSpend, onCheckedChange = null)
                 }
                 Text("Spend = expenses minus refunds. Transfers between your accounts, credit-card bill payments, investments and split settlements are never counted. Tap any number on the Home tab to see the transactions behind it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            Section("Bill splits") {
+            Section("Bill splits", Icons.AutoMirrored.Outlined.CallSplit) {
                 OutlinedTextField(nameInput, { nameInput = it }, label = { Text("Your name in splits") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { vm.setMyName(nameInput) }, enabled = nameInput.trim() != myName) { Text("Save name") }
-                    OutlinedButton(onClick = {
-                        exportingSplits = true
-                        exportLauncher.launch("fintrack-splits-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ENGLISH).format(Date()) + ".csv")
-                    }) { Text("Export splits CSV") }
+                // Only offered once there is something to save; a disabled pill just looked broken.
+                if (nameInput.trim().isNotEmpty() && nameInput.trim() != myName) {
+                    Button(onClick = { vm.setMyName(nameInput) }) { Text("Save name") }
                 }
+                ActionRow("Export splits as CSV", Icons.Outlined.FileDownload, {
+                    exportingSplits = true
+                    exportLauncher.launch("fintrack-splits-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ENGLISH).format(Date()) + ".csv")
+                })
                 Text("Bill photos are read on this phone with an offline text recogniser and are not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            Section("AI monthly summary (optional)") {
+            Section("AI monthly summary (optional)", Icons.Outlined.AutoAwesome) {
                 Text(
                     "Uses your own OpenAI API key. Only aggregated category totals for this and last month are sent, never SMS text, merchant names, or account numbers. Nothing is sent until you tap Generate.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 if (hasKey) {
-                    Text("API key is saved (encrypted with Android Keystore).", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Button(onClick = { vm.generateAiSummary() }, enabled = aiState !is AiUiState.Loading) { Text("Generate summary") }
-                        OutlinedButton(onClick = { showPayload = true }) { Text("What is sent?") }
-                        TextButton(onClick = { vm.setApiKey(null); vm.clearAi() }) { Text("Remove key") }
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(8.dp))
+                        Text("API key saved, encrypted with Android Keystore", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val pad = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+                        Button(onClick = { vm.generateAiSummary() }, Modifier.weight(1f), enabled = aiState !is AiUiState.Loading, contentPadding = pad) { Text("Generate", maxLines = 1) }
+                        OutlinedButton(onClick = { showPayload = true }, Modifier.weight(1f), contentPadding = pad) { Text("What is sent?", maxLines = 1) }
+                    }
+                    ActionRow("Remove key", Icons.Outlined.KeyOff, { vm.setApiKey(null); vm.clearAi() })
                 } else {
                     OutlinedButton(onClick = { showPayload = true }) { Text("What would be sent?") }
                     OutlinedTextField(
@@ -211,18 +260,19 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
                 }
             }
 
-            Section("Your data") {
-                Text("All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting.", style = MaterialTheme.typography.bodySmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
+            Section("Your data", Icons.Outlined.Storage) {
+                Text("All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Column {
+                    ActionRow("Export all transactions as CSV", Icons.Outlined.FileDownload, {
                         exportingSplits = false
                         val name = "fintrack-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ENGLISH).format(Date()) + ".csv"
                         exportLauncher.launch(name)
-                    }) { Text("Export CSV") }
-                    Button(onClick = { confirmClear = true }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Clear all data") }
+                    })
+                    // Destructive but rare: present, clearly red, not the loudest thing on the page. The
+                    // confirmation dialog below is unchanged.
+                    ActionRow("Clear all data", Icons.Outlined.DeleteForever, { confirmClear = true }, tint = MaterialTheme.colorScheme.error)
                 }
             }
-            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -243,9 +293,9 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(title: String, icon: ImageVector, content: @Composable () -> Unit) {
     FinCard {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        CardTitle(title, icon)
         content()
     }
 }

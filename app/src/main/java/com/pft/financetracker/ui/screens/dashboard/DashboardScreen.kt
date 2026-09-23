@@ -17,9 +17,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.ui.text.style.TextOverflow
+import com.pft.financetracker.ui.components.AddFab
+import com.pft.financetracker.ui.components.CardPadding
+import com.pft.financetracker.ui.components.ChipRow
+import com.pft.financetracker.ui.components.EmptyState
+import com.pft.financetracker.ui.components.FabClearance
+import com.pft.financetracker.ui.components.IconCircle
+import com.pft.financetracker.ui.components.LocalBottomBarPadding
+import com.pft.financetracker.ui.components.RowTextInset
+import com.pft.financetracker.ui.components.bottomPadding
+import com.pft.financetracker.ui.components.categoryIcon
+import com.pft.financetracker.ui.components.displayMerchant
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
@@ -113,38 +128,35 @@ fun DashboardScreen(
         }
     }
 
+    val barPad = LocalBottomBarPadding.current
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("FinTrack", style = MaterialTheme.typography.titleLarge) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 actions = {
                     if (importState is ImportUiState.Running) CircularProgressIndicator(Modifier.padding(14.dp).size(22.dp), strokeWidth = 2.dp)
-                    else IconButton(onClick = { if (vm.hasSmsPermission()) vm.scanInbox() }) { Icon(Icons.Filled.Refresh, "Scan SMS") }
+                    else IconButton(onClick = { if (vm.hasSmsPermission()) vm.scanInbox() }) { Icon(Icons.Outlined.Sync, "Scan SMS") }
                 }
             )
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAdd,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ) { Icon(Icons.Filled.Add, "Add") }
-        },
-        snackbarHost = { SnackbarHost(snackbar) }
+        floatingActionButton = { AddFab(onAdd, Modifier.padding(bottom = barPad)) },
+        snackbarHost = { SnackbarHost(snackbar, Modifier.padding(bottom = barPad)) }
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            // Clears the nav pill and the + button, so the last card can be scrolled fully into view.
+            contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding(FabClearance)),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = Gutter - 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                ChipRow {
                     PillChip(choice is PeriodChoice.ThisMonth, "This month") { vm.setPeriod(PeriodChoice.ThisMonth) }
                     PillChip(choice is PeriodChoice.LastMonth, "Last month") { vm.setPeriod(PeriodChoice.LastMonth) }
                     PillChip(choice is PeriodChoice.ThisWeek, "This week") { vm.setPeriod(PeriodChoice.ThisWeek) }
-                    PillChip(choice is PeriodChoice.Custom, if (choice is PeriodChoice.Custom) period.label else "Custom") { showRange = true }
+                    PillChip(choice is PeriodChoice.Custom, if (choice is PeriodChoice.Custom) period.label else "Custom", icon = Icons.Outlined.DateRange) { showRange = true }
                 }
             }
 
@@ -210,7 +222,9 @@ fun DashboardScreen(
             if (reviewCount > 0) item {
                 SoftPanel(Modifier.padding(horizontal = Gutter), onClick = onOpenReview) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("$reviewCount SMS need manual review", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(20.dp), tint = Expense)
+                        Spacer(Modifier.width(12.dp))
+                        Text(reviewLine(reviewCount), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         Text("Review", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                     }
                 }
@@ -223,28 +237,33 @@ fun DashboardScreen(
                         .map { Slice(it.category.label, it.amount, colorFor(Category.entries.indexOf(it.category)), it.category) }
                     if (slices.isEmpty()) {
                         Text("No spending recorded in this period.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    } else Row(verticalAlignment = Alignment.CenterVertically) {
-                        DonutChart(slices, centerText = "${summary.expenseCount} txns")
-                        Spacer(Modifier.width(12.dp))
-                        Legend(slices, Modifier.weight(1f)) { cat -> onDrill(Bucket.SPEND, cat) }
+                    } else {
+                        // Legend sits below the donut at full width, so category names are never cut short.
+                        DonutChart(slices, Modifier.fillMaxWidth(), centerText = "${summary.expenseCount} txns")
+                        Legend(slices, Modifier.fillMaxWidth()) { cat -> onDrill(Bucket.SPEND, cat) }
                     }
                 }
             }
 
             if (summary.byMerchant.isNotEmpty()) item {
-                FinCard(Modifier.padding(horizontal = Gutter), padding = PaddingValues(vertical = 8.dp)) {
-                    Text("Top merchants", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
-                    summary.byMerchant.take(5).forEachIndexed { i, m ->
-                        if (i > 0) Hairline(startInset = 18.dp)
-                        Row(
-                            Modifier.fillMaxWidth().clickable { onDrill(Bucket.SPEND, m.category) }.padding(horizontal = 18.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(m.merchant, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                                Text("${m.count} txn${if (m.count > 1) "s" else ""} · ${m.category.label}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FinCard(Modifier.padding(horizontal = Gutter), padding = PaddingValues(top = CardPadding, bottom = 8.dp)) {
+                    Text("Top merchants", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = CardPadding))
+                    Column {
+                        summary.byMerchant.take(5).forEachIndexed { i, m ->
+                            if (i > 0) Hairline(startInset = CardPadding + 56.dp, endInset = CardPadding)
+                            Row(
+                                Modifier.fillMaxWidth().clickable { onDrill(Bucket.SPEND, m.category) }.padding(horizontal = CardPadding, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                IconCircle(categoryIcon(m.category), tint = colorFor(Category.entries.indexOf(m.category)))
+                                Spacer(Modifier.width(16.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(displayMerchant(m.merchant), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${m.count} txn${if (m.count > 1) "s" else ""} · ${m.category.label}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Text(money(m.amountPaise), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
                             }
-                            Text(money(m.amountPaise), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
                 }
@@ -296,14 +315,10 @@ fun DashboardScreen(
                 }
             }
             if (recent.isEmpty()) item {
-                Text(
-                    "Nothing yet. Tap refresh to scan SMS or + to add a transaction.",
-                    Modifier.padding(horizontal = Gutter), style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                EmptyState(Icons.AutoMirrored.Outlined.ReceiptLong, "Nothing yet. Tap the sync icon to scan your SMS, or + to add a transaction.")
             }
             itemsIndexed(recent) { i, t ->
-                if (i > 0) Hairline(startInset = Gutter + 58.dp)
+                if (i > 0) Hairline(startInset = RowTextInset, endInset = Gutter)
                 TransactionRow(t) { onEdit(t.id) }
             }
         }
@@ -325,21 +340,25 @@ fun DashboardScreen(
     }
 }
 
+/** "1 SMS needs review" / "3 SMS need review". */
+internal fun reviewLine(n: Int) = if (n == 1) "1 SMS needs review" else "$n SMS need review"
+
 @Composable
 private fun MathRow(label: String, paise: Long, sign: String, color: Color, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick),
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text("$sign ${money(paise)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = color)
+    // The label takes the flexible space and wraps; the figure never does. Without the weight a long
+    // label at a large font size squeezed the amount into one digit per line.
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(12.dp))
+        Text("$sign ${money(paise)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = color, softWrap = false)
     }
 }
 
 @Composable
 private fun LineRow(label: String, paise: Long, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        Text(money(paise), color = Neutral, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.width(12.dp))
+        Text(money(paise), color = Neutral, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium, softWrap = false)
     }
 }

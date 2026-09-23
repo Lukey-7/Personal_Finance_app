@@ -7,12 +7,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.CallSplit
+import androidx.compose.material.icons.automirrored.filled.CallSplit
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.outlined.CallSplit
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.graphics.Brush
+import com.pft.financetracker.ui.components.LocalBottomBarPadding
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -74,14 +84,15 @@ object Routes {
     fun splitDetail(id: Long) = "split/$id"
 }
 
-private data class Tab(val route: String, val label: String, val icon: ImageVector)
+/** Outline glyph normally; the filled one marks the selected tab, a second cue besides colour. */
+private data class Tab(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
 private val tabs = listOf(
-    Tab(Routes.HOME, "Home", Icons.Filled.Home),
-    Tab(Routes.TRANSACTIONS, "Activity", Icons.AutoMirrored.Filled.List),
-    Tab(Routes.SPLIT, "Split", Icons.Filled.CallSplit),
-    Tab(Routes.INSIGHTS, "Insights", Icons.Filled.Insights),
-    Tab(Routes.SETTINGS, "Settings", Icons.Filled.Settings),
+    Tab(Routes.HOME, "Home", Icons.Outlined.Home, Icons.Filled.Home),
+    Tab(Routes.TRANSACTIONS, "Activity", Icons.AutoMirrored.Outlined.ReceiptLong, Icons.AutoMirrored.Filled.ReceiptLong),
+    Tab(Routes.SPLIT, "Split", Icons.AutoMirrored.Outlined.CallSplit, Icons.AutoMirrored.Filled.CallSplit),
+    Tab(Routes.INSIGHTS, "Insights", Icons.Outlined.Insights, Icons.Filled.Insights),
+    Tab(Routes.SETTINGS, "Settings", Icons.Outlined.Settings, Icons.Filled.Settings),
 )
 
 @Composable
@@ -98,20 +109,30 @@ fun AppNav(vm: AppViewModel = viewModel()) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             // A floating white pill rather than a full-width bar, as in the reference.
+            // Content scrolls underneath it, so the strip behind the pill fades into the page colour
+            // rather than showing rows sliding under the system navigation buttons.
+            val page = MaterialTheme.colorScheme.background
             if (showBar) Box(
                 Modifier
                     .fillMaxWidth()
+                    .background(Brush.verticalGradient(0f to page.copy(alpha = 0f), 0.35f to page))
                     .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 NavigationBar(
-                    modifier = Modifier.clip(CircleShape).height(64.dp),
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                        .height(64.dp),
                     containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp,
+                    windowInsets = WindowInsets(0, 0, 0, 0),
                 ) {
                     tabs.forEach { tab ->
+                        val selected = currentRoute == tab.route
+                        val glyph = if (selected) tab.selectedIcon else tab.icon
                         NavigationBarItem(
-                            selected = currentRoute == tab.route,
+                            selected = selected,
                             onClick = {
                                 nav.navigate(tab.route) {
                                     popUpTo(nav.graph.findStartDestination().id) { saveState = true }
@@ -121,8 +142,8 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                             },
                             icon = {
                                 if (tab.route == Routes.TRANSACTIONS && reviewCount > 0) {
-                                    BadgedBox(badge = { Badge { Text(reviewCount.toString()) } }) { Icon(tab.icon, tab.label) }
-                                } else Icon(tab.icon, tab.label)
+                                    BadgedBox(badge = { Badge { Text(reviewCount.toString()) } }) { Icon(glyph, tab.label) }
+                                } else Icon(glyph, tab.label)
                             },
                             label = { Text(tab.label, style = MaterialTheme.typography.labelSmall) },
                             colors = NavigationBarItemDefaults.colors(
@@ -138,10 +159,12 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             }
         }
     ) { padding ->
+        // The NavHost fills the whole window: tab screens draw beneath the floating pill and pad their
+        // own ends by LocalBottomBarPadding, instead of being clipped at a hard edge above it.
+        CompositionLocalProvider(LocalBottomBarPadding provides padding.calculateBottomPadding()) {
         NavHost(
             navController = nav,
             startDestination = if (onboarded) Routes.HOME else Routes.ONBOARDING,
-            modifier = Modifier.padding(padding)
         ) {
             composable(Routes.ONBOARDING) {
                 OnboardingScreen(vm) {
@@ -206,6 +229,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                 val reviewId = entry.arguments?.getLong("reviewId")?.takeIf { it >= 0 }
                 EditTransactionScreen(vm, id, reviewId) { nav.popBackStack() }
             }
+        }
         }
     }
 }

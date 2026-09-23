@@ -18,11 +18,28 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import com.pft.financetracker.ui.components.AdaptiveRow
+import androidx.compose.material3.TopAppBarDefaults
+import com.pft.financetracker.ui.components.ChipRow
+import com.pft.financetracker.ui.components.CardPadding
+import com.pft.financetracker.ui.components.edgeToEdge
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.SecondaryPill
+import com.pft.financetracker.ui.components.categoryIcon
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -94,7 +111,7 @@ private class ItemState(name: String, qty: Int, price: Long, assigned: Set<Int>)
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit) {
     val ctx = LocalContext.current
@@ -190,16 +207,27 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
         }
     }.getOrNull()
 
-    Scaffold(topBar = {
-        TopAppBar(title = { Text("New split") }, navigationIcon = { IconButton(onClick = { vm.clearOcr(); onBack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
-    }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("New split") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                navigationIcon = { IconButton(onClick = { vm.clearOcr(); onBack() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
+            )
+        },
+    ) { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+                .padding(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
 
             // ---- 1. Source ----
             Section("1 · The bill") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { launchCamera() }, modifier = Modifier.weight(1f)) { Icon(Icons.Filled.PhotoCamera, null); Spacer(Modifier.width(6.dp)); Text("Photo") }
-                    OutlinedButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.weight(1f)) { Icon(Icons.Filled.Image, null); Spacer(Modifier.width(6.dp)); Text("Gallery") }
+                    OutlinedButton(onClick = { launchCamera() }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp)) { Icon(Icons.Outlined.PhotoCamera, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Photo", maxLines = 1, softWrap = false) }
+                    OutlinedButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp)) { Icon(Icons.Outlined.Image, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Gallery", maxLines = 1, softWrap = false) }
                 }
                 when (val s = ocr) {
                     OcrUiState.Running -> Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.height(18.dp).width(18.dp)); Spacer(Modifier.width(8.dp)); Text("Reading the bill on-device…", style = MaterialTheme.typography.bodySmall) }
@@ -207,40 +235,52 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                     is OcrUiState.Done -> Text("Read ${s.bill.items.size} items" + (s.bill.totalPaise?.let { ", total ${money(it, true)}" } ?: ", no total found") + ". Check and correct below.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     OcrUiState.Idle -> Text("Or just type the total. Photos are processed on this phone and not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                OutlinedTextField(title, { title = it }, label = { Text("What was it? (e.g. Dinner at Truffles)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(totalInput, { totalInput = it }, label = { Text("Total (₹)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedButton(onClick = { showDate = true }, modifier = Modifier.weight(1f).height(56.dp).padding(top = 8.dp)) { Text(dateOnly(date)) }
+                OutlinedTextField(title, { title = it }, label = { Text("What was it?") }, placeholder = { Text("e.g. Dinner at Truffles") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                // Total and date share a shape and height; the date is a read-only field that opens the picker.
+                // Side by side when "23 Sep 2026" and its calendar glyph fit, stacked on a small phone.
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val total: @Composable (Modifier) -> Unit = { m ->
+                        OutlinedTextField(totalInput, { totalInput = it }, label = { Text("Total") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
+                    }
+                    if (maxWidth >= 290.dp) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        total(Modifier.weight(1f))
+                        DateField(date, Modifier.weight(1.4f)) { showDate = true }
+                    } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        total(Modifier.fillMaxWidth())
+                        DateField(date, Modifier.fillMaxWidth()) { showDate = true }
+                    }
                 }
                 Text("Category for your share", style = MaterialTheme.typography.labelLarge)
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Category.spendCategories.forEach { c -> PillChip(category == c, c.label) { category = c } }
+                ChipRow(Modifier.edgeToEdge(CardPadding), inset = CardPadding) {
+                    Category.spendCategories.forEach { c -> PillChip(category == c, c.label, icon = categoryIcon(c)) { category = c } }
                 }
             }
 
             // ---- 2. Items (optional) ----
-            Section("2 · Items (optional, needed for by-item split)") {
+            Section("2 · Items", subtitle = "Optional · needed to split by item") {
                 items.forEachIndexed { idx, it ->
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlinedTextField(it.name, { v -> it.name = v }, label = { Text("Item") }, singleLine = true, modifier = Modifier.weight(2f))
                             OutlinedTextField(it.qty, { v -> it.qty = v.filter { ch -> ch.isDigit() } }, label = { Text("Qty") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(0.7f))
                             OutlinedTextField(it.price, { v -> it.price = v }, label = { Text("₹ each") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1.1f))
-                            IconButton(onClick = { items.removeAt(idx) }) { Icon(Icons.Filled.Close, "Remove") }
+                            IconButton(onClick = { items.removeAt(idx) }) { Icon(Icons.Outlined.Close, "Remove item") }
                         }
-                        if (mode == SplitMode.BY_ITEM) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (mode == SplitMode.BY_ITEM) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                             people.forEachIndexed { pi, name ->
                                 PillChip(pi in it.assigned, name) { if (pi in it.assigned) it.assigned.remove(pi) else it.assigned.add(pi) }
                             }
-                            if (it.assigned.isEmpty()) Text("everyone", Modifier.padding(top = 10.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (it.assigned.isEmpty()) Text("everyone", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
-                TextButton(onClick = { items += ItemState("", 1, 0, emptySet()) }) { Icon(Icons.Filled.Add, null); Text(" Add item") }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedTextField(taxInput, { taxInput = it }, label = { Text("Tax ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(serviceInput, { serviceInput = it }, label = { Text("Service/tip ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(discountInput, { discountInput = it }, label = { Text("Discount ₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1f))
+                SecondaryPill("+  Add item", onClick = { items += ItemState("", 1, 0, emptySet()) })
+                // One-word labels, ₹ as a prefix, three to a line where each gets 90dp and stacked where not,
+                // so no label is ever cut short.
+                AdaptiveRow(count = 3, minItemWidth = 90.dp) { m ->
+                    OutlinedTextField(taxInput, { taxInput = it }, label = { Text("Tax", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
+                    OutlinedTextField(serviceInput, { serviceInput = it }, label = { Text("Tip", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
+                    OutlinedTextField(discountInput, { discountInput = it }, label = { Text("Discount", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
                 }
                 if (billItems.isNotEmpty()) {
                     Text("Items ${money(itemsSum, true)} + tax/service − discount ${money(extras.netPaise, true)} = ${money(itemsSum + extras.netPaise, true)}", style = MaterialTheme.typography.bodySmall)
@@ -254,36 +294,44 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
 
             // ---- 3. People ----
             Section("3 · People") {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // FlowRows, not fixed Rows: a fixed Row squeezed its last chip into a one-letter-wide column.
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     people.forEachIndexed { i, name ->
-                        AssistChip(onClick = { if (i > 0) { people.removeAt(i); syncPerPersonLists() } }, label = { Text(name) }, trailingIcon = { if (i > 0) Icon(Icons.Filled.Close, null, Modifier.height(16.dp)) })
+                        AssistChip(
+                            onClick = { if (i > 0) { people.removeAt(i); syncPerPersonLists() } },
+                            label = { Text(name) },
+                            leadingIcon = { Icon(Icons.Outlined.Person, null, Modifier.size(18.dp)) },
+                            trailingIcon = { if (i > 0) Icon(Icons.Outlined.Close, "Remove $name", Modifier.size(16.dp)) },
+                        )
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedTextField(newPerson, { newPerson = it }, label = { Text("Add a name") }, singleLine = true, modifier = Modifier.weight(1f))
-                    Button(enabled = newPerson.isNotBlank(), onClick = { people += newPerson.trim(); newPerson = ""; syncPerPersonLists() }) { Text("Add") }
+                // Placeholder rather than a floating label, so the field and the button share a centre line.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(newPerson, { newPerson = it }, placeholder = { Text("Add a name") }, singleLine = true, modifier = Modifier.weight(1f))
+                    Button(enabled = newPerson.isNotBlank(), onClick = { people += newPerson.trim(); newPerson = ""; syncPerPersonLists() }, modifier = Modifier.height(56.dp)) { Text("Add") }
                 }
                 val suggestions = recent.filter { r -> people.none { it.equals(r, true) } }
-                if (suggestions.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    suggestions.take(10).forEach { r -> AssistChip(onClick = { people += r; syncPerPersonLists() }, label = { Text(r) }) }
+                if (suggestions.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    suggestions.take(10).forEach { r -> AssistChip(onClick = { people += r; syncPerPersonLists() }, label = { Text(r) }, leadingIcon = { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)) }) }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Quick add", style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(2, 3, 4, 5).forEach { n ->
                         AssistChip(onClick = { while (people.size < n) people += "Person ${people.size + 1}"; syncPerPersonLists() }, label = { Text("$n people") })
                     }
                 }
                 Text("Who paid the bill?", style = MaterialTheme.typography.labelLarge)
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ChipRow(Modifier.edgeToEdge(CardPadding), inset = CardPadding) {
                     people.forEachIndexed { i, name -> PillChip(payer == i, name) { payer = i } }
                 }
             }
 
             // ---- 4. How to split ----
             Section("4 · How to split") {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    SplitMode.entries.forEachIndexed { i, m ->
-                        SegmentedButton(selected = mode == m, onClick = { mode = m }, shape = SegmentedButtonDefaults.itemShape(i, SplitMode.entries.size)) { Text(m.label, maxLines = 1) }
-                    }
+                // Pills that wrap, not a four-way segmented bar: at a small phone's width the segments were
+                // too narrow for "Shares" and "Custom amounts".
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SplitMode.entries.forEach { m -> PillChip(mode == m, m.label) { mode = m } }
                 }
                 when (mode) {
                     SplitMode.EQUAL -> Text("Total ÷ ${people.size}. Any leftover paise go to the payer.", style = MaterialTheme.typography.bodySmall)
@@ -346,7 +394,6 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                     },
                 )
             }
-            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -361,9 +408,27 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
 }
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
     FinCard {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         content()
     }
+}
+
+/** A read-only field showing the date, the same shape and height as the text field beside it. */
+@Composable
+private fun DateField(date: Long, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    LaunchedEffect(pressed) { if (pressed) onClick() }
+    OutlinedTextField(
+        value = dateOnly(date), onValueChange = {}, readOnly = true, singleLine = true,
+        label = { Text("Date") },
+        trailingIcon = { Icon(Icons.Outlined.CalendarToday, "Pick date", Modifier.size(20.dp)) },
+        interactionSource = source,
+        modifier = modifier,
+    )
 }
