@@ -159,7 +159,7 @@ numbers treated as the hero element.
 - [x] Airplane-mode run: a full rescan with the radio off reported *0 added, 13 duplicates, 3 ignored*; everything but AI mode works offline
 - [x] Per-ABI APKs: arm64 **22.5 MB** (was 68 MB), armeabi-v7a 16.8 MB, x86_64 23.6 MB, universal 66.3 MB
 - [x] Commit the outstanding fixes and the UI redesign (§4, §5)
-- [ ] Document ML Kit's usage-metrics behaviour honestly in the README, incl. whether it can be disabled in the manifest
+- [x] ML Kit's telemetry documented in the README, checked three ways: no logging transports in any shipped artifact, one network endpoint in the whole APK (`api.openai.com`), and zero bytes on the app's uid across a real recognition with a working control. There is no manifest flag because there is no logging component in the bundled configuration.
 - [ ] Mark `CHANGELOG.md` 1.1.0 as released, with its date
 - [ ] Build the signed release APK
 - [ ] Tag `v1.1.0` and publish the GitHub release with the SHA-256 — **waits for explicit go-ahead**
