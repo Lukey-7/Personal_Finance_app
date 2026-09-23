@@ -52,5 +52,16 @@ object SmsCorpus {
         CorpusCase("masked_acct_then_rs", "VM-KOTAKB", "A/c XX1234 Rs 750.00 debited to Swiggy on 12-08-24. UPI Ref 422312345678", Expect.Saved(DEBIT, 75_000, Flow.EXPENSE, "swiggy")),
         CorpusCase("plain_acct_then_rs", "VM-KOTAKB", "A/c 1234 Rs 750.00 debited to Swiggy. UPI Ref 422312345679", Expect.Saved(DEBIT, 75_000)),
         CorpusCase("card_word_before_rs", "VM-HDFCBK", "Rs.500 paid to card XX1234 towards Amazon. Ref 422312345680", Expect.Saved(DEBIT, 50_000)),
+
+        // ---- Task 6: ignore rules ----
+        CorpusCase("otp_footer_on_debit", "VM-HDFCBK", "Rs.500.00 debited from a/c **1234 to VPA zomato@hdfcbank (UPI Ref No 422312345678). Never share your OTP with anyone.", Expect.Saved(DEBIT, 50_000, Flow.EXPENSE, "zomato")),
+        CorpusCase("balance_leads", "VM-AXISBK", "Avl Bal Rs 10,000.00 after Rs 500.00 debited from A/c XX1234 at Zepto. Ref 422312345678", Expect.Saved(DEBIT, 50_000, Flow.EXPENSE)),
+        CorpusCase("refund_cancelled_order", "AD-HDFCBK", "Refund of Rs 499.00 for your cancelled order has been credited to your A/c XX1234. Ref 998877665544", Expect.Saved(CREDIT, 49_900, Flow.REFUND)),
+        CorpusCase("reversal_of_failed_txn", "JD-SBIINB", "Your a/c XX1234 is credited with Rs 500.00 towards reversal of failed UPI txn Ref 123456789012 -SBI", Expect.Saved(CREDIT, 50_000, Flow.REFUND)),
+        CorpusCase("debited_then_failed", "VM-HDFCBK", "Rs 500.00 debited from A/c XX1234 to swiggy@ybl but the txn failed. Amount will be reversed in 48 hrs. Ref 422312345677", Expect.Saved(DEBIT, 50_000, Flow.EXPENSE)),
+        CorpusCase("cashback_will_be_credited", "VM-PAYTMB", "Paid Rs 300 to Zomato via UPI. Cashback will be credited in 3 days.", Expect.Saved(DEBIT, 30_000, Flow.EXPENSE)),
+        CorpusCase("not_debited", "VM-HDFCBK", "UPI txn of Rs 500 to Swiggy failed. Your account has not been debited.", Expect.Ignored),
+        CorpusCase("failed_if_debited", "VM-HDFCBK", "UPI txn of Rs 500 failed. If amount debited, it will be reversed within 48 hrs.", Expect.Ignored),
+        CorpusCase("refund_promised", "VM-HDFCBK", "Txn of Rs 500 failed. Amount will be refunded in 5-7 days.", Expect.Ignored),
     )
 }
