@@ -127,7 +127,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setMyName(v: String) = c.settings.setMyName(v)
 
     fun save(t: Transaction, onDone: () -> Unit = {}) = viewModelScope.launch {
-        if (t.id == 0L) c.transactions.insert(t) else c.transactions.update(t)
+        // An existing row saved from the editor was corrected by a person: protect it from automatic rewrites.
+        if (t.id == 0L) c.transactions.insert(t) else c.transactions.update(t.copy(userEdited = true))
         onDone()
     }
 
@@ -138,7 +139,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Save a transaction entered from a review item and remove the item from the queue. */
     fun resolveReview(reviewId: Long, t: Transaction, onDone: () -> Unit = {}) = viewModelScope.launch {
-        val id = c.transactions.insert(t)
+        val id = c.transactions.insert(t.copy(userEdited = true))
         c.transactions.resolveReview(reviewId)
         t.smsHash?.let { c.smsLog.updateOutcome(it, "SAVED", t.merchant, id.takeIf { v -> v > 0 }) }
         onDone()
@@ -269,7 +270,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** A credit matching an open split share can be recorded as a settlement instead of income. */
     fun markAsSettlement(t: Transaction, shareId: Long, settledPaise: Long) = viewModelScope.launch {
-        c.transactions.update(t.copy(flow = Flow.SETTLEMENT))
+        c.transactions.update(t.copy(flow = Flow.SETTLEMENT, userEdited = true))
         c.splits.settle(shareId, settledPaise)
     }
 

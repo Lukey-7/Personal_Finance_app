@@ -1,5 +1,6 @@
 package com.pft.financetracker.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -30,6 +31,10 @@ data class TransactionEntity(
     val confidence: Int,
     val needsReview: Boolean,
     val createdAt: Long = System.currentTimeMillis(),
+    /** The amount the bank reported, when a split later reduced [amountPaise] to my share. Used to spot the same payment. */
+    val originalAmountPaise: Long? = null,
+    /** True once a person corrected this row. Automatic re-parsing and duplicate merging never overwrite it. */
+    @ColumnInfo(defaultValue = "0") val userEdited: Boolean = false,
 )
 
 /**

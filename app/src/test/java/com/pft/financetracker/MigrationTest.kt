@@ -55,4 +55,20 @@ class MigrationTest {
         assertFalse(db.isReadOnly)
         db.close()
     }
+
+    @Test
+    fun migrate2To3AddsOriginalAmountAndUserEdited() {
+        helper.createDatabase(dbName, 2).apply {
+            execSQL("INSERT INTO transactions (id, amountPaise, type, merchant, category, timestamp, bankName, accountRef, source, flow, note, smsHash, refNumber, confidence, needsReview, createdAt) VALUES (1, 25050, 'DEBIT', 'Swiggy', 'FOOD', 1700000000000, 'HDFC Bank', '1234', 'SMS', 'EXPENSE', NULL, 'hash1', '4223', 90, 0, 1700000000000)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(dbName, 3, true, AppDatabase.MIGRATION_2_3)
+        db.query("SELECT amountPaise, originalAmountPaise, userEdited FROM transactions WHERE id = 1").use { c ->
+            c.moveToNext()
+            assertEquals(25_050L, c.getLong(0))
+            assertTrue(c.isNull(1))
+            assertEquals(0, c.getInt(2))
+        }
+        db.close()
+    }
 }

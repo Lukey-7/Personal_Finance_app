@@ -133,6 +133,10 @@ data class Transaction(
     val refNumber: String? = null,
     val confidence: Int = 100,
     val needsReview: Boolean = false,
+    /** Bank-reported amount before a split shrank this row to my share; null when never shrunk. */
+    val originalAmountPaise: Long? = null,
+    /** A person corrected this row; automatic processes must leave it alone. */
+    val userEdited: Boolean = false,
 ) {
     enum class Source { SMS, MANUAL, SPLIT }
     val amount: Double get() = Money.toRupees(amountPaise)
