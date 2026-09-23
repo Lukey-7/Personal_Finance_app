@@ -12,8 +12,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.outlined.CallSplit
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material3.TopAppBarDefaults
+import com.pft.financetracker.ui.components.AddFabExtended
+import com.pft.financetracker.ui.components.EmptyState
+import com.pft.financetracker.ui.components.FabClearance
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.IconCircle
+import com.pft.financetracker.ui.components.LocalBottomBarPadding
+import com.pft.financetracker.ui.components.PrimaryPill
+import com.pft.financetracker.ui.components.bottomPadding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,11 +60,15 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
     val owedToMe = balances.filter { it.netPaise > 0 }.sumOf { it.netPaise }
     val iOwe = -balances.filter { it.netPaise < 0 }.sumOf { it.netPaise }
 
+    val barPad = LocalBottomBarPadding.current
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Split bills") }) },
-        floatingActionButton = { ExtendedFloatingActionButton(onClick = onNew, icon = { Icon(Icons.Filled.Add, null) }, text = { Text("New split") }) }
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = { TopAppBar(title = { Text("Split bills") }, colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)) },
+        // With no splits yet the empty state carries the button, so a floating one would only repeat it.
+        floatingActionButton = { if (splits.isNotEmpty()) AddFabExtended("New split", onNew, Modifier.padding(bottom = barPad)) }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 96.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = bottomPadding(FabClearance)), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
                 SoftPanel {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -85,13 +101,17 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
                     }
                 }
             }
-            item { Spacer(Modifier.height(4.dp)); Text("Splits", style = MaterialTheme.typography.titleMedium) }
             if (splits.isEmpty()) item {
-                Text("No splits yet. Snap a bill or type an amount, add the people, and FinTrack works out who pays what. Only your share counts as your spending.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+                EmptyState(
+                    Icons.AutoMirrored.Outlined.CallSplit,
+                    "No splits yet. Snap a bill or type an amount, add the people, and FinTrack works out who pays what. Only your share counts as your spending.",
+                ) { PrimaryPill("New split", onNew) }
+            } else item { Text("Splits", style = MaterialTheme.typography.titleMedium) }
             items(splits, key = { it.id }) { s ->
-                FinCard(onClick = { onOpen(s.id) }, padding = androidx.compose.foundation.layout.PaddingValues(16.dp)) {
+                FinCard(onClick = { onOpen(s.id) }, padding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconCircle(Icons.AutoMirrored.Outlined.ReceiptLong, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(16.dp))
                         Column(Modifier.weight(1f)) {
                             Text(s.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                             Text(

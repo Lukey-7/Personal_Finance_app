@@ -36,20 +36,20 @@ fun flowColor(t: Transaction) = when (t.flow) {
  * underneath, and the amount right-aligned with the secondary line below it.
  */
 @Composable
-fun TransactionRow(t: Transaction, onClick: () -> Unit) {
+fun TransactionRow(t: Transaction, showDate: Boolean = true, onClick: () -> Unit) {
     val color = colorFor(Category.entries.indexOf(t.category))
     Row(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = Gutter, vertical = 14.dp),
+            .padding(horizontal = Gutter, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        LetterAvatar(t.merchant.ifBlank { t.category.label }, color)
-        Spacer(Modifier.width(14.dp))
+        LetterAvatar(t.merchant.ifBlank { t.category.label }, color, size = RowIconSize)
+        Spacer(Modifier.width(RowIconGap))
         Column(Modifier.weight(1f)) {
             Text(
-                t.merchant,
+                displayMerchant(t.merchant),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -72,8 +72,20 @@ fun TransactionRow(t: Transaction, onClick: () -> Unit) {
                 color = flowColor(t),
                 textAlign = TextAlign.End,
             )
-            val tag = if (t.flow != Flow.EXPENSE && t.flow != Flow.INCOME) t.flow.label else shortDate(t.timestamp)
-            Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // A short flow tag only where the colour alone doesn't say it; the date only where the list
+            // has no date headers of its own (Activity groups by day, so it would just repeat).
+            val tag = flowTag(t.flow) ?: if (showDate) shortDate(t.timestamp) else null
+            if (tag != null) Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
+}
+
+/** One-word tags, short enough never to squeeze the merchant/bank line beside them. */
+private fun flowTag(f: Flow): String? = when (f) {
+    Flow.EXPENSE, Flow.INCOME -> null
+    Flow.REFUND -> "Refund"
+    Flow.TRANSFER -> "Transfer"
+    Flow.INVESTMENT -> "Invested"
+    Flow.CASH -> "Cash"
+    Flow.SETTLEMENT -> "Settled"
 }

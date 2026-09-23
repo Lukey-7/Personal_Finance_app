@@ -13,9 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -67,7 +67,7 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
     Scaffold(topBar = {
         TopAppBar(
             title = { Text(split?.title ?: "Split") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
             actions = {
                 if (split != null) {
                     IconButton(onClick = {
@@ -78,14 +78,14 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                             split.shares.forEach { sh -> append("${split.people.getOrNull(sh.personIndex)?.name}: ${money(sh.amountPaise, true)}${if (sh.settledPaise >= sh.amountPaise && sh.personIndex != split.payerIndex) " ✓" else ""}\n") }
                         }
                         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Share split"))
-                    }) { Icon(Icons.Filled.Share, "Share") }
-                    IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, "Delete") }
+                    }) { Icon(Icons.Outlined.Share, "Share") }
+                    IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Outlined.Delete, "Delete") }
                 }
             }
         )
     }) { padding ->
         if (split == null) { Text("Split not found.", Modifier.padding(padding).padding(16.dp)); return@Scaffold }
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(start = com.pft.financetracker.ui.components.Gutter, top = 8.dp, end = com.pft.financetracker.ui.components.Gutter, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             FinCard {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(money(split.totalPaise, true), style = MaterialTheme.typography.displaySmall)
@@ -104,7 +104,7 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                         val isPayer = sh.personIndex == split.payerIndex
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text((person?.name ?: "?") + if (isPayer) "  · paid the bill" else "", fontWeight = FontWeight.SemiBold)
+                                Text((person?.name ?: "?") + if (isPayer) " · paid the bill" else "", fontWeight = FontWeight.SemiBold)
                                 if (!isPayer) Text(
                                     when {
                                         sh.remainingPaise <= 0 -> "Settled"

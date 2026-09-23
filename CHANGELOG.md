@@ -34,6 +34,13 @@ Focus: numbers you can trust, a log of every SMS, and bill splitting with on-dev
   bundled (OFL).
 - Dashboard leads with the net-spend figure itself, with the arithmetic in a tonal panel below.
 - Pill chips and a floating pill bottom bar; transaction rows use tinted circular initials.
+- Outline icons throughout, with one icon per category (budgets, top merchants, the spending legend,
+  category chips), icons on Settings sections and SMS log statuses, and proper empty states.
+- One 24dp gutter and spacing rhythm on every screen. Lists scroll underneath the bottom bar instead of
+  stopping short of it, and always leave room to scroll their last row clear of the + button.
+- Layouts hold up at large font sizes and on small phones: amounts never wrap, and fields and buttons
+  stack instead of being cut off.
+- Accessibility: the Settings switches and the "New split" button are now announced by name.
 
 ### Housekeeping
 - **Clean up duplicates** in Settings finds the same payment stored twice - typically rows imported by

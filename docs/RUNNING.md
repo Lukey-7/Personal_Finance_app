@@ -103,6 +103,6 @@ Release builds set `FLAG_SECURE`, so screenshots come out black. Debug builds le
 build.cmd testDebugUnitTest
 ```
 
-90 tests: parser, categoriser, duplicate detection and cleanup, insights arithmetic, split maths, bill
+89 tests: parser, categoriser, duplicate detection and cleanup, insights arithmetic, split maths, bill
 parser, and the v1 to v2 database migration. The HTML report lands in
 `app\build\reports\tests\testDebugUnitTest\index.html`.

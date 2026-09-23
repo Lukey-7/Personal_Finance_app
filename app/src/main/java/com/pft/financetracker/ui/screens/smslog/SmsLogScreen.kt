@@ -15,7 +15,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.pft.financetracker.ui.components.ChipRow
+import com.pft.financetracker.ui.components.EmptyState
+import com.pft.financetracker.ui.components.IconCircle
+import com.pft.financetracker.ui.components.SearchField
+import com.pft.financetracker.ui.components.bottomPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -86,7 +98,7 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
             TopAppBar(
                 title = { Text("SMS log") },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
             )
         },
         snackbarHost = { SnackbarHost(snackbar) }
@@ -94,18 +106,18 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
         Column(Modifier.fillMaxSize().padding(padding)) {
             Text(
                 "Every bank/UPI SMS scanned, and what the app did with it. Message text is not stored; tap a row to read it from your inbox.",
-                Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                Modifier.padding(horizontal = Gutter, vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp), placeholder = { Text("Search sender, reason, amount") }, singleLine = true)
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SearchField(query, { query = it }, "Search sender, reason, amount", Modifier.padding(horizontal = Gutter, vertical = 8.dp))
+            ChipRow(Modifier.padding(bottom = 8.dp)) {
                 if (runId != null) PillChip(onlyThisRun, "This import") { onlyThisRun = !onlyThisRun }
                 PillChip(outcome == null, "All (${all.size})") { outcome = null }
                 listOf(Outcomes.SAVED to "Saved", Outcomes.REVIEW to "Review", Outcomes.DUPLICATE to "Duplicate", Outcomes.IGNORED to "Ignored").forEach { (k, label) ->
                     PillChip(outcome == k, "$label (${counts[k] ?: 0})") { outcome = if (outcome == k) null else k }
                 }
             }
-            if (list.isEmpty()) Text("No log entries match.", Modifier.padding(16.dp))
-            LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+            if (list.isEmpty()) EmptyState(Icons.Outlined.SearchOff, if (all.isEmpty()) "No SMS scanned yet." else "No log entries match.")
+            LazyColumn(contentPadding = PaddingValues(bottom = bottomPadding())) {
                 items(list, key = { it.id }) { e -> LogRow(e) { selected = e } }
             }
         }
@@ -151,17 +163,28 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
 private fun LogRow(e: SmsLogEntity, onClick: () -> Unit) {
     FinCard(Modifier.padding(horizontal = Gutter, vertical = 4.dp), onClick = onClick, padding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // Status shown by an icon as well as its colour, so it survives colour blindness and greyscale.
+            val c = outcomeColor(e.outcome)
+            IconCircle(outcomeIcon(e.outcome), tint = c, background = c.copy(alpha = 0.12f))
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(e.sender, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.padding(horizontal = 4.dp))
-                    Text(outcomeLabel(e.outcome), style = MaterialTheme.typography.labelSmall, color = outcomeColor(e.outcome), fontWeight = FontWeight.Bold)
-                }
-                Text("${fullDate(e.receivedAt)} · ${e.reason.replace('_', ' ')}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(e.sender, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(outcomeLabel(e.outcome) + " · " + e.reason.replace('_', ' '), style = MaterialTheme.typography.labelMedium, color = c, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(fullDate(e.receivedAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
-            e.amountPaise?.let { Text(money(it), fontWeight = FontWeight.SemiBold, color = if (e.type == "CREDIT") Income else Expense) }
+            e.amountPaise?.let {
+                Spacer(Modifier.width(10.dp))
+                Text(money(it), fontWeight = FontWeight.SemiBold, color = if (e.type == "CREDIT") Income else Expense)
+            }
         }
     }
+}
+
+private fun outcomeIcon(o: String): ImageVector = when (o) {
+    Outcomes.SAVED -> Icons.Outlined.CheckCircle
+    Outcomes.REVIEW -> Icons.Outlined.ErrorOutline
+    Outcomes.DUPLICATE -> Icons.Outlined.ContentCopy
+    else -> Icons.Outlined.Block
 }
 
 private fun outcomeLabel(o: String) = when (o) { Outcomes.SAVED -> "Saved"; Outcomes.REVIEW -> "Needs review"; Outcomes.DUPLICATE -> "Duplicate"; else -> "Ignored" }
