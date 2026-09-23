@@ -131,6 +131,7 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
         refNumber = refNumber,
         confidence = existing?.confidence ?: 100,
         needsReview = false,
+        originalAmountPaise = existing?.originalAmountPaise,
     )
 
     Scaffold(

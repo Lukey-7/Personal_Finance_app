@@ -29,6 +29,8 @@ fun TransactionEntity.toDomain(): Transaction {
         refNumber = refNumber,
         confidence = confidence,
         needsReview = needsReview,
+        originalAmountPaise = originalAmountPaise,
+        userEdited = userEdited,
     )
 }
 
@@ -48,6 +50,8 @@ fun Transaction.toEntity() = TransactionEntity(
     refNumber = refNumber,
     confidence = confidence,
     needsReview = needsReview,
+    originalAmountPaise = originalAmountPaise,
+    userEdited = userEdited,
 )
 
 fun BudgetEntity.toDomain() = Budget(Category.fromName(category), monthlyLimitPaise)
