@@ -249,7 +249,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (split.iPaid && linked != null) {
             c.transactions.getById(linked)?.let { t ->
                 val othersPaise = split.totalPaise - me
-                c.transactions.update(t.copy(amountPaise = me, category = category, note = listOfNotNull(t.note, "Split: ${split.title}. ₹${othersPaise / 100} owed to you.").joinToString(" ")))
+                c.transactions.update(t.copy(amountPaise = me, originalAmountPaise = t.originalAmountPaise ?: t.amountPaise, category = category, note = listOfNotNull(t.note, "Split: ${split.title}. ₹${othersPaise / 100} owed to you.").joinToString(" ")))
             }
         } else if (me > 0) {
             linked = c.transactions.insert(

@@ -56,26 +56,26 @@ class TransactionRepository(
         candidate.refNumber?.let { ref -> findByRef(ref, candidate.type)?.let { return it } }
 
         // Search the whole calendar day as well as the window: a transaction imported by v1.0.0 sits at
-        // midnight (its parser dropped the time of day), so the same message re-parsed by v1.1 lands hours
-        // away and the window alone would miss it. Same-day matches are held to the stricter merchant test.
+        // midnight (its parser dropped the time of day), so the same message re-parsed now lands hours away.
         val dayStart = startOfDay(candidate.timestamp)
         val dayEnd = dayStart + 86_400_000L
         val from = minOf(dayStart, candidate.timestamp - windowMillis)
         val to = maxOf(dayEnd, candidate.timestamp + windowMillis)
 
-        return dao.findSimilar(candidate.amountPaise, candidate.type.name, from, to).map { it.toDomain() }.firstOrNull { existing ->
+        return dao.findSimilar(candidate.amountPaise, from, to).map { it.toDomain() }.firstOrNull { existing ->
             // Two references that both exist and disagree mean two genuinely different payments.
             if (existing.refNumber != null && candidate.refNumber != null && existing.refNumber != candidate.refNumber) return@firstOrNull false
             val sameMerchant = InsightsEngine.normalizeMerchant(existing.merchant) == InsightsEngine.normalizeMerchant(candidate.merchant)
-            if (kotlin.math.abs(existing.timestamp - candidate.timestamp) <= windowMillis) {
-                // Minutes apart: a second sender reporting the same payment, or a generic-merchant alert.
-                val differentReporter = existing.bankName != candidate.bankName
-                val genericMerchant = isGeneric(existing.merchant) || isGeneric(candidate.merchant)
-                sameMerchant || differentReporter || genericMerchant
-            } else {
-                // Hours apart but the same day: only the same merchant counts, so two different payments
-                // that happen to share an amount are both kept.
-                sameMerchant && existing.timestamp in dayStart until dayEnd
+            val genericMerchant = isGeneric(existing.merchant) || isGeneric(candidate.merchant)
+            when {
+                // A v1.0.0 row: exactly midnight on this day, possibly with the direction the old parser guessed.
+                existing.timestamp == startOfDay(existing.timestamp) && existing.timestamp in dayStart until dayEnd ->
+                    sameMerchant || genericMerchant
+                // Minutes apart, same direction: a second sender reporting the same payment, or a generic alert.
+                existing.type == candidate.type && kotlin.math.abs(existing.timestamp - candidate.timestamp) <= windowMillis ->
+                    sameMerchant || existing.bankName != candidate.bankName || genericMerchant
+                // Hours apart is two payments, even to the same merchant: two coffees are two coffees.
+                else -> false
             }
         }
     }

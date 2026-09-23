@@ -103,6 +103,42 @@ class DuplicateDetectionTest {
         set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
     }.timeInMillis
 
+    /** Two identical card alerts for two coffees, hours apart, no references: both are real payments. */
+    @Test fun sameMerchantSameDayHoursApartWithoutRefsAreBothKept() = runBlocking {
+        val at = startOfDay(now) + 9 * 3600_000
+        repo.insert(tx(18_000, "Starbucks", "HDFC Bank", at))
+        assertNull(repo.findLikelyDuplicate(tx(18_000, "Starbucks", "HDFC Bank", at + 5 * 3600_000)))
+    }
+
+    /** A v1.0.0 row stored with the wrong direction is still the same payment when the fixed parser re-reads it. */
+    @Test fun legacyMidnightRowMatchesEitherDirection() = runBlocking {
+        val midnight = startOfDay(now)
+        repo.insert(tx(1_250_000, "Payment (HDFC Bank)", "HDFC Bank", midnight, hash = "legacy"))
+        val credit = tx(1_250_000, "Credit (HDFC Bank)", "HDFC Bank", midnight + 18 * 3600_000).copy(type = TransactionType.CREDIT)
+        assertEquals("legacy", repo.findLikelyDuplicate(credit)?.smsHash)
+    }
+
+    /** Bug #9: a split shrank the bank debit to my share; the UPI app's full-amount alert is the same payment. */
+    @Test fun splitShrunkRowIsMatchedByItsOriginalAmount() = runBlocking {
+        repo.insert(tx(40_000, "Barbeque", "HDFC Bank", now).copy(originalAmountPaise = 120_000))
+        assertNotNull(repo.findLikelyDuplicate(tx(120_000, "Barbeque Nation", "Google Pay", now + 60_000)))
+    }
+
+    /** Merging a second alert into a split-shrunk, user-edited row must not undo the split or the edit. */
+    @Test fun mergeKeepsSplitAmountAndUserEdits() = runBlocking {
+        val importer = SmsImporter(
+            ApplicationProvider.getApplicationContext(), SmsParser(), repo,
+            SmsLogRepository(db.smsLogDao()), SettingsRepository(ApplicationProvider.getApplicationContext()),
+        )
+        repo.insert(tx(40_000, "Barbeque", "HDFC Bank", now).copy(originalAmountPaise = 120_000, category = Category.SHOPPING, userEdited = true, note = "team dinner"))
+        val outcome = importer.process(SmsMessage("VM-GPAYIN", "You paid Rs.1200 to Barbeque Nation using Google Pay", now + 60_000))
+        assertEquals(SmsImporter.Outcome.DUPLICATE, outcome)
+        val row = repo.getAll().single()
+        assertEquals(40_000L, row.amountPaise)
+        assertEquals(Category.SHOPPING, row.category)
+        assertEquals("team dinner", row.note)
+    }
+
     @Test fun richerRecordWins() {
         val generic = tx(25_000, "Payment (Paytm)", "Paytm", now)
         val detailed = tx(25_000, "Swiggy", "HDFC Bank", now).copy(accountRef = "1234")

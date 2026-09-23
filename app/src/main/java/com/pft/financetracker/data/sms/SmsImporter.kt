@@ -101,8 +101,17 @@ class SmsImporter(
                     // fields, but always this parse's flow and category. We are holding the full SMS body,
                     // whereas a row carried over from v1.0.0 only ever had a flow guessed from its category,
                     // so a rescan is the moment a mis-filed card-bill payment or transfer gets corrected.
-                    val best = repo.richer(existing, candidate)
-                    val merged = best.copy(id = existing.id, smsHash = existing.smsHash, flow = candidate.flow, category = candidate.category)
+                    val merged = if (existing.userEdited) {
+                        // A person corrected this row: only fill in identifiers it lacks.
+                        existing.copy(refNumber = existing.refNumber ?: candidate.refNumber, accountRef = existing.accountRef ?: candidate.accountRef)
+                    } else {
+                        // Keep the richer descriptive fields, take this parse's direction/flow/category (we hold the
+                        // full SMS body), but never the amount or note: a split may have shrunk the amount on purpose.
+                        repo.richer(existing, candidate).copy(
+                            id = existing.id, smsHash = existing.smsHash, type = candidate.type, flow = candidate.flow, category = candidate.category,
+                            amountPaise = existing.amountPaise, originalAmountPaise = existing.originalAmountPaise, note = existing.note,
+                        )
+                    }
                     if (merged != existing) repo.update(merged)
                     val why = if (candidate.refNumber != null && candidate.refNumber == existing.refNumber) "same_ref_${existing.id}" else "same_amount_within_10min_${existing.id}"
                     log.log(entry(Outcomes.DUPLICATE, why, p.amountPaise, p.type.name, existing.id))
