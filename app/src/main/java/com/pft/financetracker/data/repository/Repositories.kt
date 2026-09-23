@@ -178,6 +178,7 @@ class SmsLogRepository(private val dao: SmsLogDao) {
     val recent: Flow<List<SmsLogEntity>> = dao.observeRecent()
     val counts: Flow<Map<String, Int>> = dao.observeCounts().map { list -> list.associate { it.outcome to it.n } }
     suspend fun getById(id: Long) = dao.getById(id)
+    suspend fun getByHash(hash: String) = dao.getByHash(hash)
     suspend fun log(e: SmsLogEntity) = dao.upsert(e)
     suspend fun updateOutcome(hash: String, outcome: String, reason: String, transactionId: Long?) = dao.updateOutcome(hash, outcome, reason, transactionId)
     suspend fun prune(retainDays: Int = 365) = dao.pruneBefore(System.currentTimeMillis() - retainDays * 86_400_000L)
