@@ -9,6 +9,10 @@ import com.pft.financetracker.data.repository.SmsLogRepository
 import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.data.sms.SmsImporter
 import com.pft.financetracker.data.sms.SmsImporter.Outcome
+import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.Flow
+import com.pft.financetracker.domain.model.Transaction
+import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.domain.parser.Hashing
 import com.pft.financetracker.domain.parser.SmsMessage
 import com.pft.financetracker.domain.parser.SmsParser
@@ -84,5 +88,32 @@ class ImportMemoryTest {
         log.log(SmsLogEntity(sender = "VM-HDFCBK", receivedAt = noon, outcome = "IGNORED", reason = "otp", amountPaise = null, type = null, transactionId = null, smsHash = Hashing.smsHash("VM-HDFCBK", body, noon), runId = 0))
         assertEquals(Outcome.INSERTED, importer.process(sms(body, noon)))
         assertEquals(50_000L, repo.getAll().single().amountPaise)
+    }
+
+    private val icici = "ICICI Bank Acct XX123 debited for Rs 240.00 on 28-Mar-24; DAKSHIN CAFE credited. UPI:408812345678. Call 18002662 for dispute."
+
+    /** What the pre-fix parser stored for [icici]: a Rs 240 "income" from "dispute". */
+    private suspend fun storeStaleIcici(userEdited: Boolean): Long {
+        val hash = Hashing.smsHash("AX-ICICIB", icici, noon)
+        val id = repo.insert(Transaction(amountPaise = 24_000, type = TransactionType.CREDIT, merchant = "dispute", category = Category.INCOME, timestamp = noon,
+            bankName = "ICICI Bank", accountRef = "123", source = Transaction.Source.SMS, flow = Flow.INCOME, smsHash = hash, userEdited = userEdited))
+        log.log(SmsLogEntity(sender = "AX-ICICIB", receivedAt = noon, outcome = "SAVED", reason = "dispute", amountPaise = 24_000, type = "CREDIT", transactionId = id, smsHash = hash, runId = 0))
+        return id
+    }
+
+    @Test fun rescanRepairsARowTheOldParserGotBackwards() = runBlocking {
+        val id = storeStaleIcici(userEdited = false)
+        assertEquals(Outcome.DUPLICATE, importer.process(sms(icici, noon, "AX-ICICIB")))
+        val t = repo.getById(id)!!
+        assertEquals(TransactionType.DEBIT, t.type)
+        assertEquals(Flow.EXPENSE, t.flow)
+        assertEquals(24_000L, t.amountPaise)
+        assertEquals(1, repo.getAll().size)
+    }
+
+    @Test fun rescanNeverRepairsARowAPersonEdited() = runBlocking {
+        val id = storeStaleIcici(userEdited = true)
+        importer.process(sms(icici, noon, "AX-ICICIB"))
+        assertEquals(TransactionType.CREDIT, repo.getById(id)!!.type)
     }
 }

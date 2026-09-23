@@ -109,10 +109,30 @@ class SmsImporter(
     /** The user said a review item is not a transaction. */
     suspend fun recordDismissed(hash: String) = log.updateOutcome(hash, Outcomes.IGNORED, Outcomes.DISMISSED_BY_USER, null)
 
+    /**
+     * A settled SMS whose saved row an older parser got wrong (e.g. an ICICI UPI debit stored as income). Re-parse it and
+     * correct direction, amount, merchant and flow in place, unless a person edited the row or a split owns its amount.
+     */
+    private suspend fun repairIfWrong(sms: SmsMessage, logged: SmsLogEntity) {
+        if (logged.outcome != Outcomes.SAVED) return
+        val existing = logged.transactionId?.let { repo.getById(it) } ?: return
+        if (existing.userEdited || existing.originalAmountPaise != null || existing.source != Transaction.Source.SMS) return
+        val p = (parser.parse(sms) as? ParseResult.Success)?.transaction ?: return
+        if (p.type == existing.type && p.amountPaise == existing.amountPaise) return
+        val category = Categorizer.categorize(p.merchant, p.type, p.bankName)
+        repo.update(
+            existing.copy(
+                amountPaise = p.amountPaise, type = p.type, merchant = p.merchant, category = category,
+                flow = FlowClassifier.classify(p.type, sms.body, p.merchant, category), refNumber = existing.refNumber ?: p.refNumber,
+            )
+        )
+        log.updateOutcome(logged.smsHash, Outcomes.SAVED, "repaired_${p.merchant}", existing.id)
+    }
+
     suspend fun process(sms: SmsMessage, runId: Long = System.currentTimeMillis()): Outcome {
         val hash = when (val s = seen(Hashing.smsHash(sms.sender, sms.body, sms.receivedAt), sms.receivedAt)) {
             is Seen.New -> s.hash
-            is Seen.Settled -> return Outcome.DUPLICATE
+            is Seen.Settled -> { s.log?.let { repairIfWrong(sms, it) }; return Outcome.DUPLICATE }
         }
 
         fun entry(outcome: String, reason: String, amountPaise: Long? = null, type: String? = null, txId: Long? = null) =
