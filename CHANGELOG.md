@@ -3,6 +3,16 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [Unreleased]
+
+### SMS accuracy
+- Direction comes from the first verb about your own account, so "Acct debited ...; SHOP credited" (ICICI), "Rs 500 Dr. ... Cr. to x@ybl" (Bank of Baroda) and "You paid ... cashback credited" are spends, not income or refunds.
+- An account number next to "Rs" ("A/c XX1234 Rs 750") is never taken as the amount.
+- Real debits with an OTP footer, balance-first alerts, refunds for cancelled orders and reversals of failed payments are no longer dropped. "Has not been debited" is still ignored.
+- Two identical card alerts on one day are two payments. A payment reported by a second app after you split it is recognised as the same payment.
+- "Rescan the last 12 months" no longer brings back transactions you deleted or review items you dismissed. It recovers messages an older version ignored, and corrects rows an older version stored backwards, except rows you edited yourself.
+- Database version 3 (adds two columns; existing data migrates in place).
+
 ## [1.1.0] - 2026-09-23
 
 Focus: numbers you can trust, a log of every SMS, and bill splitting with on-device OCR. Existing data is migrated in place.
