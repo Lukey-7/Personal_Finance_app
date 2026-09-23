@@ -65,7 +65,7 @@
 **Interfaces:**
 - Produces: `SmsCorpus.cases: List<CorpusCase>`; `CorpusCase(name, sender, body, expect)`; `Expect.Saved(type: TransactionType?, paise: Long, flow: Flow? = null, merchantContains: String? = null, ref: String? = null)`, `Expect.Ignored`, `Expect.Review`. Later tasks append rows to `SmsCorpus.cases`.
 
-- [ ] **Step 1: Create the corpus with shapes that already parse correctly**
+- [x] **Step 1: Create the corpus with shapes that already parse correctly**
 
 ```kotlin
 package com.pft.financetracker
@@ -112,7 +112,7 @@ object SmsCorpus {
 }
 ```
 
-- [ ] **Step 2: Create the runner that reports every mismatch in one failure**
+- [x] **Step 2: Create the runner that reports every mismatch in one failure**
 
 ```kotlin
 package com.pft.financetracker
@@ -157,12 +157,12 @@ class SmsCorpusTest {
 }
 ```
 
-- [ ] **Step 3: Run it (announce the Gradle run to the other session first)**
+- [x] **Step 3: Run it (announce the Gradle run to the other session first)**
 
 Run: `./build.sh --offline -q testDebugUnitTest --tests "com.pft.financetracker.SmsCorpusTest"`
 Expected: exit 0 (all 17 baseline rows pass). If a baseline row fails, the row is wrong, not the parser: re-check it against the audit output, fix the row, re-run.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add app/src/test/java/com/pft/financetracker/SmsCorpus.kt app/src/test/java/com/pft/financetracker/SmsCorpusTest.kt
@@ -190,7 +190,7 @@ Two facts the ledger currently forgets. `originalAmountPaise` is the amount the 
 **Interfaces:**
 - Produces: `Transaction.originalAmountPaise: Long? = null`, `Transaction.userEdited: Boolean = false`; entity columns of the same names; `AppDatabase.MIGRATION_2_3`.
 
-- [ ] **Step 1: Write the failing migration test** (append inside `MigrationTest`)
+- [x] **Step 1: Write the failing migration test** (append inside `MigrationTest`)
 
 ```kotlin
     @Test
@@ -210,12 +210,12 @@ Two facts the ledger currently forgets. `originalAmountPaise` is the amount the 
     }
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `./build.sh --offline -q testDebugUnitTest --tests "com.pft.financetracker.MigrationTest"`
 Expected: compile failure, `Unresolved reference: MIGRATION_2_3`.
 
-- [ ] **Step 3: Add the columns, mapping and migration**
+- [x] **Step 3: Add the columns, mapping and migration**
 
 `Entities.kt`, add `import androidx.room.ColumnInfo`, then add these two properties to `TransactionEntity` after `needsReview`:
 
@@ -251,7 +251,7 @@ Expected: compile failure, `Unresolved reference: MIGRATION_2_3`.
 
 and change `ALL_MIGRATIONS` to `arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3)`.
 
-- [ ] **Step 4: Mark human edits and keep the bank amount through an edit**
+- [x] **Step 4: Mark human edits and keep the bank amount through an edit**
 
 Message the other session first: "Editing AppViewModel.markAsSettlement (one `.copy(userEdited = true)`) for the SMS plan, Task 2."
 
@@ -270,12 +270,12 @@ In `markAsSettlement`, change `t.copy(flow = Flow.SETTLEMENT)` to `t.copy(flow =
 
 `EditTransactionScreen.kt` `build()`: add `originalAmountPaise = existing?.originalAmountPaise,` after `needsReview = false,`.
 
-- [ ] **Step 5: Run the migration test and the full suite (the build generates 3.json)**
+- [x] **Step 5: Run the migration test and the full suite (the build generates 3.json)**
 
 Run: `./build.sh --offline -q testDebugUnitTest`
 Expected: exit 0. `app/schemas/com.pft.financetracker.data.local.AppDatabase/3.json` now exists (`ls` it). If `MigrationTest` says it cannot find schema version 3, KSP wrote `3.json` after the test assets were merged: run the same command once more. If `runMigrationsAndValidate` reports a schema mismatch on `userEdited`, the entity is missing `@ColumnInfo(defaultValue = "0")`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/com/pft/financetracker/data/local/Entities.kt app/src/main/java/com/pft/financetracker/domain/model/Models.kt app/src/main/java/com/pft/financetracker/data/local/Mappers.kt app/src/main/java/com/pft/financetracker/data/local/AppDatabase.kt app/src/main/java/com/pft/financetracker/ui/AppViewModel.kt app/src/main/java/com/pft/financetracker/ui/screens/edit/EditTransactionScreen.kt app/src/test/java/com/pft/financetracker/MigrationTest.kt app/schemas/com.pft.financetracker.data.local.AppDatabase/3.json
@@ -301,7 +301,7 @@ Today, two same-amount payments to the same merchant hours apart on one day are 
 - Consumes: `Transaction.originalAmountPaise`, `Transaction.userEdited` (Task 2).
 - Produces: `TransactionDao.findSimilar(amountPaise: Long, from: Long, to: Long): List<TransactionEntity>` (the `type` parameter is removed).
 
-- [ ] **Step 1: Write the failing tests** (append inside `DuplicateDetectionTest`)
+- [x] **Step 1: Write the failing tests** (append inside `DuplicateDetectionTest`)
 
 ```kotlin
     /** Two identical card alerts for two coffees, hours apart, no references: both are real payments. */
@@ -341,12 +341,12 @@ Today, two same-amount payments to the same merchant hours apart on one day are 
     }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./build.sh --offline -q testDebugUnitTest --tests "com.pft.financetracker.DuplicateDetectionTest"`
 Expected: FAIL on the four new tests (the first returns a match, the second and third return null, the fourth changes amount/category).
 
-- [ ] **Step 3: Widen the DAO query**
+- [x] **Step 3: Widen the DAO query**
 
 `Daos.kt`, replace `findSimilar`:
 
@@ -359,7 +359,7 @@ Expected: FAIL on the four new tests (the first returns a match, the second and 
     suspend fun findSimilar(amountPaise: Long, from: Long, to: Long): List<TransactionEntity>
 ```
 
-- [ ] **Step 4: Rewrite the matching rule**
+- [x] **Step 4: Rewrite the matching rule**
 
 `Repositories.kt`, replace the body of `findLikelyDuplicate` after the `findByRef` line:
 
@@ -389,7 +389,7 @@ Expected: FAIL on the four new tests (the first returns a match, the second and 
         }
 ```
 
-- [ ] **Step 5: Make the importer's merge respect edits and splits**
+- [x] **Step 5: Make the importer's merge respect edits and splits**
 
 `SmsImporter.kt`, in the `existing != null` branch of `process`, replace the two lines starting `val best = ...` and `val merged = ...` with:
 
@@ -409,7 +409,7 @@ Expected: FAIL on the four new tests (the first returns a match, the second and 
 
 (The following `if (merged != existing) repo.update(merged)` line stays.)
 
-- [ ] **Step 6: Make splits record the bank amount**
+- [x] **Step 6: Make splits record the bank amount**
 
 Message the other session: "Editing AppViewModel.saveSplit (one line) for SMS plan Task 3: the linked debit keeps originalAmountPaise." Then in `saveSplit`, change
 
@@ -425,12 +425,12 @@ to
 
 (leaving the rest of that line unchanged).
 
-- [ ] **Step 7: Run the duplicate tests, then the full suite**
+- [x] **Step 7: Run the duplicate tests, then the full suite**
 
 Run: `./build.sh --offline -q testDebugUnitTest`
 Expected: exit 0. In particular `legacyMidnightRowIsMatchedOnRescan`, `rescanCorrectsTheFlowOfALegacyRow` and `sameAmountSameBankDifferentMerchantIsKept` still pass.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add app/src/main/java/com/pft/financetracker/data/local/Daos.kt app/src/main/java/com/pft/financetracker/data/repository/Repositories.kt app/src/main/java/com/pft/financetracker/data/sms/SmsImporter.kt app/src/main/java/com/pft/financetracker/ui/AppViewModel.kt app/src/test/java/com/pft/financetracker/DuplicateDetectionTest.kt
@@ -450,7 +450,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Produces: `TypeDetector.primaryDirection(body: String): TransactionType?` (public, used only by `detect`).
 
-- [ ] **Step 1: Add the failing corpus rows** (append to `SmsCorpus.cases`, under a `// ---- Task 4: direction ----` comment)
+- [x] **Step 1: Add the failing corpus rows** (append to `SmsCorpus.cases`, under a `// ---- Task 4: direction ----` comment)
 
 ```kotlin
         CorpusCase("icici_upi_payee_credited", "AX-ICICIB", "ICICI Bank Acct XX123 debited for Rs 240.00 on 28-Mar-24; DAKSHIN CAFE credited. UPI:408812345678. Call 18002662 for dispute. SMS BLOCK 123 to 9215676766.", Expect.Saved(DEBIT, 24_000, Flow.EXPENSE, "dakshin", "408812345678")),
@@ -462,12 +462,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
         CorpusCase("someone_paid_you", "VM-PHONPE", "Rahul paid you Rs 500 on PhonePe. UPI Ref 422312345677", Expect.Saved(CREDIT, 50_000)),
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./build.sh --offline -q testDebugUnitTest --tests "com.pft.financetracker.SmsCorpusTest"`
 Expected: FAIL listing at least `icici_upi_payee_credited`, `bob_dr_cr_abbrev`, `paid_with_cashback`, `card_bill_payment_is_credit`, `credited_to_beneficiary`, `someone_paid_you`.
 
-- [ ] **Step 3: Implement primary-verb direction**
+- [x] **Step 3: Implement primary-verb direction**
 
 `Extractors.kt`, inside `object TypeDetector`, add above `fun detect`:
 
@@ -508,7 +508,7 @@ In `detect`, insert this line immediately before the final `return when {`:
         }
 ```
 
-- [ ] **Step 4: Name the ICICI payee and read "UPI:<ref>"**
+- [x] **Step 4: Name the ICICI payee and read "UPI:<ref>"**
 
 `MerchantExtractor.patterns`: insert as the **first** element:
 
@@ -523,12 +523,12 @@ In `detect`, insert this line immediately before the final `return when {`:
         Regex("""\b(?:upi|imps|neft|rtgs)?\s*(?:ref(?:erence)?(?:\s*no\.?|\s*number|\s*id)?|rrn|txn\s*id|transaction\s*id|utr|upi)\s*[:#.\-]?\s*([A-Za-z0-9]{6,22})\b""", RegexOption.IGNORE_CASE),
 ```
 
-- [ ] **Step 5: Run the corpus, then the full suite**
+- [x] **Step 5: Run the corpus, then the full suite**
 
 Run: `./build.sh --offline -q testDebugUnitTest`
 Expected: exit 0. If an existing `SmsParserTest`/`ParserAccuracyTest` case now fails, read its body: if the first verb really is the customer's side, the old expectation was wrong and must be discussed with the user before changing it. Do not weaken `primaryDirection` to make it pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add app/src/main/java/com/pft/financetracker/domain/parser/Extractors.kt app/src/test/java/com/pft/financetracker/SmsCorpus.kt
@@ -545,7 +545,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `app/src/main/java/com/pft/financetracker/domain/parser/Extractors.kt` (`AmountExtractor`)
 - Test: `app/src/test/java/com/pft/financetracker/SmsCorpus.kt`
 
-- [ ] **Step 1: Add the failing corpus rows** (`// ---- Task 5: amount ----`)
+- [x] **Step 1: Add the failing corpus rows** (`// ---- Task 5: amount ----`)
 
 ```kotlin
         CorpusCase("masked_acct_then_rs", "VM-KOTAKB", "A/c XX1234 Rs 750.00 debited to Swiggy on 12-08-24. UPI Ref 422312345678", Expect.Saved(DEBIT, 75_000, Flow.EXPENSE, "swiggy")),
@@ -553,12 +553,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
         CorpusCase("card_word_before_rs", "VM-HDFCBK", "Rs.500 paid to card XX1234 towards Amazon. Ref 422312345680", Expect.Saved(DEBIT, 50_000)),
 ```
 
-- [ ] **Step 2: Run to verify the first two fail**
+- [x] **Step 2: Run to verify the first two fail**
 
 Run: `./build.sh --offline -q testDebugUnitTest --tests "com.pft.financetracker.SmsCorpusTest"`
 Expected: FAIL with `masked_acct_then_rs: paise 123400 != 75000` and `plain_acct_then_rs: paise 123400 != 75000`.
 
-- [ ] **Step 3: Implement the guard**
+- [x] **Step 3: Implement the guard**
 
 In `AmountExtractor`, change the first pattern so a currency word inside another word ("Hrs", "Users") never starts an amount:
 
@@ -581,12 +581,12 @@ In `candidates`, directly after `for (m in rx.findAll(body)) {`, add:
                 if (accountLead.containsMatchIn(body.substring(maxOf(0, numStart - 20), numStart))) continue
 ```
 
-- [ ] **Step 4: Run the full suite**
+- [x] **Step 4: Run the full suite**
 
 Run: `./build.sh --offline -q testDebugUnitTest`
 Expected: exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/pft/financetracker/domain/parser/Extractors.kt app/src/test/java/com/pft/financetracker/SmsCorpus.kt
@@ -605,7 +605,7 @@ Only one statement is final: "money did not move" ("has not been debited"). Ever
 - Modify: `app/src/main/java/com/pft/financetracker/domain/parser/Extractors.kt` (`TextFilters`)
 - Test: `app/src/test/java/com/pft/financetracker/SmsCorpus.kt`
 
-- [ ] **Step 1: Add the failing corpus rows** (`// ---- Task 6: ignore rules ----`)
+- [x] **Step 1: Add the failing corpus rows** (`// ---- Task 6: ignore rules ----`)
 
 ```kotlin
         CorpusCase("otp_footer_on_debit", "VM-HDFCBK", "Rs.500.00 debited from a/c **1234 to VPA zomato@hdfcbank (UPI Ref No 422312345678). Never share your OTP with anyone.", Expect.Saved(DEBIT, 50_000, Flow.EXPENSE, "zomato")),
@@ -619,12 +619,12 @@ Only one statement is final: "money did not move" ("has not been debited"). Ever
         CorpusCase("refund_promised", "VM-HDFCBK", "Txn of Rs 500 failed. Amount will be refunded in 5-7 days.", Expect.Ignored),
 ```
 
-- [ ] **Step 2: Run to verify the first six fail**
+- [x] **Step 2: Run to verify the first six fail**
 
 Run: `./build.sh --offline -q testDebugUnitTest --tests "com.pft.financetracker.SmsCorpusTest"`
 Expected: FAIL listing `otp_footer_on_debit`, `balance_leads`, `refund_cancelled_order`, `reversal_of_failed_txn`, `debited_then_failed`, `cashback_will_be_credited` as "expected Saved, got Ignored(...)".
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `TextFilters.ignoreRules`, add as the **first** entry:
 
@@ -664,12 +664,12 @@ Replace `completedVerb`, `softRules` and `ignoreReason` with:
     }
 ```
 
-- [ ] **Step 4: Run the full suite**
+- [x] **Step 4: Run the full suite**
 
 Run: `./build.sh --offline -q testDebugUnitTest`
 Expected: exit 0, including the existing `genuineFutureDebitStillIgnored`, `pureOtpStillIgnored`, `purePromoStillIgnored`, `failedTxnIsIgnored`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/pft/financetracker/domain/parser/Extractors.kt app/src/test/java/com/pft/financetracker/SmsCorpus.kt
@@ -694,7 +694,7 @@ The SMS log becomes the importer's record of what it has seen. Identical bodies 
 **Interfaces:**
 - Produces: `Outcomes.DISMISSED_BY_USER`, `Outcomes.DELETED_BY_USER`, `Outcomes.USER_DECISIONS: Set<String>`; `SmsImporter.forgetDeleted(t: Transaction)`, `SmsImporter.recordDismissed(hash: String)`; `SmsLogRepository.getByHash(hash: String): SmsLogEntity?`; private `SmsImporter.seen(base, at): Seen` with `Seen.New(hash)` / `Seen.Settled(hash, log: SmsLogEntity?)` (Task 8 extends the `Settled` branch).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```kotlin
 package com.pft.financetracker
@@ -787,12 +787,12 @@ class ImportMemoryTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 Run: `./build.sh --offline -q testDebugUnitTest --tests "com.pft.financetracker.ImportMemoryTest"`
 Expected: compile failure on `forgetDeleted` / `recordDismissed`.
 
-- [ ] **Step 3: Add the log lookup**
+- [x] **Step 3: Add the log lookup**
 
 `Daos.kt`, in `SmsLogDao`:
 
@@ -803,7 +803,7 @@ Expected: compile failure on `forgetDeleted` / `recordDismissed`.
 
 `Repositories.kt`, in `SmsLogRepository`: `suspend fun getByHash(hash: String) = dao.getByHash(hash)`
 
-- [ ] **Step 4: Implement the importer memory**
+- [x] **Step 4: Implement the importer memory**
 
 `SmsImporter.kt`: in `object Outcomes` add:
 
@@ -864,7 +864,7 @@ In `process`, replace the first two statements (`val hash = Hashing.smsHash(...)
         }
 ```
 
-- [ ] **Step 5: Route the UI through it**
+- [x] **Step 5: Route the UI through it**
 
 `AppViewModel.kt`:
 
@@ -877,12 +877,12 @@ In `process`, replace the first two statements (`val hash = Hashing.smsHash(...)
 
 In `dismissReview`, replace `r?.let { c.smsLog.updateOutcome(it.smsHash, "IGNORED", "dismissed_by_user", null) }` with `r?.let { c.importer.recordDismissed(it.smsHash) }`.
 
-- [ ] **Step 6: Run the full suite**
+- [x] **Step 6: Run the full suite**
 
 Run: `./build.sh --offline -q testDebugUnitTest`
 Expected: exit 0, including `DuplicateDetectionTest.rescanCorrectsTheFlowOfALegacyRow` (its legacy row has hash "legacy" and no log row, so the SMS is `New` and reaches the duplicate merge as before).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add app/src/main/java/com/pft/financetracker/data/local/Daos.kt app/src/main/java/com/pft/financetracker/data/repository/Repositories.kt app/src/main/java/com/pft/financetracker/data/sms/SmsImporter.kt app/src/main/java/com/pft/financetracker/ui/AppViewModel.kt app/src/test/java/com/pft/financetracker/ImportMemoryTest.kt
@@ -904,7 +904,7 @@ Users already have ICICI debits stored as income. On rescan, a settled SMS whose
 **Interfaces:**
 - Consumes: `Seen.Settled(hash, log)` (Task 7), `Transaction.userEdited` / `originalAmountPaise` (Task 2).
 
-- [ ] **Step 1: Write the failing tests** (append inside `ImportMemoryTest`; add imports `com.pft.financetracker.domain.model.Category`, `com.pft.financetracker.domain.model.Flow`, `com.pft.financetracker.domain.model.Transaction`, `com.pft.financetracker.domain.model.TransactionType`)
+- [x] **Step 1: Write the failing tests** (append inside `ImportMemoryTest`; add imports `com.pft.financetracker.domain.model.Category`, `com.pft.financetracker.domain.model.Flow`, `com.pft.financetracker.domain.model.Transaction`, `com.pft.financetracker.domain.model.TransactionType`)
 
 ```kotlin
     private val icici = "ICICI Bank Acct XX123 debited for Rs 240.00 on 28-Mar-24; DAKSHIN CAFE credited. UPI:408812345678. Call 18002662 for dispute."
@@ -935,12 +935,12 @@ Users already have ICICI debits stored as income. On rescan, a settled SMS whose
     }
 ```
 
-- [ ] **Step 2: Run to verify the first fails**
+- [x] **Step 2: Run to verify the first fails**
 
 Run: `./build.sh --offline -q testDebugUnitTest --tests "com.pft.financetracker.ImportMemoryTest"`
 Expected: FAIL in `rescanRepairsARowTheOldParserGotBackwards`: `expected:<DEBIT> but was:<CREDIT>`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `SmsImporter.kt`, add below `recordDismissed`:
 
@@ -972,12 +972,12 @@ In `process`, change the `Settled` branch to:
             is Seen.Settled -> { s.log?.let { repairIfWrong(sms, it) }; return Outcome.DUPLICATE }
 ```
 
-- [ ] **Step 4: Run the full suite**
+- [x] **Step 4: Run the full suite**
 
 Run: `./build.sh --offline -q testDebugUnitTest`
 Expected: exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/src/main/java/com/pft/financetracker/data/sms/SmsImporter.kt app/src/test/java/com/pft/financetracker/ImportMemoryTest.kt
@@ -994,12 +994,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Modify: `CHANGELOG.md` (new `## [Unreleased]` section above `## [1.1.0]`)
 - Modify: `docs/DEVICE-TEST-v1.1.md` (append a dated "SMS accuracy hardening" section)
 
-- [ ] **Step 1: Full test suite and debug build** (announce to the other session)
+- [x] **Step 1: Full test suite and debug build** (announce to the other session)
 
 Run: `./build.sh --offline -q testDebugUnitTest assembleDebug`
 Expected: exit 0. Record the total from `app/build/test-results/testDebugUnitTest/*.xml`: sum of `tests=`, 0 failures.
 
-- [ ] **Step 2: Device check on the shared emulator** (ask the other session for the emulator first; do NOT clear data or reseed)
+- [x] **Step 2: Device check on the shared emulator** (ask the other session for the emulator first; do NOT clear data or reseed)
 
 ```bash
 adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-x86_64-debug.apk
@@ -1008,7 +1008,7 @@ adb -s emulator-5554 install -r app/build/outputs/apk/debug/app-x86_64-debug.apk
 (If the per-ABI APK name differs, `ls app/build/outputs/apk/debug/` and use the x86_64 one.) Launch `com.pft.financetracker.debug`, open Settings, then "Rescan the last 12 months". Read the dashboard with `adb -s emulator-5554 shell uiautomator dump /sdcard/ui.xml` + `adb -s emulator-5554 pull /sdcard/ui.xml` (FLAG_SECURE blanks screenshots).
 Expected: net spend for September 2026 is still **₹4,218**, and the row counts are unchanged: no seeded message is re-imported, duplicated or lost. Seeded #2 (card bill payment) may now show as a *transfer in* rather than a transfer out. That is correct, and net spend is unaffected.
 
-- [ ] **Step 3: Release notes**
+- [x] **Step 3: Release notes**
 
 Add to `CHANGELOG.md` above `## [1.1.0]`:
 
@@ -1026,7 +1026,7 @@ Add to `CHANGELOG.md` above `## [1.1.0]`:
 
 Append to `docs/DEVICE-TEST-v1.1.md` a `## SMS accuracy hardening (<date>)` section with the test total from Step 1 and the dashboard figures read in Step 2.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add CHANGELOG.md docs/DEVICE-TEST-v1.1.md
