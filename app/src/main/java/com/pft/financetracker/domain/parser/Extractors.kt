@@ -70,6 +70,32 @@ object TypeDetector {
 
     data class Result(val type: TransactionType?, val score: Int)
 
+    /**
+     * The first verb that reports money moving is about the customer's own account; later mentions describe the
+     * other side ("Acct debited ...; DAKSHIN CAFE credited", "Rs.500 Dr. ... Cr. to x@ybl", "You paid Rs 200 ...
+     * Cashback of Rs 20 credited"). Counting keywords let those later mentions outvote the real direction.
+     */
+    private val primaryVerb = Regex(
+        """\b(debited|spent|withdrawn|deducted|paid|sent|charged|transferred|credited|received|deposited|refunded|refund)\b|(?:rs\.?|inr|₹)\s*[\d,]+(?:\.\d{1,2})?\s*(dr|cr)\b""",
+        RegexOption.IGNORE_CASE
+    )
+    private val toCounterparty = Regex("""^\s*to\s+(?:the\s+)?(?:beneficiary|payee|[\w.\-]+@[a-z]+)""", RegexOption.IGNORE_CASE)
+    private val intoOwnAccount = Regex("""^\s*(?:to|into|in)\s+(?:your|ur)\b""", RegexOption.IGNORE_CASE)
+    private val toYou = Regex("""^\s*you\b""", RegexOption.IGNORE_CASE)
+
+    fun primaryDirection(body: String): TransactionType? {
+        val m = primaryVerb.find(body) ?: return null
+        val word = (m.groups[1]?.value ?: m.groups[2]?.value ?: return null).lowercase(Locale.ROOT)
+        val after = body.substring(m.range.last + 1, minOf(body.length, m.range.last + 41))
+        return when (word) {
+            "paid" -> if (toYou.containsMatchIn(after)) TransactionType.CREDIT else TransactionType.DEBIT
+            "debited", "spent", "withdrawn", "deducted", "sent", "charged", "dr" -> TransactionType.DEBIT
+            "transferred" -> if (intoOwnAccount.containsMatchIn(after)) TransactionType.CREDIT else TransactionType.DEBIT
+            "credited" -> if (toCounterparty.containsMatchIn(after)) TransactionType.DEBIT else TransactionType.CREDIT
+            else -> TransactionType.CREDIT // received, deposited, refunded, refund, cr
+        }
+    }
+
     fun detect(body: String): Result {
         val b = body.lowercase(Locale.ROOT)
         var debit = 0
@@ -88,6 +114,10 @@ object TypeDetector {
         // Payment RECEIVED into a credit card is a credit to the card; keep credit.
         if (b.contains("payment received") || b.contains("payment of") && b.contains("received")) credit += 2
 
+        primaryDirection(body)?.let { dir ->
+            val margin = if (dir == TransactionType.DEBIT) debit - credit else credit - debit
+            return Result(dir, maxOf(3, margin))
+        }
         return when {
             debit == 0 && credit == 0 -> Result(null, 0)
             debit > credit -> Result(TransactionType.DEBIT, debit - credit)
@@ -198,6 +228,8 @@ object MerchantExtractor {
     private const val STOP = """(?=\s+(?:on|dt|dated|ref|refno|ref no|upi ref|txn|txnid|txn id|via|using|from|avl|available|bal|balance|info|is|\.|,|-|\(|;|\||$)|\s*$|\.\s|,)"""
 
     val patterns: List<Regex> = listOf(
+        // ICICI: "Acct XX123 debited for Rs 240.00 on 28-Mar-24; DAKSHIN CAFE credited." The payee precedes "credited".
+        Regex(""";\s*([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)\s+credited\b"""),
         // UPI VPA e.g. "to VPA merchant@okaxis", "paid to swiggy@ybl"
         Regex("""(?:to|for|at|vpa|payee)\s*:?\s*(?:vpa\s*)?([a-z0-9._\-]+@[a-z]{2,})""", RegexOption.IGNORE_CASE),
         // "UPI/P2M/123456/Merchant Name" or "UPI-Merchant Name-..."
@@ -282,7 +314,7 @@ object DateExtractor {
 // ---------------------------------------------------------------------------------------------
 object RefExtractor {
     val patterns: List<Regex> = listOf(
-        Regex("""\b(?:upi|imps|neft|rtgs)?\s*(?:ref(?:erence)?(?:\s*no\.?|\s*number|\s*id)?|rrn|txn\s*id|transaction\s*id|utr)\s*[:#.\-]?\s*([A-Za-z0-9]{6,22})\b""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:upi|imps|neft|rtgs)?\s*(?:ref(?:erence)?(?:\s*no\.?|\s*number|\s*id)?|rrn|txn\s*id|transaction\s*id|utr|upi)\s*[:#.\-]?\s*([A-Za-z0-9]{6,22})\b""", RegexOption.IGNORE_CASE),
     )
 
     fun extract(body: String): String? {
