@@ -213,3 +213,35 @@ the file.
 - OCR accuracy on real, creased, dimly lit receipts photographed with a real camera.
 - The OpenAI request itself.
 - Any real bank's SMS wording beyond the seeded set.
+
+## SMS accuracy hardening (2026-09-23)
+
+Plan: `docs/PLAN-sms-accuracy.md`. Unit tests: **118 tests, 0 failures** (`testDebugUnitTest`), including a
+36-message regression corpus (`SmsCorpusTest`) covering the nine audit bugs.
+
+Device run on `fintest` (emulator-5554), debug build installed with `install -r` over the existing v2
+database, so the v2 -> v3 migration ran on real data. Then Settings -> *Rescan the last 12 months*.
+
+| Figure (Sep 2026) | Before install | After upgrade + rescan |
+|---|---|---|
+| Net spend | ₹4,218 | **₹4,218** |
+| Income | ₹45,000 | ₹45,000 |
+| Gross spend | ₹4,668 | ₹4,668 |
+| Refunds & cashback | ₹450 | ₹450 |
+| Savings | ₹40,782 | ₹40,782 |
+| Transfers & card bill payments (out) | ₹15,500 | ₹3,000 |
+| Transfers in | (not shown) | ₹12,500 |
+| Investments | ₹5,000 | ₹5,000 |
+| Review queue | 1 | 1 |
+
+Rescan result: *Scanned 17 SMS: 0 added, 0 to review, 14 duplicates, 3 ignored*. Nothing was re-imported or
+lost. Seeded #2 (card bill payment received) was stored as a debit by the old parser; the rescan repaired it
+in place to a credit, so it moved from transfers out to transfers in. That is the split this document always
+expected (transfers out 3,000, in 12,500). No total that counts as spend or income changed.
+
+One ANR occurred while another Gradle build was loading the host. The trace showed the main thread waiting on
+the render thread (`HardwareRenderer.setStopped`) with no app frames, so the emulator was starved, not the app
+hung. A relaunch did not reproduce it.
+
+Still not covered: bank SMS wording beyond the corpus. Each misread message reported from a real phone should
+become one more `SmsCorpus` row.
