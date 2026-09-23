@@ -133,7 +133,7 @@ object TypeDetector {
 object AmountExtractor {
     private const val NUM = """(\d+(?:,\d{2,3})*(?:\.\d{1,2})?)"""
     val patterns: List<Regex> = listOf(
-        Regex("""(?:inr|rs\.?|₹|rupees?)\s*:?\s*$NUM""", RegexOption.IGNORE_CASE),
+        Regex("""(?<![a-z])(?:inr|rs\.?|₹|rupees?)\s*:?\s*$NUM""", RegexOption.IGNORE_CASE),
         Regex("""$NUM\s*(?:inr|rs\.?|rupees?|/-)""", RegexOption.IGNORE_CASE),
         Regex("""(?:amount|amt)\s*(?:of)?\s*:?\s*$NUM""", RegexOption.IGNORE_CASE),
     )
@@ -141,12 +141,18 @@ object AmountExtractor {
     /** Words that, if they directly precede an amount, mean it is a balance/limit rather than the txn amount. */
     private val balanceContext = Regex("""(bal|balance|avl|available|limit|lmt|outstanding|o/s|total due|min due|clr bal)\W{0,12}$""", RegexOption.IGNORE_CASE)
 
+    /** A number glued to a card/account mask ("XX1234 Rs 750", "A/c 1234 Rs 750") is the account, not the amount. */
+    private val accountLead = Regex("""(?:[x*]|(?:a/?c|acct|account|card)(?:\s*(?:no\.?|number))?\s*[:#\-]?\s*)$""", RegexOption.IGNORE_CASE)
+
     data class Candidate(val value: Double, val index: Int, val isBalance: Boolean)
 
     fun candidates(body: String): List<Candidate> {
         val out = mutableListOf<Candidate>()
         for (rx in patterns) {
             for (m in rx.findAll(body)) {
+                // Judge the digits themselves (group 1), not the currency word in front of them.
+                val numStart = m.groups[1]!!.range.first
+                if (accountLead.containsMatchIn(body.substring(maxOf(0, numStart - 20), numStart))) continue
                 val raw = m.groupValues[1].replace(",", "")
                 val value = raw.toDoubleOrNull() ?: continue
                 if (value <= 0.0 || value > 10_000_000.0) continue
