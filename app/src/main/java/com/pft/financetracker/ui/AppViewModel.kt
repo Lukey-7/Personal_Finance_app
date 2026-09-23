@@ -132,7 +132,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         onDone()
     }
 
-    fun delete(t: Transaction) = viewModelScope.launch { c.transactions.delete(t) }
+    fun delete(t: Transaction) = viewModelScope.launch {
+        c.transactions.delete(t)
+        c.importer.forgetDeleted(t)
+    }
 
     suspend fun getTransaction(id: Long): Transaction? = c.transactions.getById(id)
     suspend fun getReview(id: Long): ReviewItemEntity? = c.transactions.getReview(id)
@@ -148,7 +151,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun dismissReview(reviewId: Long) = viewModelScope.launch {
         val r = c.transactions.getReview(reviewId)
         c.transactions.resolveReview(reviewId)
-        r?.let { c.smsLog.updateOutcome(it.smsHash, "IGNORED", "dismissed_by_user", null) }
+        r?.let { c.importer.recordDismissed(it.smsHash) }
     }
 
     fun setBudget(category: Category, limitPaise: Long) = viewModelScope.launch { c.budgets.set(category, limitPaise) }

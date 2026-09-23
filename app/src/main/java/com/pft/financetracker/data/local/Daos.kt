@@ -99,6 +99,9 @@ interface SmsLogDao {
     @Query("SELECT * FROM sms_log WHERE id = :id")
     suspend fun getById(id: Long): SmsLogEntity?
 
+    @Query("SELECT * FROM sms_log WHERE smsHash = :hash LIMIT 1")
+    suspend fun getByHash(hash: String): SmsLogEntity?
+
     @Query("SELECT outcome, COUNT(*) AS n FROM sms_log GROUP BY outcome")
     fun observeCounts(): Flow<List<OutcomeCount>>
 

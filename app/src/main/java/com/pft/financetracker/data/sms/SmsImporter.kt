@@ -28,6 +28,11 @@ object Outcomes {
     const val REVIEW = "REVIEW"
     const val IGNORED = "IGNORED"
     const val DUPLICATE = "DUPLICATE"
+
+    /** Reasons recording the user's own decision. A rescan never overrides these. */
+    const val DISMISSED_BY_USER = "dismissed_by_user"
+    const val DELETED_BY_USER = "deleted_by_user"
+    val USER_DECISIONS = setOf(DISMISSED_BY_USER, DELETED_BY_USER)
 }
 
 /**
@@ -67,10 +72,48 @@ class SmsImporter(
 
     enum class Outcome { INSERTED, REVIEW, IGNORED, DUPLICATE }
 
+    /** The live receiver and an inbox scan see one message within seconds; identical alerts further apart are separate payments. */
+    private val sameMessageWindowMs = 5 * 60_000L
+
+    private sealed interface Seen {
+        /** Not handled yet (or only ignored by the parser): process it and store it under [hash]. */
+        data class New(val hash: String) : Seen
+        /** Handled and settled: saved, queued, a duplicate, or decided by the user. */
+        data class Settled(val hash: String, val log: SmsLogEntity?) : Seen
+    }
+
+    /**
+     * Identical bodies on one day share [Hashing.smsHash]. The first is stored under it; the n-th distinct occurrence
+     * (more than [sameMessageWindowMs] from the earlier ones) under "hash#n", so two identical card alerts are two
+     * payments. A message the parser only ignored is new again, so a better parser recovers it on rescan.
+     */
+    private suspend fun seen(base: String, at: Long): Seen {
+        var n = 1
+        while (true) {
+            val hash = if (n == 1) base else "$base#$n"
+            // No log row: new, unless a pre-log (v1.0.0) transaction or review item already holds this hash.
+            val logged = log.getByHash(hash) ?: return if (n == 1 && repo.hashSeen(hash)) Seen.Settled(hash, null) else Seen.New(hash)
+            if (kotlin.math.abs(logged.receivedAt - at) <= sameMessageWindowMs) {
+                val onlyParserIgnored = logged.outcome == Outcomes.IGNORED && logged.reason !in Outcomes.USER_DECISIONS
+                return if (onlyParserIgnored) Seen.New(hash) else Seen.Settled(hash, logged)
+            }
+            n++
+        }
+    }
+
+    /** The user deleted [t]. Record it so a rescan does not import the same SMS again. */
+    suspend fun forgetDeleted(t: Transaction) {
+        t.smsHash?.let { log.updateOutcome(it, Outcomes.IGNORED, Outcomes.DELETED_BY_USER, null) }
+    }
+
+    /** The user said a review item is not a transaction. */
+    suspend fun recordDismissed(hash: String) = log.updateOutcome(hash, Outcomes.IGNORED, Outcomes.DISMISSED_BY_USER, null)
+
     suspend fun process(sms: SmsMessage, runId: Long = System.currentTimeMillis()): Outcome {
-        val hash = Hashing.smsHash(sms.sender, sms.body, sms.receivedAt)
-        // Exact same SMS seen before (live receiver + later inbox scan): nothing to do, nothing new to log.
-        if (repo.hashSeen(hash)) return Outcome.DUPLICATE
+        val hash = when (val s = seen(Hashing.smsHash(sms.sender, sms.body, sms.receivedAt), sms.receivedAt)) {
+            is Seen.New -> s.hash
+            is Seen.Settled -> return Outcome.DUPLICATE
+        }
 
         fun entry(outcome: String, reason: String, amountPaise: Long? = null, type: String? = null, txId: Long? = null) =
             SmsLogEntity(sender = sms.sender, receivedAt = sms.receivedAt, outcome = outcome, reason = reason, amountPaise = amountPaise, type = type, transactionId = txId, smsHash = hash, runId = runId)
