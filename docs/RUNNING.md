@@ -33,17 +33,17 @@ Then, from a new prompt:
 
 ```
 adb devices
-adb install -r app\build\outputs\apk\release\FinTrack-v1.1.0-arm64-v8a-release.apk
+adb install -r app\build\outputs\apk\release\FinTrack-v1.1.1-arm64-v8a-release.apk
 ```
 
 Pick the APK that matches the device:
 
 | File | Use it for |
 |---|---|
-| `FinTrack-v1.1.0-arm64-v8a-release.apk` | any phone from the last several years (~22 MB) |
-| `FinTrack-v1.1.0-armeabi-v7a-release.apk` | older 32-bit phones (~17 MB) |
-| `FinTrack-v1.1.0-x86_64-release.apk` | the emulator |
-| `FinTrack-v1.1.0-universal-release.apk` | when you do not know the target (~66 MB) |
+| `FinTrack-v1.1.1-arm64-v8a-release.apk` | any phone from the last several years (~22 MB) |
+| `FinTrack-v1.1.1-armeabi-v7a-release.apk` | older 32-bit phones (~17 MB) |
+| `FinTrack-v1.1.1-x86_64-release.apk` | the emulator |
+| `FinTrack-v1.1.1-universal-release.apk` | when you do not know the target (~66 MB) |
 
 The size difference is the on-device OCR model, which ships once per architecture.
 
@@ -55,7 +55,7 @@ AI mode needs your own OpenAI key. Rather than typing it on the phone every time
 ```
 set OPENAI_API_KEY=sk-your-key-here
 build.cmd assembleDebug
-adb install -r app\build\outputs\apk\debug\FinTrack-v1.1.0-arm64-v8a-debug.apk
+adb install -r app\build\outputs\apk\debug\FinTrack-v1.1.1-arm64-v8a-debug.apk
 ```
 
 The app then starts with that key already saved, and **Settings → Generate summary** works immediately -
@@ -79,7 +79,7 @@ For your own phone you can build the key into a signed **release** APK too. Set 
 set OPENAI_API_KEY=sk-your-key-here
 set FINTRACK_EMBED_KEY=1
 build.cmd assembleRelease
-adb install -r app\build\outputs\apk\release\FinTrack-v1.1.0-arm64-v8a-release-personal.apk
+adb install -r app\build\outputs\apk\release\FinTrack-v1.1.1-arm64-v8a-release-personal.apk
 ```
 
 Or put both in a `secrets.properties` file at the repo root, so every build picks them up without
