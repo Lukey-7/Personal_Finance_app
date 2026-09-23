@@ -24,10 +24,17 @@ val hasReleaseKey = keystoreProps.getProperty("storeFile")?.let { file(it).exist
 // build only when FINTRACK_EMBED_KEY=1 is also set: a *personal* build for your own phone. Anyone holding
 // such an APK can extract the key, so those files are named "-personal" and must never be shared or
 // attached to a GitHub release. The app still lets you change or remove the key in Settings.
-val buildKey = (System.getenv("OPENAI_API_KEY") ?: "").filter { it.isLetterOrDigit() || it in "-_" }
-val personalRelease = System.getenv("FINTRACK_EMBED_KEY") == "1" && buildKey.isNotEmpty()
-if (System.getenv("FINTRACK_EMBED_KEY") == "1" && buildKey.isEmpty()) {
-    logger.warn("FINTRACK_EMBED_KEY=1 but OPENAI_API_KEY is empty: the release build will have no built-in key.")
+// Both settings can live in secrets.properties at the repo root (git-ignored); the environment overrides it.
+val secretProps = Properties().apply {
+    val f = rootProject.file("secrets.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun secret(name: String): String = System.getenv(name)?.takeIf { it.isNotEmpty() } ?: secretProps.getProperty(name, "")
+val buildKey = secret("OPENAI_API_KEY").filter { it.isLetterOrDigit() || it in "-_" }
+val embedRequested = secret("FINTRACK_EMBED_KEY") == "1"
+val personalRelease = embedRequested && buildKey.isNotEmpty()
+if (embedRequested && buildKey.isEmpty()) {
+    logger.warn("FINTRACK_EMBED_KEY=1 but no OPENAI_API_KEY is set: the release build will have no built-in key.")
 }
 
 android {

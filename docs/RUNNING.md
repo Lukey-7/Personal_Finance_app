@@ -82,6 +82,14 @@ build.cmd assembleRelease
 adb install -r app\build\outputs\apk\release\FinTrack-v1.1.0-arm64-v8a-release-personal.apk
 ```
 
+Or put both in a `secrets.properties` file at the repo root, so every build picks them up without
+`set` commands. The file is git-ignored; environment variables override it:
+
+```
+OPENAI_API_KEY=sk-your-key-here
+FINTRACK_EMBED_KEY=1
+```
+
 Files built this way end in **`-personal`**. They carry your key, so never share them or attach them
 to a GitHub release. Clear both variables (`set FINTRACK_EMBED_KEY=` and `set OPENAI_API_KEY=`) before
 building APKs to share; without `FINTRACK_EMBED_KEY=1` a release build carries no key at all.
