@@ -41,9 +41,12 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE refNumber = :ref AND type = :type LIMIT 1")
     suspend fun findByRef(ref: String, type: String): TransactionEntity?
 
-    /** Candidates for the "same payment, two SMS" check: same amount and direction within a time window. */
-    @Query("SELECT * FROM transactions WHERE amountPaise = :amountPaise AND type = :type AND timestamp BETWEEN :from AND :to AND source = 'SMS'")
-    suspend fun findSimilar(amountPaise: Long, type: String, from: Long, to: Long): List<TransactionEntity>
+    /**
+     * Candidates for the "same payment, two SMS" check: same amount (or the bank amount a split shrank) within a
+     * time window. Direction is filtered by the caller, because a v1.0.0 row may carry the wrong one.
+     */
+    @Query("SELECT * FROM transactions WHERE (amountPaise = :amountPaise OR originalAmountPaise = :amountPaise) AND timestamp BETWEEN :from AND :to AND source = 'SMS'")
+    suspend fun findSimilar(amountPaise: Long, from: Long, to: Long): List<TransactionEntity>
 }
 
 @Dao
