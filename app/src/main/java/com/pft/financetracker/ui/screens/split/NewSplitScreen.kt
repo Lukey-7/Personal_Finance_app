@@ -283,7 +283,13 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                     OutlinedTextField(discountInput, { discountInput = it }, label = { Text("Discount", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
                 }
                 if (billItems.isNotEmpty()) {
-                    Text("Items ${money(itemsSum, true)} + tax/service − discount ${money(extras.netPaise, true)} = ${money(itemsSum + extras.netPaise, true)}", style = MaterialTheme.typography.bodySmall)
+                    // Each part on its own terms, so a discount never reads as "− discount -₹50".
+                    val parts = listOfNotNull(
+                        "Items ${money(itemsSum, true)}",
+                        (extras.taxPaise + extras.servicePaise + extras.tipPaise).takeIf { it != 0L }?.let { "+ tax & charges ${money(it, true)}" },
+                        extras.discountPaise.takeIf { it != 0L }?.let { "− discount ${money(it, true)}" },
+                    )
+                    Text("${parts.joinToString(" ")} = ${money(itemsSum + extras.netPaise, true)}", style = MaterialTheme.typography.bodySmall)
                     if (gap != null && gap != 0L) Text(
                         if (gap > 0) "Bill total is ${money(gap, true)} more than the items add up to. Fix an item, or the difference is shared like a service charge." else "Items add up to ${money(-gap, true)} more than the bill total. Check the prices or the total.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary

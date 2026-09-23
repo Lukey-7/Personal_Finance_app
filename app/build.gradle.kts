@@ -146,6 +146,8 @@ dependencies {
     implementation(libs.androidx.sqlite.ktx)
     // On-device OCR for bill photos. Bundled model: ships in the APK, works offline, downloads nothing.
     implementation(libs.mlkit.text.recognition)
+    // Bills printed in Hindi (Devanagari). Bundled like the Latin model: offline, about 4 MB more per ABI.
+    implementation(libs.mlkit.text.recognition.devanagari)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)

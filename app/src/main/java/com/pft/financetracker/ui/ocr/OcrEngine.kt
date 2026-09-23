@@ -5,57 +5,72 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
+import android.util.Log
+import com.pft.financetracker.BuildConfig
+import com.pft.financetracker.domain.ocr.OcrLine
+import com.pft.financetracker.domain.ocr.OcrRows
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
+import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * On-device text recognition using ML Kit's *bundled* Latin model. The model ships inside the APK, so this
- * works in airplane mode and never downloads anything. The image is decoded, recognised, and dropped;
- * nothing is written to disk by this class.
+ * On-device text recognition using ML Kit's *bundled* Latin and Devanagari models. Both ship inside the APK,
+ * so this works in airplane mode and never downloads anything. The image is decoded, read by both models at
+ * once, and dropped; nothing is written to disk by this class.
  */
 object OcrEngine {
     suspend fun recognize(context: Context, uri: Uri): String = withContext(Dispatchers.Default) {
         val bitmap = decode(context, uri)
+        val latin = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        val devanagari = TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build())
         try {
             val image = InputImage.fromBitmap(bitmap, 0)
-            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-            try {
-                suspendCancellableCoroutine { cont ->
-                    recognizer.process(image)
-                        .addOnSuccessListener { result ->
-                            // ML Kit groups text into blocks/lines; receipts want one printed line per output line,
-                            // sorted top-to-bottom so "TOTAL   450.00" stays on one line.
-                            val lines = result.textBlocks.flatMap { it.lines }
-                                .sortedWith(compareBy({ it.boundingBox?.centerY() ?: 0 }, { it.boundingBox?.left ?: 0 }))
-                            cont.resume(mergeRows(lines.map { Row(it.text, it.boundingBox?.centerY() ?: 0, it.boundingBox?.left ?: 0, it.boundingBox?.height() ?: 20) }))
-                        }
-                        .addOnFailureListener { cont.resumeWithException(it) }
-                }
-            } finally {
-                recognizer.close()
+            // Both readings in parallel: the Latin one for English and Hinglish bills, the Devanagari one for bills
+            // printed in Hindi. OcrRows.pickScript keeps the Devanagari reading only when it found Hindi script.
+            val (latinText, hindiText) = coroutineScope {
+                val a = async { rows(read(latin, image)) }
+                val b = async { runCatching { rows(read(devanagari, image)) }.getOrDefault("") }
+                a.await() to b.await()
             }
+            val text = OcrRows.pickScript(latinText, hindiText)
+            // Debug builds only: the recognised text, so parser problems on real photos can be reproduced as
+            // unit tests. Release builds never log bill contents.
+            if (BuildConfig.DEBUG) {
+                Log.d("FinTrackOCR", "script=${if (text === hindiText && text != latinText) "devanagari" else "latin"}")
+                Log.d("FinTrackOCR", "recognised:\n$text")
+            }
+            text
         } finally {
+            latin.close()
+            devanagari.close()
             bitmap.recycle()
         }
     }
 
-    private data class Row(val text: String, val cy: Int, val left: Int, val h: Int)
-
-    /** Lines whose vertical centres are within half a line height are the same printed row (name ... price). */
-    private fun mergeRows(rows: List<Row>): String {
-        val out = mutableListOf<MutableList<Row>>()
-        for (r in rows) {
-            val last = out.lastOrNull()
-            if (last != null && kotlin.math.abs(last.first().cy - r.cy) <= maxOf(8, last.first().h / 2)) last += r else out += mutableListOf(r)
-        }
-        return out.joinToString("\n") { row -> row.sortedBy { it.left }.joinToString("  ") { it.text } }
+    private suspend fun read(recognizer: TextRecognizer, image: InputImage): Text = suspendCancellableCoroutine { cont ->
+        recognizer.process(image)
+            .addOnSuccessListener { cont.resume(it) }
+            .addOnFailureListener { cont.resumeWithException(it) }
     }
+
+    /**
+     * ML Kit groups text into blocks/lines; receipts want one printed line per output line, so
+     * "TOTAL   450.00" stays on one line even when the photo is tilted (see OcrRows).
+     */
+    private fun rows(result: Text): String = OcrRows.merge(result.textBlocks.flatMap { it.lines }.map {
+        val box = it.boundingBox
+        OcrLine(it.text, box?.centerX() ?: 0, box?.centerY() ?: 0, box?.left ?: 0, box?.height() ?: 20, it.angle)
+    })
 
     private fun decode(context: Context, uri: Uri): Bitmap {
         val src = ImageDecoder.createSource(context.contentResolver, uri)
