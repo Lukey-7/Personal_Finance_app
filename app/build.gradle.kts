@@ -10,8 +10,8 @@ plugins {
 // Single source of truth for the version. Bump both for every release:
 //   versionCode: integer, +1 each release (Android uses it to decide what is an upgrade)
 //   versionName: semantic version MAJOR.MINOR.PATCH, matches the git tag vX.Y.Z
-val appVersionCode = 2
-val appVersionName = "1.1.0"
+val appVersionCode = 3
+val appVersionName = "1.1.1"
 
 // Release signing is read from keystore.properties (git-ignored). Without it, release falls back to the debug key.
 val keystoreProps = Properties().apply {

@@ -3,7 +3,7 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
-## [Unreleased]
+## [1.1.1] - 2026-09-23
 
 ### SMS accuracy
 - Direction comes from the first verb about your own account, so "Acct debited ...; SHOP credited" (ICICI), "Rs 500 Dr. ... Cr. to x@ybl" (Bank of Baroda) and "You paid ... cashback credited" are spends, not income or refunds.
