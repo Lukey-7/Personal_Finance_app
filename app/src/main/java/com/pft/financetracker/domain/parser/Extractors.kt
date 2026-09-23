@@ -1,5 +1,7 @@
 package com.pft.financetracker.domain.parser
 
+import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.TransactionType
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -18,7 +20,8 @@ object TextFilters {
     val ignoreRules: List<Pair<String, Regex>> = listOf(
         "otp" to Regex("""\b(otp|one[\s-]?time[\s-]?password|verification code|passcode)\b""", RegexOption.IGNORE_CASE),
         "promo" to Regex("""\b(offer|cashback up ?to|apply now|pre-?approved|avail now|hurry|limited period|click|t&c|tnc apply|congratulations|win|voucher|coupon|discount|sale|exclusive|upgrade to|get up ?to)\b""", RegexOption.IGNORE_CASE),
-        "future" to Regex("""\b(will be (debited|credited|deducted)|due on|is due|payment due|reminder|scheduled|autopay (?:will|is)|upcoming)\b""", RegexOption.IGNORE_CASE),
+        "future" to Regex("""\b(will be (debited|credited|deducted)|autopay (?:will|is) (?:scheduled|due)|is scheduled (?:for|on))\b""", RegexOption.IGNORE_CASE),
+        "future_soft" to Regex("""\b(due on|is due|payment due|reminder|scheduled|upcoming)\b""", RegexOption.IGNORE_CASE),
         "failed" to Regex("""\b(failed|declined|unsuccessful|could not be processed|not processed|reversed due|cancelled|rejected)\b""", RegexOption.IGNORE_CASE),
         "request" to Regex("""\b(has requested|payment request|collect request|requesting|requested money)\b""", RegexOption.IGNORE_CASE),
         "balance_only" to Regex("""^\s*(your|the)?\s*(a/?c|account|available|avl|closing)\s*(bal|balance)""", RegexOption.IGNORE_CASE),
@@ -32,12 +35,19 @@ object TextFilters {
         RegexOption.IGNORE_CASE
     )
 
+    /** A verb that only appears once money has actually moved. */
+    val completedVerb = Regex("""\b(debited|credited|spent|withdrawn|deducted|paid|received|transferred)\b""", RegexOption.IGNORE_CASE)
+
+    /** Rules that are only allowed to drop a message when it has no completed-transaction verb + amount. */
+    private val softRules = setOf("promo", "future_soft", "login", "statement", "request")
+
     fun ignoreReason(body: String): String? {
+        val completed = completedVerb.containsMatchIn(body) && AmountExtractor.candidates(body).any { !it.isBalance }
         for ((reason, rx) in ignoreRules) {
             if (rx.containsMatchIn(body)) {
-                // Some promo words also appear in real transactions ("cashback credited"). Only drop for promo
-                // if there is no strong transaction verb.
-                if (reason == "promo" && Regex("""\b(debited|credited|spent|withdrawn)\b""", RegexOption.IGNORE_CASE).containsMatchIn(body)) continue
+                // Real transactions often carry promo/login-ish words ("cashback credited", "click here if not you",
+                // "complete KYC"). Never drop a message that clearly reports money moving; let scoring decide.
+                if (reason in softRules && completed) continue
                 return reason
             }
         }
@@ -52,9 +62,11 @@ object TextFilters {
 // ---------------------------------------------------------------------------------------------
 object TypeDetector {
     private val debitStrong = listOf("debited", "spent", "withdrawn", "deducted", "paid to", "sent to", "purchase of", "payment of", "txn of", "charged", "paid from", "paid via", "paid using", "made a payment", "you paid", "paid rs", "paid inr", "was paid")
-    private val debitWeak = listOf("paid", "purchase", "payment", "sent", "spent", "used for", "at ", "towards", "bill payment")
+    private val debitWeak = listOf("paid", "purchase", "payment", "sent", "used for", "towards", "bill payment")
+    private val debitWeakRx = listOf(Regex("""\bat\s+[a-z]""", RegexOption.IGNORE_CASE))
     private val creditStrong = listOf("credited", "received from", "deposited", "refund", "refunded", "cashback of", "reversed", "credited to", "has been added", "received in", "you received", "salary")
-    private val creditWeak = listOf("received", "cashback", "added", "credit", "transfer from", "from ")
+    private val creditWeak = listOf("received", "cashback", "added", "credit", "transfer from")
+    private val creditWeakRx = listOf(Regex("""\bfrom\s+[a-z]""", RegexOption.IGNORE_CASE))
 
     data class Result(val type: TransactionType?, val score: Int)
 
@@ -66,6 +78,8 @@ object TypeDetector {
         debitWeak.forEach { if (b.contains(it)) debit += 1 }
         creditStrong.forEach { if (b.contains(it)) credit += 3 }
         creditWeak.forEach { if (b.contains(it)) credit += 1 }
+        debitWeakRx.forEach { if (it.containsMatchIn(b)) debit += 1 }
+        creditWeakRx.forEach { if (it.containsMatchIn(b)) credit += 1 }
 
         // "credit card" is a noun phrase, not a credit event.
         if (b.contains("credit card") || b.contains("credit-card")) credit -= 1
@@ -195,7 +209,8 @@ object MerchantExtractor {
         // "to MERCHANT on", "paid to MERCHANT", "sent to MERCHANT", "transferred to MERCHANT"
         Regex("""\b(?:paid |sent |transferred |credited )?to\s+(?!your|ur|a/c|account|card)([A-Za-z0-9][A-Za-z0-9 .&'\-*]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
         // "towards MERCHANT", "for MERCHANT"
-        Regex("""\b(?:towards|for)\s+(?!rs|inr|₹|a/c|account|card)([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
+        // "your ..." is the customer's own account, never a payee: "towards your HDFC Credit Card XX3344".
+        Regex("""\b(?:towards|for)\s+(?!rs|inr|₹|a/c|account|card|your|ur\b|my\b)([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
         // Credits: "from MERCHANT", "by MERCHANT", "received from"
         Regex("""\b(?:from|by)\s+(?!your|ur|a/c|account|card|rs\.?\s*\d|inr\s*\d|₹)([A-Za-z0-9][A-Za-z0-9 .&'\-*@]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
     )
@@ -243,11 +258,79 @@ object DateExtractor {
             for (f in formats) {
                 val sdf = SimpleDateFormat(f, Locale.ENGLISH).apply { isLenient = false }
                 val d = runCatching { sdf.parse(text) }.getOrNull() ?: continue
-                val t = d.time
+                var t = d.time
                 // Reject absurd years (two-digit-year parsing oddities) and future dates.
-                if (t in (now - 10L * 365 * 24 * 3600 * 1000)..(now + 24 * 3600 * 1000)) return t
+                if (t !in (now - 10L * 365 * 24 * 3600 * 1000)..(now + 24 * 3600 * 1000)) continue
+                // Body dates rarely carry a time. Midnight breaks ordering and the duplicate window, so when the
+                // SMS arrived on the same calendar day, keep the date from the body and the time from the SMS.
+                if (!f.contains("HH") && sameDay(t, fallback)) t = fallback
+                return t
             }
         }
         return fallback
+    }
+
+    private fun sameDay(a: Long, b: Long): Boolean {
+        val ca = java.util.Calendar.getInstance().apply { timeInMillis = a }
+        val cb = java.util.Calendar.getInstance().apply { timeInMillis = b }
+        return ca.get(java.util.Calendar.YEAR) == cb.get(java.util.Calendar.YEAR) && ca.get(java.util.Calendar.DAY_OF_YEAR) == cb.get(java.util.Calendar.DAY_OF_YEAR)
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Layer 7: bank / UPI reference number. Two SMS with the same reference are the same payment.
+// ---------------------------------------------------------------------------------------------
+object RefExtractor {
+    val patterns: List<Regex> = listOf(
+        Regex("""\b(?:upi|imps|neft|rtgs)?\s*(?:ref(?:erence)?(?:\s*no\.?|\s*number|\s*id)?|rrn|txn\s*id|transaction\s*id|utr)\s*[:#.\-]?\s*([A-Za-z0-9]{6,22})\b""", RegexOption.IGNORE_CASE),
+    )
+
+    fun extract(body: String): String? {
+        for (rx in patterns) {
+            for (m in rx.findAll(body)) {
+                val v = m.groupValues[1]
+                // Must be mostly digits; words like "Number" are not a reference.
+                if (v.count { it.isDigit() } >= 6) return v.uppercase(Locale.ROOT)
+            }
+        }
+        return null
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Layer 8: what the transaction means for your money (see [Flow]). Decides what counts as "spend".
+// ---------------------------------------------------------------------------------------------
+object FlowClassifier {
+    private val cardBillPayment = Regex("""\b(payment (?:of .{0,20})?(?:received|credited) (?:towards|to|for) your .{0,20}(?:credit )?card|credit card (?:bill )?payment|cc (?:bill )?payment|card bill|bill ?desk.{0,30}card|towards your (?:credit )?card|payment to (?:your )?(?:credit )?card|cred club|cred\.club)""", RegexOption.IGNORE_CASE)
+    private val selfTransfer = Regex("""\b(self[\s-]?transfer|own account|to self|own a/?c|added to (?:your )?wallet|add(?:ed)? money|wallet (?:top[\s-]?up|load))\b""", RegexOption.IGNORE_CASE)
+    private val investment = Regex("""\b(mutual fund|sip|zerodha|groww|upstox|kuvera|smallcase|icclearing|indian clearing|cdsl|nsdl|ppf|nps|fixed deposit|fd|rd|etmoney|angel one|5paisa|nse|bse)\b""", RegexOption.IGNORE_CASE)
+    private val refund = Regex("""\b(refund|refunded|reversal|reversed|cashback|charge ?back)\b""", RegexOption.IGNORE_CASE)
+    private val income = Regex("""\b(salary|payroll|interest|dividend|bonus|stipend|pension)\b""", RegexOption.IGNORE_CASE)
+    private val cash = Regex("""\b(atm|cash (?:wdl|withdrawal|withdrawn)|cwdr)\b""", RegexOption.IGNORE_CASE)
+
+    /**
+     * [body] is the SMS text when available (pass "" for manual entries). [category] is the rule-based
+     * category, used as a secondary hint (e.g. INVESTMENT category => INVESTMENT flow).
+     */
+    fun classify(type: TransactionType, body: String, merchant: String, category: Category): Flow {
+        val text = "$body $merchant"
+        return when (type) {
+            TransactionType.DEBIT -> when {
+                cardBillPayment.containsMatchIn(text) -> Flow.TRANSFER
+                selfTransfer.containsMatchIn(text) -> Flow.TRANSFER
+                cash.containsMatchIn(text) || category == Category.ATM -> Flow.CASH
+                investment.containsMatchIn(text) || category == Category.INVESTMENT -> Flow.INVESTMENT
+                category == Category.TRANSFER -> Flow.TRANSFER
+                else -> Flow.EXPENSE
+            }
+            TransactionType.CREDIT -> when {
+                cardBillPayment.containsMatchIn(text) -> Flow.TRANSFER
+                refund.containsMatchIn(text) -> Flow.REFUND
+                selfTransfer.containsMatchIn(text) -> Flow.TRANSFER
+                investment.containsMatchIn(text) -> Flow.INVESTMENT
+                income.containsMatchIn(text) -> Flow.INCOME
+                else -> Flow.INCOME
+            }
+        }
     }
 }

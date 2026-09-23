@@ -3,14 +3,17 @@ package com.pft.financetracker.domain.parser
 import com.pft.financetracker.domain.model.TransactionType
 
 data class ParsedTransaction(
-    val amount: Double,
+    val amountPaise: Long,
     val type: TransactionType,
     val merchant: String,
     val timestamp: Long,
     val bankName: String?,
     val accountRef: String?,
+    val refNumber: String?,
     val confidence: Int,
-)
+) {
+    val amount: Double get() = amountPaise / 100.0
+}
 
 sealed class ParseResult {
     /** Parsed with confidence >= threshold; safe to auto-insert. */
@@ -19,7 +22,7 @@ sealed class ParseResult {
     /** Looks like a transaction, but one or more fields could not be confidently determined. */
     data class NeedsReview(
         val reason: String,
-        val guessedAmount: Double?,
+        val guessedAmountPaise: Long?,
         val guessedType: TransactionType?,
     ) : ParseResult()
 

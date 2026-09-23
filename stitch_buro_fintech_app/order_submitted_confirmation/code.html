@@ -1,0 +1,186 @@
+<!DOCTYPE html><html class="light" lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Boro - Order Submitted</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary-fixed": "#dee3eb",
+                        "primary-fixed": "#e0e0ff",
+                        "on-surface-variant": "#454558",
+                        "surface-container-highest": "#e5e2e1",
+                        "inverse-on-surface": "#f3f0ef",
+                        "background": "#fdfcfb",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#f1edec",
+                        "on-tertiary-container": "#bbbcbe",
+                        "primary-container": "#0000ff",
+                        "inverse-primary": "#bec2ff",
+                        "tertiary": "#333637",
+                        "on-background": "#1c1b1b",
+                        "on-tertiary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#4a4c4e",
+                        "secondary": "#5a5f66",
+                        "tertiary-fixed-dim": "#c5c6c8",
+                        "on-secondary-fixed": "#171c22",
+                        "surface-container-low": "#f6f3f2",
+                        "surface-bright": "#fcf8f8",
+                        "on-error": "#ffffff",
+                        "primary": "#0000ff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "on-secondary-fixed-variant": "#42474e",
+                        "on-secondary-container": "#5e636a",
+                        "surface-dim": "#dcd9d9",
+                        "surface-tint": "#343dff",
+                        "secondary-fixed-dim": "#c2c7cf",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-error-container": "#93000a",
+                        "inverse-surface": "#313030",
+                        "tertiary-fixed": "#e1e2e4",
+                        "primary-fixed-dim": "#bec2ff",
+                        "secondary-container": "#dbe0e8",
+                        "on-primary-container": "#b3b7ff",
+                        "outline": "#757589",
+                        "on-secondary": "#ffffff",
+                        "surface-container-high": "#ebe7e7",
+                        "outline-variant": "#f2f3f5",
+                        "on-primary-fixed-variant": "#0000ef",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#e5e2e1",
+                        "on-primary-fixed": "#00006e",
+                        "error-container": "#ffdad6",
+                        "surface": "#ffffff",
+                        "on-surface": "#050505"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "safe-area-bottom": "34px",
+                        "row-padding": "16px",
+                        "section-gap": "48px",
+                        "page-margin": "24px",
+                        "element-gap": "12px"
+                    },
+                    fontFamily: {
+                        "display-numeric": ["Inter", "sans-serif"],
+                        "screen-title": ["Inter", "sans-serif"],
+                        "body-main": ["Inter", "sans-serif"],
+                        "label-muted": ["Inter", "sans-serif"],
+                        "button-label": ["Inter", "sans-serif"]
+                    },
+                    fontSize: {
+                        "display-numeric": ["82px", { lineHeight: "100%", letterSpacing: "-0.04em", fontWeight: "400" }],
+                        "screen-title": ["22px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600" }],
+                        "body-main": ["16px", { lineHeight: "24px", letterSpacing: "0", fontWeight: "400" }],
+                        "label-muted": ["13px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "500" }],
+                        "button-label": ["15px", { lineHeight: "20px", letterSpacing: "-0.01em", fontWeight: "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface antialiased flex justify-center min-h-screen">
+<!-- Mobile Container (393x852) -->
+<main class="w-full max-w-[393px] h-[852px] relative bg-background overflow-hidden flex flex-col items-center">
+<!-- Top Nav Component (Suppressed as per rules for transactional/success screen, but keeping basic spacing) -->
+<div class="w-full h-16 shrink-0 pt-12 flex justify-center items-center px-page-margin">
+<!-- Status bar spacing area -->
+</div>
+<!-- Scrollable Content Canvas -->
+<div class="flex-1 w-full overflow-y-auto overflow-x-hidden pb-safe-area-bottom flex flex-col items-center px-page-margin relative scrollbar-hide">
+<!-- Zone 1: Success Illustration -->
+<div class="mt-8 mb-12 flex justify-center w-full">
+<div class="w-[130px] h-[130px] rounded-full bg-primary flex items-center justify-center relative">
+<!-- Custom SVG representing the receipt with checkmark -->
+<svg fill="none" height="66" viewBox="0 0 56 66" width="56" xmlns="http://www.w3.org/2000/svg">
+<path d="M4 0C1.79086 0 0 1.79086 0 4V62C0 64.2091 1.79086 66 4 66H52C54.2091 66 56 64.2091 56 62V4C56 1.79086 54.2091 0 52 0H4Z" fill="white"></path>
+<rect fill="#DCE5FF" height="4" rx="2" width="40" x="8" y="12"></rect>
+<rect fill="#DCE5FF" height="4" rx="2" width="40" x="8" y="24"></rect>
+<rect fill="#DCE5FF" height="4" rx="2" width="24" x="8" y="36"></rect>
+<!-- Checkmark -->
+<path d="M22 48L32 58L48 40" stroke="#0000FF" stroke-linecap="round" stroke-linejoin="round" stroke-width="6"></path>
+</svg>
+</div>
+</div>
+<!-- Zone 2: Message -->
+<div class="flex flex-col items-center text-center w-full mb-10">
+<h1 class="font-screen-title text-screen-title text-on-surface mb-3">Order submitted</h1>
+<p class="font-body-main text-body-main text-secondary mb-8 px-4">
+                    We’ll email you once this<br>order changes status
+                </p>
+<!-- Savings Row -->
+<div class="flex items-center gap-2 bg-surface px-4 py-3 rounded-full border border-outline-variant shadow-sm w-fit">
+<span class="material-symbols-outlined text-primary text-[20px]" data-icon="electric_bolt" data-weight="fill">electric_bolt</span>
+<span class="font-body-main text-body-main text-on-surface font-medium">You’ll save S$0.99</span>
+</div>
+</div>
+<!-- Divider -->
+<div class="w-full h-[1px] bg-outline-variant mb-10"></div>
+<!-- Zone 3: Recommendations (Bento Grid Style) -->
+<div class="w-full mb-8">
+<h2 class="text-[20px] font-semibold text-on-surface mb-6 tracking-tight">You might also like</h2>
+<div class="grid grid-cols-3 gap-3 w-full">
+<!-- Card 1 -->
+<div class="bg-surface border border-outline-variant rounded-[8px] p-4 flex flex-col items-center justify-center gap-2 h-[100px]">
+<img alt="ADA Logo placeholder" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7">
+<span class="font-button-label text-button-label text-on-surface">ADA</span>
+<div class="flex items-center text-[#34A967] text-[12px] font-medium tracking-wide">
+<span class="material-symbols-outlined text-[14px]" data-icon="north_east">north_east</span>
+<span class="">0.15%</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface border border-outline-variant rounded-[8px] p-4 flex flex-col items-center justify-center gap-2 h-[100px]">
+<div class="w-8 h-8 rounded-full bg-secondary-fixed flex items-center justify-center">
+<span class="font-button-label text-button-label text-on-secondary-fixed">S</span>
+</div>
+<span class="font-button-label text-button-label text-on-surface">SOL</span>
+<div class="flex items-center text-[#34A967] text-[12px] font-medium tracking-wide">
+<span class="material-symbols-outlined text-[14px]" data-icon="north_east">north_east</span>
+<span class="">0.31%</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface border border-outline-variant rounded-[8px] p-4 flex flex-col items-center justify-center gap-2 h-[100px]">
+<div class="w-8 h-8 rounded-full bg-secondary-fixed flex items-center justify-center">
+<span class="font-button-label text-button-label text-on-secondary-fixed">X</span>
+</div>
+<span class="font-button-label text-button-label text-on-surface">XRP</span>
+<div class="flex items-center text-[#D94E54] text-[12px] font-medium tracking-wide">
+<span class="material-symbols-outlined text-[14px]" data-icon="south_east">south_east</span>
+<span class="">0.72%</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Spacer to push button down -->
+<div class="flex-grow"></div>
+</div>
+<!-- Bottom Fixed Area for Button -->
+<div class="w-full absolute bottom-0 left-0 bg-gradient-to-t from-background via-background to-transparent pt-8 pb-safe-area-bottom px-page-margin flex justify-center">
+<button class="w-[345px] h-[58px] bg-[#F2F3F5] hover:bg-surface-dim transition-colors rounded-[29px] flex items-center justify-center">
+<span class="font-button-label text-[18px] text-on-surface font-semibold">Done</span>
+</button>
+</div>
+</main>
+
+
+</body></html>

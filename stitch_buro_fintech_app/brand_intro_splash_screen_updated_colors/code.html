@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Boro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-primary-container": "#130002",
+                "on-secondary-fixed": "#161c23",
+                "tertiary-fixed": "#e1e2e4",
+                "surface-variant": "#e5e2e1",
+                "on-background": "#1c1b1b",
+                "inverse-primary": "#ffb2bb",
+                "on-primary-fixed": "#400011",
+                "error-container": "#ffdad6",
+                "outline": "#717785",
+                "on-tertiary": "#ffffff",
+                "secondary-fixed": "#dde3ed",
+                "on-surface-variant": "#414753",
+                "on-error": "#ffffff",
+                "surface-container": "#f1edec",
+                "primary-fixed-dim": "#ffb2bb",
+                "primary": "#bd0043",
+                "background": "#fcf8f8",
+                "surface": "#fcf8f8",
+                "error": "#ba1a1a",
+                "on-primary-fixed-variant": "#910032",
+                "on-tertiary-fixed": "#191c1e",
+                "secondary-fixed-dim": "#c1c7d0",
+                "secondary": "#595f67",
+                "inverse-surface": "#313030",
+                "inverse-on-surface": "#f3f0ef",
+                "surface-tint": "#bd0044",
+                "on-surface": "#1c1b1b",
+                "on-primary": "#ffffff",
+                "surface-container-low": "#f6f3f2",
+                "on-secondary-fixed-variant": "#41474f",
+                "primary-fixed": "#ffd9dc",
+                "on-error-container": "#93000a",
+                "tertiary-fixed-dim": "#c5c6c8",
+                "primary-container": "#eb0056",
+                "on-secondary-container": "#5f656d",
+                "tertiary": "#5c5e60",
+                "surface-container-lowest": "#ffffff",
+                "surface-container-highest": "#e5e2e1",
+                "surface-bright": "#fcf8f8",
+                "on-tertiary-container": "#030506",
+                "surface-dim": "#dcd9d9",
+                "tertiary-container": "#757779",
+                "on-secondary": "#ffffff",
+                "secondary-container": "#dde3ed",
+                "outline-variant": "#c1c6d5",
+                "surface-container-high": "#ebe7e7",
+                "on-tertiary-fixed-variant": "#444749"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "xl": "32px",
+                "gutter": "16px",
+                "md": "16px",
+                "sm": "8px",
+                "base": "8px",
+                "xs": "4px",
+                "margin": "24px",
+                "lg": "24px",
+                "element-gap": "12px",
+                "page-margin": "24px",
+                "section-gap": "48px",
+                "safe-area-bottom": "34px"
+        },
+        "fontFamily": {
+                "headline-md": ["Inter"],
+                "label-md": ["Inter"],
+                "body-lg": ["Inter"],
+                "body-md": ["Inter"],
+                "headline-lg": ["Inter"],
+                "body-main": ["Inter"]
+        },
+        "fontSize": {
+                "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500" }],
+                "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "700" }]
+        }
+      },
+    },
+  }
+</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        .b-logo-svg {
+            stroke: white;
+            stroke-width: 3.5;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+    </style>
+</head>
+<body class="bg-[#1275e2] h-screen w-full flex flex-col items-center justify-between overflow-hidden relative font-body-main selection:bg-white selection:text-[#1275e2] antialiased max-w-[393px] mx-auto">
+<!-- Status Bar (Mock) -->
+<div class="w-full flex justify-between items-center px-6 pt-4 text-white z-10 text-[17px] font-semibold tracking-tight">
+<span class="">9:41</span>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[18px]">signal_cellular_alt</span>
+<span class="material-symbols-outlined text-[18px]">wifi</span>
+<span class="material-symbols-outlined text-[18px]">battery_full</span>
+</div>
+</div>
+<!-- Centered Lockup -->
+<div class="flex-1 flex flex-col items-center justify-center w-full relative z-0">
+<div class="flex items-center gap-[20px]">
+<div class="w-[54px] h-[54px] border-white/90 rounded-full flex items-center justify-center relative border-[4px]">
+<svg class="b-logo-svg" height="28" viewbox="0 0 24 28" width="24">
+<path d="M4 2V26M4 2H14C17.3137 2 20 4.68629 20 8C20 11.3137 17.3137 14 14 14H4M4 14H16C19.3137 14 22 16.6863 22 20C22 23.3137 19.3137 26 16 26H4"></path>
+</svg>
+</div>
+<span class="text-white text-[28px] tracking-[0.2em] leading-none mt-1 font-semibold" style="font-family: Inter, sans-serif;">BURO</span>
+</div>
+</div>
+<!-- Bottom Section -->
+<div class="w-full px-page-margin pb-safe-area-bottom flex flex-col items-center gap-element-gap z-10">
+<button class="w-full h-[58px] bg-white rounded-full flex items-center justify-center text-[#1275e2] text-[17px] transition-transform active:scale-95 touch-manipulation font-medium">Get started</button>
+</div>
+<!-- Home Indicator -->
+<div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-[140px] h-[5px] bg-white/70 rounded-full z-20"></div>
+<img alt="Boro Logo Element" aria-hidden="true" class="sr-only" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+</body></html>

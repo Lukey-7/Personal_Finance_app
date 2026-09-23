@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Boro - Earn</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-surface": "#313030",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-dim": "#ddd9d8",
+                    "secondary-fixed": "#dbe1ff",
+                    "surface-variant": "#e5e2e1",
+                    "on-secondary-fixed": "#00174c",
+                    "secondary-fixed-dim": "#b4c5ff",
+                    "on-secondary-container": "#fefcff",
+                    "tertiary-fixed-dim": "#cdc5c4",
+                    "on-background": "#1c1b1b",
+                    "on-error-container": "#93000a",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed": "#1e1b1b",
+                    "primary-container": "#1b1c1c",
+                    "on-primary": "#ffffff",
+                    "secondary-container": "#2569fe",
+                    "surface-container": "#f1edec",
+                    "surface": "#fcf8f8",
+                    "on-secondary-fixed-variant": "#003da9",
+                    "on-tertiary-fixed-variant": "#4b4645",
+                    "tertiary-container": "#1e1b1b",
+                    "on-primary-fixed": "#1b1c1c",
+                    "on-tertiary-container": "#898282",
+                    "on-tertiary": "#ffffff",
+                    "primary-fixed": "#e4e2e1",
+                    "tertiary": "#000000",
+                    "outline": "#747878",
+                    "on-surface": "#1c1b1b",
+                    "on-surface-variant": "#444747",
+                    "on-primary-container": "#848483",
+                    "inverse-on-surface": "#f4f0ef",
+                    "surface-container-low": "#f7f3f2",
+                    "primary-fixed-dim": "#c7c6c6",
+                    "tertiary-fixed": "#e9e0e0",
+                    "primary": "#000000",
+                    "surface-container-high": "#ebe7e7",
+                    "surface-bright": "#fcf8f8",
+                    "secondary": "#0050d7",
+                    "background": "#fcf8f8",
+                    "outline-variant": "#c4c7c7",
+                    "error-container": "#ffdad6",
+                    "surface-tint": "#5e5e5e",
+                    "inverse-primary": "#c7c6c6",
+                    "on-primary-fixed-variant": "#464747",
+                    "surface-container-highest": "#e5e2e1",
+                    "on-secondary": "#ffffff",
+                    "on-error": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "element-gap": "16px",
+                    "base": "4px",
+                    "container-padding": "24px",
+                    "section-margin": "40px",
+                    "gutter": "12px"
+            },
+            "fontFamily": {
+                    "display-balance": [
+                            "Inter"
+                    ],
+                    "body-main": [
+                            "Inter"
+                    ],
+                    "display-input": [
+                            "Inter"
+                    ],
+                    "label-caps": [
+                            "Inter"
+                    ],
+                    "screen-title": [
+                            "Inter"
+                    ],
+                    "section-header": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "display-balance": [
+                            "64px",
+                            {
+                                    "lineHeight": "1.1",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-main": [
+                            "16px",
+                            {
+                                    "lineHeight": "1.5",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "display-input": [
+                            "80px",
+                            {
+                                    "lineHeight": "1.0",
+                                    "letterSpacing": "-0.04em",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "label-caps": [
+                            "12px",
+                            {
+                                    "lineHeight": "1.0",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "screen-title": [
+                            "20px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "section-header": [
+                            "24px",
+                            {
+                                    "lineHeight": "1.3",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "600"
+                            }
+                    ]
+            }
+    },
+        },
+      }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen font-body-main antialiased flex flex-col">
+<!-- Header -->
+<header class="flex justify-between items-center w-full px-container-padding h-16 border-b-[0.5px] border-outline-variant bg-background">
+<button class="flex items-center justify-center hover:opacity-80 transition-opacity active:scale-95 duration-200">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 0;">arrow_back</span>
+</button>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">monetization_on</span>
+<h1 class="font-screen-title text-screen-title text-primary font-semibold">Earn</h1>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border-[0.5px] border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant text-sm">person</span>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto px-container-padding pt-section-margin pb-[120px] max-w-3xl mx-auto w-full">
+<!-- Balance Section -->
+<section class="flex flex-col items-center mb-section-margin text-center">
+<h2 class="font-display-balance text-[48px] leading-tight tracking-[-0.02em] font-semibold text-primary mb-2">$0.00</h2>
+<p class="font-body-main text-body-main text-on-surface-variant">Total Earned</p>
+</section>
+<!-- Summary Cards Bento -->
+<section class="grid grid-cols-2 gap-element-gap mb-section-margin">
+<div class="bg-surface-container-lowest border-[0.5px] border-outline-variant rounded-DEFAULT p-4 flex flex-col justify-between">
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-4">Lifetime Earned</p>
+<p class="font-section-header text-section-header text-primary">$0.00</p>
+</div>
+<div class="bg-surface-container-lowest border-[0.5px] border-outline-variant rounded-DEFAULT p-4 flex flex-col justify-between">
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-4">Last 7D</p>
+<p class="font-section-header text-section-header text-primary">$0.00</p>
+</div>
+</section>
+<!-- Promo Card -->
+<section class="mb-section-margin">
+<div class="bg-primary text-on-primary rounded-lg p-6 relative overflow-hidden group">
+<div class="absolute inset-0 bg-gradient-to-br from-[#1a1c1c] to-primary opacity-80 mix-blend-overlay pointer-events-none"></div>
+<div class="absolute -right-10 -top-10 w-40 h-40 bg-secondary/20 rounded-full blur-3xl pointer-events-none"></div>
+<div class="relative z-10 flex flex-col items-start gap-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">star</span>
+<h3 class="font-screen-title text-screen-title font-semibold">Get Boro Plus</h3>
+</div>
+<p class="font-body-main text-body-main text-outline-variant max-w-[80%]">Boost your APY and unlock exclusive premium tier products.</p>
+<button class="bg-on-primary text-primary font-body-main font-semibold px-6 py-2 rounded-full mt-2 hover:bg-surface-container-highest transition-colors">
+                        Upgrade Now
+                    </button>
+</div>
+</div>
+</section>
+<!-- Product List -->
+<section>
+<h3 class="font-section-header text-section-header text-primary mb-element-gap">Available products</h3>
+<div class="flex flex-col gap-element-gap">
+<!-- Product Card 1 -->
+<div class="bg-surface-container-lowest border-[0.5px] border-outline-variant rounded-DEFAULT p-5 flex items-center justify-between hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-[#E5E9F2] flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">water_drop</span>
+</div>
+<div>
+<h4 class="font-body-main text-body-main font-semibold text-primary">Kamino</h4>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">Lending Yield</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-screen-title text-screen-title text-secondary font-semibold">7.99% APY</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">Variable</p>
+</div>
+</div>
+<!-- Product Card 2 -->
+<div class="bg-surface-container-lowest border-[0.5px] border-outline-variant rounded-DEFAULT p-5 flex items-center justify-between hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-[#E8F5E9] flex items-center justify-center">
+<span class="material-symbols-outlined text-[#2E7D32]" style="font-variation-settings: 'FILL' 1;">eco</span>
+</div>
+<div>
+<h4 class="font-body-main text-body-main font-semibold text-primary">MarginFi</h4>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">Lending Yield</p>
+</div>
+</div>
+<div class="text-right">
+<p class="font-screen-title text-screen-title text-secondary font-semibold">5.42% APY</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-1">Variable</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Contextual Action Bar -->
+<div class="fixed bottom-0 left-0 right-0 p-container-padding bg-gradient-to-t from-background via-background to-transparent pointer-events-none z-50">
+<div class="max-w-md mx-auto pointer-events-auto bg-surface-container-lowest border-[0.5px] border-outline-variant rounded-full p-1 flex items-center shadow-sm">
+<button class="w-12 h-12 flex-shrink-0 flex items-center justify-center rounded-full hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 0;">close</span>
+</button>
+<div class="flex-1 flex gap-1 p-1">
+<button class="flex-1 bg-primary text-on-primary font-body-main font-semibold py-3 rounded-full text-center transition-transform active:scale-[0.98]">
+                    Deposit
+                </button>
+<button class="flex-1 bg-surface-container-lowest text-primary font-body-main font-semibold py-3 rounded-full text-center hover:bg-surface-container transition-colors active:scale-[0.98]">
+                    Withdraw
+                </button>
+</div>
+</div>
+</div>
+</body></html>

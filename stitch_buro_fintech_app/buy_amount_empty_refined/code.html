@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Buy Amount</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary-fixed-variant": "#444749",
+                        "surface": "#fcf8f8",
+                        "secondary-container": "#dbe0e8",
+                        "primary": "#0001bb",
+                        "on-secondary-fixed": "#171c22",
+                        "tertiary-fixed-dim": "#c5c6c8",
+                        "on-error": "#ffffff",
+                        "surface-dim": "#dcd9d9",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-secondary-container": "#5e636a",
+                        "error-container": "#ffdad6",
+                        "tertiary-fixed": "#e1e2e4",
+                        "on-background": "#1c1b1b",
+                        "surface-bright": "#fcf8f8",
+                        "outline": "#757589",
+                        "on-primary-fixed": "#00006e",
+                        "secondary": "#5a5f66",
+                        "inverse-surface": "#313030",
+                        "primary-fixed-dim": "#bec2ff",
+                        "on-tertiary": "#ffffff",
+                        "tertiary-container": "#4a4c4e",
+                        "secondary-fixed": "#dee3eb",
+                        "on-primary-fixed-variant": "#0000ef",
+                        "secondary-fixed-dim": "#c2c7cf",
+                        "background": "#FDFCFB",
+                        "surface-container-lowest": "#ffffff",
+                        "outline-variant": "#c5c4db",
+                        "primary-container": "#0000ff",
+                        "surface-container-highest": "#e5e2e1",
+                        "on-tertiary-container": "#bbbcbe",
+                        "error": "#ba1a1a",
+                        "on-primary-container": "#b3b7ff",
+                        "surface-tint": "#343dff",
+                        "on-surface": "#1c1b1b",
+                        "inverse-primary": "#bec2ff",
+                        "surface-container-high": "#ebe7e7",
+                        "on-secondary": "#ffffff",
+                        "on-surface-variant": "#454558",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#f6f3f2",
+                        "inverse-on-surface": "#f3f0ef",
+                        "tertiary": "#333637",
+                        "primary-fixed": "#e0e0ff",
+                        "surface-container": "#f1edec",
+                        "surface-variant": "#e5e2e1",
+                        "on-secondary-fixed-variant": "#42474e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "section-gap": "48px",
+                        "row-padding": "16px",
+                        "safe-area-bottom": "34px",
+                        "page-margin": "24px",
+                        "element-gap": "12px"
+                    },
+                    "fontFamily": {
+                        "body-main": ["Inter"],
+                        "display-numeric": ["Inter"],
+                        "button-label": ["Inter"],
+                        "screen-title": ["Inter"],
+                        "label-muted": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-main": ["16px", {"lineHeight": "24px", "letterSpacing": "0", "fontWeight": "400"}],
+                        "display-numeric": ["82px", {"lineHeight": "100%", "letterSpacing": "-0.04em", "fontWeight": "400"}],
+                        "button-label": ["15px", {"lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "screen-title": ["22px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "label-muted": ["13px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-[#FDFCFB] min-h-screen text-on-surface antialiased flex flex-col max-w-[393px] mx-auto relative overflow-hidden">
+<!-- Top AppBar -->
+<header class="flex justify-between items-center px-page-margin py-row-padding w-full sticky top-0 bg-[#FDFCFB] z-10">
+<button aria-label="Go back" class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[24px] text-on-surface" data-icon="arrow_back">arrow_back</span>
+</button>
+<button class="flex items-center gap-2 px-4 py-2 rounded-full border border-surface-variant bg-surface hover:bg-surface-variant transition-colors">
+<span class="font-button-label text-button-label text-on-surface">One-time order</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant" data-icon="keyboard_arrow_down">keyboard_arrow_down</span>
+</button>
+<div class="w-10 h-10"></div>
+</header>
+<!-- Segmented Control -->
+<div class="px-page-margin mt-element-gap">
+<div class="flex p-1 bg-surface-container-low rounded-full">
+<button class="flex-1 py-2 px-4 rounded-full bg-on-surface text-on-primary font-button-label text-button-label shadow-sm transition-all text-center">Buy</button>
+<button class="flex-1 py-2 px-4 rounded-full text-on-surface-variant hover:text-on-surface font-button-label text-button-label transition-all text-center">Sell</button>
+<button class="flex-1 py-2 px-4 rounded-full text-on-surface-variant hover:text-on-surface font-button-label text-button-label transition-all text-center">Convert</button>
+</div>
+</div>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col pt-8 px-page-margin relative z-0">
+<!-- Numerical Input Area -->
+<div class="flex flex-col items-center justify-center min-h-[160px] relative w-full mb-8">
+<div class="flex items-baseline justify-center w-full">
+<span class="font-display-numeric text-[84px] text-on-surface leading-none">0</span>
+<div class="w-1 h-[72px] bg-primary animate-pulse ml-1 mr-2 relative top-[-4px]"></div>
+<span class="font-display-numeric text-[78px] text-outline-variant leading-none" style="opacity: 0.8;">SGD</span>
+</div>
+<!-- Conversion Pill -->
+<button class="mt-4 flex items-center gap-2 px-4 py-2 rounded-full bg-primary-fixed hover:bg-primary-fixed-dim transition-colors">
+<span class="material-symbols-outlined text-[16px] text-primary" data-icon="swap_vert">swap_vert</span>
+<span class="font-button-label text-button-label text-primary">0 BTC</span>
+</button>
+</div>
+<!-- Open Rows (Wallet & Destination) -->
+<div class="flex flex-col w-full relative mb-12">
+<!-- Connector Line -->
+<div class="absolute left-[24px] top-[32px] bottom-[32px] w-[1px] border-l border-dashed border-outline-variant z-[-1]"></div>
+<!-- Row 1: Source -->
+<div class="flex items-center gap-4 py-row-padding">
+<div class="w-12 h-12 rounded-full bg-primary-fixed flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined text-[24px] text-primary" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div class="flex-1 flex flex-col">
+<span class="font-label-muted text-label-muted text-on-surface-variant">Pay with</span>
+<span class="font-body-main text-body-main text-on-surface">SGD Wallet</span>
+</div>
+<span class="font-body-main text-body-main text-on-surface-variant">0.00</span>
+</div>
+<!-- Row 2: Destination -->
+<div class="flex items-center gap-4 py-row-padding">
+<div class="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center flex-shrink-0 overflow-hidden relative border border-outline-variant">
+<img alt="Bitcoin logo" class="w-full h-full object-cover" data-alt="A minimalist, highly detailed rendering of a Bitcoin logo or icon" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+</div>
+<div class="flex-1 flex flex-col">
+<span class="font-label-muted text-label-muted text-on-surface-variant">Buy</span>
+<span class="font-body-main text-body-main text-on-surface">Bitcoin</span>
+</div>
+<span class="material-symbols-outlined text-[20px] text-on-surface-variant" data-icon="chevron_right">chevron_right</span>
+</div>
+</div>
+</main>
+<!-- Bottom Action & Keypad Area -->
+<div class="w-full bg-[#FDFCFB] pb-safe-area-bottom pt-4 px-page-margin mt-auto">
+<!-- Max Amount Button -->
+<div class="flex justify-center mb-8">
+<button class="px-6 py-3 rounded-full bg-[#F4F5F6] hover:bg-surface-variant transition-colors flex items-center justify-center w-full max-w-[280px]">
+<span class="font-button-label text-button-label text-on-surface">Buy maximum amount</span>
+</button>
+</div>
+<!-- Keypad -->
+<div class="grid grid-cols-3 gap-y-8 gap-x-4 mb-8">
+<!-- Row 1 -->
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">1</button>
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">2</button>
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">3</button>
+<!-- Row 2 -->
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">4</button>
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">5</button>
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">6</button>
+<!-- Row 3 -->
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">7</button>
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">8</button>
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">9</button>
+<!-- Row 4 -->
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">.</button>
+<button class="h-14 flex items-center justify-center font-screen-title text-[28px] text-on-surface hover:bg-surface-variant rounded-full transition-colors">0</button>
+<button aria-label="Backspace" class="h-14 flex items-center justify-center hover:bg-surface-variant rounded-full transition-colors text-on-surface">
+<span class="material-symbols-outlined text-[24px]" data-icon="backspace">backspace</span>
+</button>
+</div>
+</div>
+</body></html>

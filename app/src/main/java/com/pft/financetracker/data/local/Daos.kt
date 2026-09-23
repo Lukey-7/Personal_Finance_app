@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -36,6 +37,13 @@ interface TransactionDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE smsHash = :hash)")
     suspend fun hashExists(hash: String): Boolean
+
+    @Query("SELECT * FROM transactions WHERE refNumber = :ref AND type = :type LIMIT 1")
+    suspend fun findByRef(ref: String, type: String): TransactionEntity?
+
+    /** Candidates for the "same payment, two SMS" check: same amount and direction within a time window. */
+    @Query("SELECT * FROM transactions WHERE amountPaise = :amountPaise AND type = :type AND timestamp BETWEEN :from AND :to AND source = 'SMS'")
+    suspend fun findSimilar(amountPaise: Long, type: String, from: Long, to: Long): List<TransactionEntity>
 }
 
 @Dao
@@ -78,4 +86,80 @@ interface BudgetDao {
 
     @Query("DELETE FROM budgets")
     suspend fun clear()
+}
+
+@Dao
+interface SmsLogDao {
+    @Query("SELECT * FROM sms_log ORDER BY receivedAt DESC LIMIT 2000")
+    fun observeRecent(): Flow<List<SmsLogEntity>>
+
+    @Query("SELECT * FROM sms_log WHERE id = :id")
+    suspend fun getById(id: Long): SmsLogEntity?
+
+    @Query("SELECT outcome, COUNT(*) AS n FROM sms_log GROUP BY outcome")
+    fun observeCounts(): Flow<List<OutcomeCount>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(entity: SmsLogEntity): Long
+
+    @Query("UPDATE sms_log SET outcome = :outcome, reason = :reason, transactionId = :transactionId WHERE smsHash = :hash")
+    suspend fun updateOutcome(hash: String, outcome: String, reason: String, transactionId: Long?)
+
+    @Query("DELETE FROM sms_log WHERE receivedAt < :before")
+    suspend fun pruneBefore(before: Long)
+
+    @Query("DELETE FROM sms_log")
+    suspend fun clear()
+}
+
+data class OutcomeCount(val outcome: String, val n: Int)
+
+@Dao
+interface SplitDao {
+    @Query("SELECT * FROM splits ORDER BY date DESC")
+    fun observeSplits(): Flow<List<SplitEntity>>
+
+    @Query("SELECT * FROM split_people ORDER BY splitId, personIndex")
+    fun observePeople(): Flow<List<SplitPersonEntity>>
+
+    @Query("SELECT * FROM split_shares ORDER BY splitId, personIndex")
+    fun observeShares(): Flow<List<SplitShareEntity>>
+
+    @Query("SELECT * FROM split_items WHERE splitId = :splitId")
+    suspend fun itemsFor(splitId: Long): List<SplitItemEntity>
+
+    @Insert suspend fun insertSplit(e: SplitEntity): Long
+    @Insert suspend fun insertPeople(e: List<SplitPersonEntity>)
+    @Insert suspend fun insertShares(e: List<SplitShareEntity>)
+    @Insert suspend fun insertItems(e: List<SplitItemEntity>)
+
+    @Query("UPDATE split_shares SET settledPaise = :settledPaise WHERE id = :shareId")
+    suspend fun settle(shareId: Long, settledPaise: Long)
+
+    @Query("UPDATE splits SET linkedTransactionId = :txId WHERE id = :splitId")
+    suspend fun link(splitId: Long, txId: Long?)
+
+    @Query("DELETE FROM splits WHERE id = :id")
+    suspend fun deleteSplit(id: Long)
+
+    @Query("DELETE FROM splits")
+    suspend fun clear()
+
+    @Transaction
+    suspend fun insertFull(split: SplitEntity, people: List<SplitPersonEntity>, shares: List<SplitShareEntity>, items: List<SplitItemEntity>): Long {
+        val id = insertSplit(split)
+        insertPeople(people.map { it.copy(splitId = id) })
+        insertShares(shares.map { it.copy(splitId = id) })
+        insertItems(items.map { it.copy(splitId = id) })
+        return id
+    }
+
+    @Query("SELECT * FROM recent_people ORDER BY lastUsedAt DESC LIMIT 30")
+    fun observeRecentPeople(): Flow<List<RecentPersonEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun touchPeople(e: List<RecentPersonEntity>)
+
+    @Query("DELETE FROM recent_people")
+    suspend fun clearRecentPeople()
 }

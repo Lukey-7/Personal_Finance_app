@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Market / Portfolio Home</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface": "#1c1b1b",
+                        "inverse-on-surface": "#f3f0ef",
+                        "on-primary": "#ffffff",
+                        "tertiary-container": "#4a4c4e",
+                        "surface-container": "#f1edec",
+                        "on-primary-container": "#b3b7ff",
+                        "on-primary-fixed-variant": "#0000ef",
+                        "surface-dim": "#dcd9d9",
+                        "error": "#ba1a1a",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "tertiary-fixed-dim": "#c5c6c8",
+                        "primary-fixed": "#e0e0ff",
+                        "background": "#FDFCFB",
+                        "primary-container": "#0000ff",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-fixed": "#171c22",
+                        "on-error": "#ffffff",
+                        "tertiary": "#333637",
+                        "surface-bright": "#fcf8f8",
+                        "inverse-primary": "#bec2ff",
+                        "outline-variant": "#c5c4db",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-container": "#5e636a",
+                        "on-background": "#1c1b1b",
+                        "tertiary-fixed": "#e1e2e4",
+                        "on-tertiary": "#ffffff",
+                        "primary-fixed-dim": "#bec2ff",
+                        "secondary": "#5a5f66",
+                        "on-tertiary-container": "#bbbcbe",
+                        "primary": "#0000FF",
+                        "outline": "#757589",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-error-container": "#93000a",
+                        "secondary-container": "#dbe0e8",
+                        "on-primary-fixed": "#00006e",
+                        "on-secondary-fixed-variant": "#42474e",
+                        "surface": "#fcf8f8",
+                        "surface-tint": "#343dff",
+                        "surface-container-low": "#f6f3f2",
+                        "secondary-fixed-dim": "#c2c7cf",
+                        "surface-container-high": "#ebe7e7",
+                        "secondary-fixed": "#dee3eb",
+                        "on-surface-variant": "#454558",
+                        "inverse-surface": "#313030",
+                        "surface-variant": "#e5e2e1",
+                        "surface-container-highest": "#e5e2e1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "section-gap": "40px",
+                        "safe-area-bottom": "34px",
+                        "page-margin": "24px",
+                        "element-gap": "12px",
+                        "row-padding": "16px"
+                    },
+                    "fontFamily": {
+                        "label-muted": ["Inter"],
+                        "body-main": ["Inter"],
+                        "screen-title": ["Inter"],
+                        "button-label": ["Inter"],
+                        "display-numeric": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #FDFCFB;
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        .material-symbols-outlined[data-weight="fill"] {
+             font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-[#FDFCFB] text-on-surface min-h-screen pb-40"><!-- Status Bar -->
+<div class="flex justify-between items-center px-page-margin pt-4 pb-2 w-full bg-[#FDFCFB] sticky top-0 z-[60]">
+<span class="text-[15px] font-semibold">9:41</span>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px]">signal_cellular_4_bar</span>
+<span class="material-symbols-outlined text-[18px]">wifi</span>
+<span class="material-symbols-outlined text-[18px]">battery_full</span>
+</div>
+</div>
+<!-- Top Navigation -->
+<header class="flex justify-between items-center px-page-margin py-3 w-full sticky top-[44px] bg-[#FDFCFB] z-50 h-[56px]">
+<div class="flex items-center w-full justify-between">
+<button class="text-on-surface hover:opacity-80 transition-opacity w-10 h-10 flex items-center justify-start">
+<span class="material-symbols-outlined text-[24px]">apps</span>
+</button>
+<div class="flex-1 flex justify-center px-2">
+<div class="bg-surface-container-low rounded-full h-10 px-4 flex items-center justify-start gap-2 w-full max-w-[220px]">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
+<span class="font-label-muted text-[15px] text-on-surface-variant/60">Search</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="text-on-surface hover:opacity-80 transition-opacity w-10 h-10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">featured_seasonal_and_gifts</span>
+</button>
+<button class="text-on-surface hover:opacity-80 transition-opacity relative w-10 h-10 flex items-center justify-end">
+<span class="material-symbols-outlined text-[24px]">notifications</span>
+<div class="absolute top-2 right-1 w-2 h-2 bg-primary rounded-full border border-background"></div>
+</button>
+</div>
+</div>
+</header>
+<main class="flex flex-col gap-section-gap px-page-margin mt-2">
+<!-- Portfolio Balance Section -->
+<section class="flex flex-col items-start justify-center text-left">
+<div class="flex items-center gap-2 text-on-surface-variant mb-1">
+<span class="font-label-muted text-[14px]">Total Balance</span>
+<button class="text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">visibility</span>
+</button>
+</div>
+<h1 class="text-[44px] font-[650] tracking-tight leading-none text-on-surface mb-2">S$16.58</h1>
+<div class="flex items-center gap-1 text-[#0000FF]">
+<span class="material-symbols-outlined text-[16px]">north_east</span>
+<span class="font-label-muted font-medium">+S$0.12 (0.75%)</span>
+</div>
+</section>
+<!-- Chart Section -->
+<section class="w-full relative -mx-page-margin overflow-hidden h-[185px] flex flex-col justify-end">
+<svg class="w-[calc(100%+48px)] h-full absolute bottom-0 left-0" preserveaspectratio="none" viewbox="0 0 400 185">
+<defs>
+<pattern height="8" id="dotPattern" patternunits="userSpaceOnUse" width="8" x="0" y="0">
+<circle cx="2" cy="2" fill="#0000FF" fill-opacity="0.15" r="1"></circle>
+</pattern>
+</defs>
+<path d="M0,185 L0,120 C20,130 30,140 50,110 C70,80 80,100 100,70 C120,40 130,90 150,60 C170,30 180,50 200,20 C220,-10 240,40 260,10 C280,-20 300,30 320,10 C340,-10 360,40 380,20 C390,10 400,30 400,30 L400,185 Z" fill="url(#dotPattern)"></path>
+<path d="M0,120 C20,130 30,140 50,110 C70,80 80,100 100,70 C120,40 130,90 150,60 C170,30 180,50 200,20 C220,-10 240,40 260,10 C280,-20 300,30 320,10 C340,-10 360,40 380,20 C390,10 400,30 400,30" fill="none" stroke="#0000FF" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path>
+</svg>
+</section>
+<!-- Time Range Selector -->
+<section class="flex justify-between items-center px-2 -mt-4">
+<button class="font-label-muted text-[14px] text-on-surface-variant/70 px-4 py-2 rounded-full hover:bg-surface-variant transition-colors">1H</button>
+<button class="font-label-muted text-[14px] font-medium text-[#0000FF] bg-[#F4F6FF] px-4 py-2 rounded-full">1D</button>
+<button class="font-label-muted text-[14px] text-on-surface-variant/70 px-4 py-2 rounded-full hover:bg-surface-variant transition-colors">1W</button>
+<button class="font-label-muted text-[14px] text-on-surface-variant/70 px-4 py-2 rounded-full hover:bg-surface-variant transition-colors">1M</button>
+<button class="font-label-muted text-[14px] text-on-surface-variant/70 px-4 py-2 rounded-full hover:bg-surface-variant transition-colors">1Y</button>
+<button class="font-label-muted text-[14px] text-on-surface-variant/70 px-4 py-2 rounded-full hover:bg-surface-variant transition-colors">All</button>
+</section>
+<!-- Asset Rows -->
+<section class="flex flex-col gap-1">
+<div class="flex items-center justify-between h-[67px] cursor-pointer group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-[#F4F5F6] flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[24px]">currency_bitcoin</span>
+</div>
+<div>
+<h3 class="font-body-main text-[16px] font-medium text-on-surface group-hover:text-primary transition-colors">Crypto</h3>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-body-main text-[16px] font-medium text-on-surface">S$16.58</span>
+<span class="material-symbols-outlined text-on-surface-variant/50 text-[24px]">chevron_right</span>
+</div>
+</div>
+<div class="flex items-center justify-between h-[67px] cursor-pointer group">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-[#F4F5F6] flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[24px]">account_balance</span>
+</div>
+<div>
+<h3 class="font-body-main text-[16px] font-medium text-on-surface group-hover:text-primary transition-colors">Cash</h3>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-body-main text-[16px] font-medium text-on-surface">S$0.00</span>
+<span class="material-symbols-outlined text-on-surface-variant/50 text-[24px]">chevron_right</span>
+</div>
+</div>
+</section>
+<!-- Referral Card -->
+<section class="bg-[#F4F5F6] rounded-[24px] p-6 flex flex-col items-start relative overflow-hidden">
+<h3 class="font-screen-title text-[20px] font-semibold text-on-surface mb-1">Refer and earn</h3>
+<p class="font-body-main text-[15px] text-on-surface-variant/80 mb-4">Invite friends and earn rewards</p>
+<button class="font-button-label text-[15px] font-semibold text-[#0000FF] flex items-center gap-1 group">
+                Invite Now
+                <span class="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">arrow_forward</span>
+</button>
+</section>
+</main>
+<!-- Floating Actions Container -->
+<div class="fixed bottom-safe-area-bottom left-0 right-0 px-page-margin z-40 flex gap-4 pointer-events-none mb-16">
+<button class="flex-1 bg-[#0000FF] text-white font-button-label text-[16px] font-semibold py-4 rounded-full shadow-[0_8px_24px_rgba(0,0,255,0.2)] pointer-events-auto active:scale-95 transition-transform flex items-center justify-center gap-2">
+            Buy &amp; sell
+        </button>
+<button class="flex-1 bg-[#F4F6FF] text-[#0000FF] font-button-label text-[16px] font-semibold py-4 rounded-full pointer-events-auto active:scale-95 transition-transform flex items-center justify-center gap-2">
+            Transfer
+        </button>
+</div>
+<!-- Bottom Nav Shell -->
+<nav class="fixed bottom-6 left-0 right-0 z-50 flex justify-center items-center px-4">
+<div class="w-auto min-w-[280px] rounded-full bg-white/80 backdrop-blur-xl border border-black/5 shadow-[0_8px_32px_rgba(0,0,0,0.08)] flex items-center justify-around py-1.5 px-2">
+<button class="flex items-center justify-center text-[#1c1b1b] rounded-full w-12 h-12 transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[26px]" data-weight="fill">home_max</span>
+</button>
+<button class="flex items-center justify-center text-on-surface-variant/60 w-12 h-12 hover:text-[#1c1b1b] transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[26px]">account_balance_wallet</span>
+</button>
+<button class="flex items-center justify-center text-on-surface-variant/60 w-12 h-12 hover:text-[#1c1b1b] transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[26px]">swap_horiz</span>
+</button>
+<button class="flex items-center justify-center text-on-surface-variant/60 w-12 h-12 hover:text-[#1c1b1b] transition-all duration-300 ease-in-out active:scale-90">
+<span class="material-symbols-outlined text-[26px]">person</span>
+</button>
+</div>
+</nav>
+</body></html>
