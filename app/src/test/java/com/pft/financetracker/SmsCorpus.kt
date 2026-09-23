@@ -38,5 +38,14 @@ object SmsCorpus {
         CorpusCase("future_debit", "VM-HDFCBK", "Rs.999 will be debited from your a/c on 20-09-26 for Netflix autopay.", Expect.Ignored),
         CorpusCase("pure_promo", "BZ-OFFERS", "Get up to Rs.500 cashback on your next order! Apply now. T&C apply.", Expect.Ignored),
         CorpusCase("ambiguous_to_review", "VM-XYZBNK", "Transaction alert: Rs 300 on your account XX1234.", Expect.Review),
+
+        // ---- Task 4: direction ----
+        CorpusCase("icici_upi_payee_credited", "AX-ICICIB", "ICICI Bank Acct XX123 debited for Rs 240.00 on 28-Mar-24; DAKSHIN CAFE credited. UPI:408812345678. Call 18002662 for dispute. SMS BLOCK 123 to 9215676766.", Expect.Saved(DEBIT, 24_000, Flow.EXPENSE, "dakshin", "408812345678")),
+        CorpusCase("bob_dr_cr_abbrev", "VK-BOBTXN", "Rs.500 Dr. from A/C XXXXXX1234 and Cr. to swiggy@ybl. Ref:422312345678. AvlBal:Rs10000.00", Expect.Saved(DEBIT, 50_000, Flow.EXPENSE, "swiggy")),
+        CorpusCase("paid_with_cashback", "VM-AMZNPY", "You paid Rs 200 to Blinkit using Amazon Pay. Cashback of Rs 20 credited to your balance.", Expect.Saved(DEBIT, 20_000, Flow.EXPENSE, "blinkit")),
+        CorpusCase("card_bill_payment_is_credit", "AX-ICICIB", "Payment of Rs 15,000.00 received towards your ICICI Bank Credit Card XX4455. Thank you.", Expect.Saved(CREDIT, 1_500_000, Flow.TRANSFER)),
+        CorpusCase("credited_to_beneficiary", "VM-SBIINB", "INR 500.00 credited to beneficiary A/c XX9999 (JOHN) from your A/c XX1234 via IMPS. Ref 422312345655", Expect.Saved(DEBIT, 50_000)),
+        CorpusCase("transferred_into_your_account", "VM-SBIINB", "Rs 2,000 transferred to your a/c XX1234 from RAHUL via IMPS. Ref 422312345666", Expect.Saved(CREDIT, 200_000)),
+        CorpusCase("someone_paid_you", "VM-PHONPE", "Rahul paid you Rs 500 on PhonePe. UPI Ref 422312345677", Expect.Saved(CREDIT, 50_000)),
     )
 }
