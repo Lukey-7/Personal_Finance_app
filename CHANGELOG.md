@@ -3,7 +3,7 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
-## [1.1.0] - unreleased
+## [1.1.0] - 2026-09-23
 
 Focus: numbers you can trust, a log of every SMS, and bill splitting with on-device OCR. Existing data is migrated in place.
 
