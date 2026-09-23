@@ -3,6 +3,38 @@ package com.pft.financetracker.domain.model
 enum class TransactionType { DEBIT, CREDIT }
 
 /**
+ * What a transaction means for your money, independent of debit/credit direction.
+ * Only EXPENSE (and CASH, by default) count as "spend". REFUND reduces spend. INCOME is real income.
+ * TRANSFER and INVESTMENT move money between your own pockets and are never counted as spend or income.
+ */
+enum class Flow(val label: String) {
+    EXPENSE("Expense"),
+    INCOME("Income"),
+    REFUND("Refund / cashback"),
+    TRANSFER("Transfer"),
+    INVESTMENT("Investment"),
+    CASH("Cash withdrawal"),
+    SETTLEMENT("Split settlement");
+
+    companion object {
+        fun fromName(name: String?): Flow? = entries.firstOrNull { it.name == name }
+    }
+}
+
+/** Money helpers. All amounts are stored as whole paise (Long) so sums never drift. */
+object Money {
+    fun toPaise(rupees: Double): Long = Math.round(rupees * 100.0)
+    fun toRupees(paise: Long): Double = paise / 100.0
+    fun parsePaise(text: String): Long? {
+        val cleaned = text.replace(",", "").replace("₹", "").trim()
+        if (cleaned.isEmpty()) return null
+        val d = cleaned.toDoubleOrNull() ?: return null
+        if (d.isNaN() || d.isInfinite() || d < 0) return null
+        return toPaise(d)
+    }
+}
+
+/**
  * Categories with keyword lists used by the rule-based categorizer.
  * Add keywords here to improve auto-categorization; no other code changes required.
  */
@@ -73,8 +105,8 @@ enum class Category(val label: String, val keywords: List<String>) {
         )
     ),
     ATM("Cash / ATM", listOf("atm", "cash wdl", "cash withdrawal", "cwdr", "cash")),
-    TRANSFER("Transfers", listOf("neft", "imps", "rtgs", "self transfer", "own account", "add money", "wallet")),
-    INCOME("Income", listOf("salary", "payroll", "interest", "dividend", "refund", "cashback", "reversal", "bonus", "stipend")),
+    TRANSFER("Transfers", listOf("neft", "imps", "rtgs", "self transfer", "own account", "add money", "wallet", "credit card bill", "card bill", "cc payment", "card payment", "cred club", "cred.club", "billdesk")),
+    INCOME("Income", listOf("salary", "payroll", "interest", "dividend", "bonus", "stipend")),
     OTHER("Other", emptyList());
 
     companion object {
@@ -85,7 +117,8 @@ enum class Category(val label: String, val keywords: List<String>) {
 
 data class Transaction(
     val id: Long = 0,
-    val amount: Double,
+    /** Amount in paise. Use [amount] for a rupee Double when formatting. */
+    val amountPaise: Long,
     val type: TransactionType,
     val merchant: String,
     val category: Category,
@@ -93,15 +126,21 @@ data class Transaction(
     val bankName: String?,
     val accountRef: String?,
     val source: Source,
+    val flow: Flow,
     val note: String? = null,
     val smsHash: String? = null,
+    /** Bank/UPI reference number when the SMS had one. Used to catch the same payment reported by two senders. */
+    val refNumber: String? = null,
     val confidence: Int = 100,
     val needsReview: Boolean = false,
 ) {
-    enum class Source { SMS, MANUAL }
+    enum class Source { SMS, MANUAL, SPLIT }
+    val amount: Double get() = Money.toRupees(amountPaise)
 }
 
 data class Budget(
     val category: Category,
-    val monthlyLimit: Double,
-)
+    val monthlyLimitPaise: Long,
+) {
+    val monthlyLimit: Double get() = Money.toRupees(monthlyLimitPaise)
+}

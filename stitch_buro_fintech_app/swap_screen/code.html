@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Swap - Boro</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface": "#fcf8f8",
+                    "on-primary-fixed-variant": "#464747",
+                    "inverse-primary": "#c7c6c6",
+                    "outline-variant": "#c4c7c7",
+                    "background": "#fcf8f8",
+                    "primary-fixed-dim": "#c7c6c6",
+                    "on-error": "#ffffff",
+                    "tertiary-container": "#1e1b1b",
+                    "primary-container": "#1b1c1c",
+                    "tertiary-fixed": "#e8e1e0",
+                    "surface-tint": "#5e5e5e",
+                    "on-primary-container": "#848483",
+                    "on-tertiary-container": "#888382",
+                    "on-background": "#1c1b1b",
+                    "secondary-fixed-dim": "#b4c5ff",
+                    "on-primary": "#ffffff",
+                    "surface-container-highest": "#e5e2e1",
+                    "error-container": "#ffdad6",
+                    "on-secondary": "#ffffff",
+                    "inverse-surface": "#313030",
+                    "surface-bright": "#fcf8f8",
+                    "surface-variant": "#e5e2e1",
+                    "primary-fixed": "#e3e2e1",
+                    "on-surface": "#1c1b1b",
+                    "surface-dim": "#ddd9d8",
+                    "error": "#ba1a1a",
+                    "on-secondary-container": "#fefcff",
+                    "secondary-container": "#2469ff",
+                    "inverse-on-surface": "#f4f0ef",
+                    "on-tertiary-fixed": "#1e1b1b",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary": "#ffffff",
+                    "surface-container": "#f1edec",
+                    "surface-container-low": "#f7f3f2",
+                    "on-surface-variant": "#444747",
+                    "on-error-container": "#93000a",
+                    "on-secondary-fixed-variant": "#003da9",
+                    "primary": "#000000",
+                    "on-primary-fixed": "#1b1c1c",
+                    "secondary-fixed": "#dbe1ff",
+                    "tertiary-fixed-dim": "#ccc5c4",
+                    "on-tertiary-fixed-variant": "#4a4646",
+                    "surface-container-high": "#ebe7e7",
+                    "on-secondary-fixed": "#00174c",
+                    "secondary": "#0050d7",
+                    "outline": "#747878",
+                    "tertiary": "#000000"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "lg": "48px",
+                    "unit": "4px",
+                    "gutter": "24px",
+                    "xs": "8px",
+                    "xl": "80px",
+                    "container-margin": "40px",
+                    "md": "24px",
+                    "sm": "16px"
+            },
+            "fontFamily": {
+                    "body-md": [
+                            "Inter"
+                    ],
+                    "numeric-data": [
+                            "Inter"
+                    ],
+                    "display-xl": [
+                            "Inter"
+                    ],
+                    "label-sm": [
+                            "Inter"
+                    ],
+                    "display-lg": [
+                            "Inter"
+                    ],
+                    "heading-md": [
+                            "Inter"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "1.5",
+                                    "letterSpacing": "0",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "numeric-data": [
+                            "24px",
+                            {
+                                    "lineHeight": "1.0",
+                                    "letterSpacing": "-0.055em",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "display-xl": [
+                            "82px",
+                            {
+                                    "lineHeight": "1.0",
+                                    "letterSpacing": "-0.04em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "label-sm": [
+                            "12px",
+                            {
+                                    "lineHeight": "1.0",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "display-lg": [
+                            "60px",
+                            {
+                                    "lineHeight": "1.1",
+                                    "letterSpacing": "-0.03em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "heading-md": [
+                            "32px",
+                            {
+                                    "lineHeight": "1.2",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "1.6",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+    },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+          font-variation-settings:
+          'FILL' 0,
+          'wght' 300,
+          'GRAD' 0,
+          'opsz' 24
+        }
+    </style>
+</head>
+<body class="bg-primary text-on-surface font-body-md text-body-md antialiased min-h-screen flex justify-center items-end md:items-center">
+<!-- Modal Container -->
+<div class="bg-surface w-full max-w-md rounded-t-xl md:rounded-xl shadow-2xl overflow-hidden flex flex-col h-[calc(100vh-62px)] md:h-[800px] relative">
+<!-- Top Bar -->
+<div class="flex justify-between items-center w-full px-container-margin h-16 pt-xs">
+<button class="text-on-surface-variant hover:opacity-70 transition-opacity">
+<span class="material-symbols-outlined">close</span>
+</button>
+<span class="font-heading-md text-heading-md font-bold tracking-tight text-primary">Swap</span>
+<button class="text-on-surface-variant hover:opacity-70 transition-opacity">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<!-- Swap Content -->
+<div class="flex-1 overflow-y-auto px-container-margin py-md flex flex-col gap-lg">
+<!-- You Pay Section -->
+<div class="flex flex-col gap-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant">You pay</span>
+<div class="flex justify-between items-end">
+<div class="flex flex-col">
+<span class="font-display-lg text-display-lg text-primary">0.05</span>
+<span class="font-body-md text-body-md text-on-surface-variant mt-unit">$11.65</span>
+</div>
+<button class="bg-surface-variant text-on-surface font-label-sm text-label-sm px-sm py-xs rounded-full flex items-center gap-xs hover:bg-surface-container-high transition-colors">
+<img alt="BOR Token" class="w-6 h-6 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/ADBb0ui2sIU56gRu4HQt7EYwZR9lhh98ysFIc8xVZ9BPxgM53vSqPmOflIJJLTzXwDNI5YvBkNX24UFRy1BDRuz7pNDuWgCF34aV2mrsoBYCKhAhtytTWwjzCGOUpO_-7Oox6olpDzIOCnggZT6F0NEdDHQCxzOyCiS72Ko993KoQjctJfodZRBGA3Aq3KbhjvZOd5eK3R_kQ6cu1-GnpufRpXdGgIKaZZs2iOPCu3i3IccWSZqlDKflCLUeemj7"/>
+                        BOR
+                        <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+</div>
+<!-- Divider with Swap Icon -->
+<div class="relative flex items-center justify-center py-md">
+<div class="absolute inset-0 flex items-center">
+<div class="w-full border-t border-outline-variant"></div>
+</div>
+<button class="relative bg-surface border border-outline-variant rounded-full p-xs hover:bg-surface-variant transition-colors z-10">
+<span class="material-symbols-outlined text-primary">swap_vert</span>
+</button>
+</div>
+<!-- You Receive Section -->
+<div class="flex flex-col gap-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant">You receive</span>
+<div class="flex justify-between items-end">
+<div class="flex flex-col">
+<span class="font-display-lg text-display-lg text-primary opacity-50">11.642012</span>
+</div>
+<button class="bg-surface-variant text-on-surface font-label-sm text-label-sm px-sm py-xs rounded-full flex items-center gap-xs hover:bg-surface-container-high transition-colors">
+<div class="w-6 h-6 rounded-full bg-[#2775CA] flex items-center justify-center text-white font-bold text-[10px]">USDC</div>
+                        USDC
+                        <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Keypad & Action -->
+<div class="px-container-margin pb-lg pt-md bg-surface mt-auto flex flex-col gap-md border-t border-outline-variant/30">
+<!-- Keypad (Visual Representation) -->
+<div class="grid grid-cols-3 gap-y-md gap-x-sm text-center mb-md">
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">1</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">2</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">3</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">4</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">5</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">6</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">7</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">8</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">9</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">.</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs hover:bg-surface-variant rounded-lg transition-colors">0</button>
+<button class="font-numeric-data text-numeric-data text-primary py-xs flex justify-center items-center hover:bg-surface-variant rounded-lg transition-colors">
+<span class="material-symbols-outlined">backspace</span>
+</button>
+</div>
+<button class="w-full bg-[#EE6A6A] text-on-error font-body-lg text-body-lg font-semibold h-[56px] rounded-[29px] opacity-70 cursor-not-allowed flex items-center justify-center">
+                Insufficient balance
+            </button>
+</div>
+</div>
+</body></html>

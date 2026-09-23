@@ -1,5 +1,6 @@
 package com.pft.financetracker.domain.parser
 
+import com.pft.financetracker.domain.model.Money
 import com.pft.financetracker.domain.model.TransactionType
 
 /**
@@ -23,7 +24,7 @@ class SmsParser(private val threshold: Int = 60) {
         if (!TextFilters.looksTransactional(body)) return ParseResult.Ignored("no_transaction_hint")
 
         val amountCandidates = AmountExtractor.candidates(body)
-        val amount = (amountCandidates.firstOrNull { !it.isBalance } ?: amountCandidates.firstOrNull())?.value
+        val amount = (amountCandidates.firstOrNull { !it.isBalance } ?: amountCandidates.firstOrNull())?.value?.let { Money.toPaise(it) }
         val typeResult = TypeDetector.detect(body)
 
         if (amount == null && typeResult.type == null) return ParseResult.Ignored("no_amount_no_type")
@@ -34,6 +35,7 @@ class SmsParser(private val threshold: Int = 60) {
         val account = AccountExtractor.extract(body)
         val bank = BankExtractor.extract(sms.sender, body)
         val timestamp = DateExtractor.extract(body, sms.receivedAt)
+        val ref = RefExtractor.extract(body)
 
         var confidence = 0
         confidence += minOf(40, 20 + typeResult.score * 5)
@@ -50,12 +52,13 @@ class SmsParser(private val threshold: Int = 60) {
         val merchantName = merchant ?: defaultMerchant(typeResult.type, bank)
         return ParseResult.Success(
             ParsedTransaction(
-                amount = amount,
+                amountPaise = amount,
                 type = typeResult.type,
                 merchant = merchantName,
                 timestamp = timestamp,
                 bankName = bank,
                 accountRef = account,
+                refNumber = ref,
                 confidence = confidence,
             )
         )
