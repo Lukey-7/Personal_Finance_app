@@ -45,9 +45,17 @@ A same-day refund of the same amount merges into a v1.0 debit and flips it into 
 
 **Result (2026-09-24):** 127 unit tests pass (120 before, 7 new), the debug build succeeds, and lint reports 0 errors.
 
-## Deferred (minor review items, not in this pass)
-- "paid to you by X" read as money going out (`TypeDetector.primaryDirection`)
-- Bill prices of ₹10,000 or more without decimals dropped as item codes (`BillParser.kt`)
-- `OcrEngine` swallows `CancellationException`, and peak memory with two recognisers
-- Log pruning after 365 days: harmless today, because the rescan window is also 365 days
-- Debug APK naming when a key is embedded
+### 7. Emulator upgrade check (2026-09-24)
+Three builds were installed in turn as a separate test app (`com.pft.financetracker.upgradetest`), so the regular app's data was not touched. The seeded 17-SMS inbox was used.
+- [x] **v1.1.0:** import, then split the ₹1,299 Amazon card spend with Asha (my share ₹649.50). Net spend ₹4,218 → ₹3,569.
+- [x] **v1.1.1:** upgrade, then "Rescan the last 12 months". Net spend is back to ₹4,218 while Asha still owes ₹650. **Bug reproduced.**
+- [x] **This fix:** upgrade (DB v4 migration). Net spend is ₹3,569 again. A second full rescan keeps it at ₹3,569. No crash in logcat.
+- Noticed: the split screen's date field opens its picker only on a held press. A very quick tap (adb `input tap`) did nothing. Worth checking with a real finger.
+
+### 8. Minor review items
+- [x] "Rs 500 paid to you by X" is income ("paid to your card" stays a spend). Two corpus rows added.
+- [x] Bill items priced with 5 bare digits ("Speaker 12500") are kept. 6+ digits, or 5 digits with no real word before them ("Inv 88213", OCR "Iny"), are still skipped as codes. Found by the real-photo test `groceryAngled`.
+- [x] `OcrEngine`: a failed Hindi reading still falls back to Latin, but cancellation now propagates. Removed the unused `decodeLegacy`. Peak memory was already bounded: the photo is capped at 2000px and both readers share one bitmap.
+- [x] Log pruning keeps the user's own decisions (deleted, dismissed) and the v1.0 tombstones.
+- [x] A debug APK with a built-in OpenAI key is named `-personal` (RUNNING.md updated).
+- [x] 128 unit tests pass, the build succeeds, lint 0 errors

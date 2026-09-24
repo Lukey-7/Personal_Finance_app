@@ -101,6 +101,21 @@ class BillParserTest {
         assertEquals(11_800L, b.totalPaise)
     }
 
+    /** A five-digit price printed without decimals is an item; a PIN code or invoice number is not. */
+    @Test
+    fun keepsFiveDigitPricesButNotCodes() {
+        val text = """
+            SOUND WORLD
+            MG Road 560001
+            Inv 88213
+            Bluetooth Speaker   12500
+            Cable                 499
+            Total               12999
+        """.trimIndent()
+        val b = BillParser.parse(text)
+        assertEquals(listOf(1_250_000L, 49_900L), b.items.map { it.pricePaise })
+    }
+
     @Test
     fun garbageIsHarmless() {
         val b = BillParser.parse("~~~ blurry ### 12 xx")

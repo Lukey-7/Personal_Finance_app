@@ -49,6 +49,7 @@ object BillParser {
         "दिनांक", "तारीख", "बिल सं", "धन्यवाद", "मात्रा", "राशि", "फोन", "नकद", "बचत"
     )
 
+    private val longWord = Regex("""\p{L}{4,}""")
     private val qtyPrefix = Regex("""^(\d{1,2})\s*[xX×*]\s*(.+)$""")
     private val qtyAmount = Regex("""^(.*\p{L}.*?)\s+(\d{1,2})\s+(?:rs\.?|inr|₹|रु\.?|रू\.?)?\s*$AMT\s*(?:/-)?\s*$""", RegexOption.IGNORE_CASE)
     private val qtySuffix = Regex("""^(.+?)\s+(\d{1,2})\s*(?:x|X|×|nos?|pcs?|qty)?\s+$AMT\s+$AMT\s*$""")
@@ -169,7 +170,9 @@ object BillParser {
             if (dateRx.containsMatchIn(raw)) continue
             val m = amountAtEnd.find(raw) ?: continue
             val token = m.groupValues[1]
-            if (token.length >= 5 && token.all { it.isDigit() }) continue
+            // 6+ bare digits is a code (PIN, phone, HSN). Five can be a real price printed without decimals
+            // ("Speaker 12500"), but only after a real word: "Inv 88213" (OCR: "Iny") is an invoice number.
+            if (token.all { it.isDigit() } && (token.length >= 6 || token.length == 5 && !longWord.containsMatchIn(raw.substring(0, m.range.first)))) continue
             val price = paise(token) ?: continue
             if (price <= 0) continue
             var name = raw.substring(0, m.range.first).trim().trimEnd('-', ':', '.', 'x', 'X', '@')

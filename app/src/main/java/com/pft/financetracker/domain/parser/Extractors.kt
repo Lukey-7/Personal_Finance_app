@@ -89,7 +89,8 @@ object TypeDetector {
     )
     private val toCounterparty = Regex("""^\s*to\s+(?:the\s+)?(?:beneficiary|payee|[\w.\-]+@[a-z]+)""", RegexOption.IGNORE_CASE)
     private val intoOwnAccount = Regex("""^\s*(?:to|into|in)\s+(?:your|ur)\b""", RegexOption.IGNORE_CASE)
-    private val toYou = Regex("""^\s*you\b""", RegexOption.IGNORE_CASE)
+    /** "paid you", "paid to you"; not "paid to your card", which is the customer paying. */
+    private val toYou = Regex("""^\s*(?:to\s+)?you\b""", RegexOption.IGNORE_CASE)
 
     fun primaryDirection(body: String): TransactionType? {
         val m = primaryVerb.find(body) ?: return null
