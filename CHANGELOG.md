@@ -10,6 +10,11 @@ Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Re
 - A rescan only corrects rows an older version stored the wrong way round. It never changes an amount, so amounts you corrected before v1.1.1 stay as you left them.
 - Transactions imported by v1.0 that you delete stay deleted after a rescan.
 - A same-day refund of the same amount no longer merges into a v1.0 debit and turns it into income.
+- "Rs 500 paid to you by X" is income, not a spend.
+- Bill items priced without decimals at ₹10,000 or more ("Speaker 12500") are no longer dropped.
+- Leaving the bill screen while a photo is being read now stops the reading.
+- Deletions and dismissals are remembered even after old SMS log rows are cleaned up.
+- A debug APK carrying a built-in OpenAI key is named "-personal", like a personal release build.
 - Reading one message's text for the SMS log detail can no longer crash on a missing column. The app is no longer hidden from tablets and Chromebooks on Play because it asks for SMS access.
 
 ## [1.1.1] - 2026-09-23

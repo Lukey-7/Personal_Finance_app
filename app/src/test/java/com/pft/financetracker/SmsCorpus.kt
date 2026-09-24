@@ -47,6 +47,8 @@ object SmsCorpus {
         CorpusCase("credited_to_beneficiary", "VM-SBIINB", "INR 500.00 credited to beneficiary A/c XX9999 (JOHN) from your A/c XX1234 via IMPS. Ref 422312345655", Expect.Saved(DEBIT, 50_000)),
         CorpusCase("transferred_into_your_account", "VM-SBIINB", "Rs 2,000 transferred to your a/c XX1234 from RAHUL via IMPS. Ref 422312345666", Expect.Saved(CREDIT, 200_000)),
         CorpusCase("someone_paid_you", "VM-PHONPE", "Rahul paid you Rs 500 on PhonePe. UPI Ref 422312345677", Expect.Saved(CREDIT, 50_000)),
+        CorpusCase("paid_to_you_by", "VM-PAYTMB", "Rs 500 paid to you by Rahul Sharma via UPI. Ref 422312345676", Expect.Saved(CREDIT, 50_000)),
+        CorpusCase("paid_to_your_card_is_not_income", "VM-PAYTMB", "Rs 5,000 paid to your HDFC Bank Credit Card XX4455 from Paytm. Ref 422312345675", Expect.Saved(DEBIT, 500_000)),
 
         // ---- Task 5: amount ----
         CorpusCase("masked_acct_then_rs", "VM-KOTAKB", "A/c XX1234 Rs 750.00 debited to Swiggy on 12-08-24. UPI Ref 422312345678", Expect.Saved(DEBIT, 75_000, Flow.EXPENSE, "swiggy")),

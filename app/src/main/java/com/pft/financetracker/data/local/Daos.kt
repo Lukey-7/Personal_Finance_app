@@ -120,7 +120,8 @@ interface SmsLogDao {
     @Query("SELECT EXISTS(SELECT 1 FROM sms_log WHERE transactionId = :transactionId)")
     suspend fun pointsAt(transactionId: Long): Boolean
 
-    @Query("DELETE FROM sms_log WHERE receivedAt < :before")
+    /** Old rows go, except the user's own decisions (deleted, dismissed), which a rescan must keep honouring. */
+    @Query("DELETE FROM sms_log WHERE receivedAt < :before AND reason NOT IN ('deleted_by_user', 'dismissed_by_user')")
     suspend fun pruneBefore(before: Long)
 
     @Query("DELETE FROM sms_log")

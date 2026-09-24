@@ -55,8 +55,11 @@ AI mode needs your own OpenAI key. Rather than typing it on the phone every time
 ```
 set OPENAI_API_KEY=sk-your-key-here
 build.cmd assembleDebug
-adb install -r app\build\outputs\apk\debug\FinTrack-v1.1.1-arm64-v8a-debug.apk
+adb install -r app\build\outputs\apk\debug\FinTrack-v1.1.1-arm64-v8a-debug-personal.apk
 ```
+
+A debug APK with a built-in key is named `-personal`, like a personal release build. Don't share it:
+anyone holding it can extract the key.
 
 The app then starts with that key already saved, and **Settings → Generate summary** works immediately -
 no typing on the device.

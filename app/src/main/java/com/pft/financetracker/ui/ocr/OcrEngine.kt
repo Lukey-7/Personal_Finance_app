@@ -2,7 +2,6 @@ package com.pft.financetracker.ui.ocr
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.util.Log
@@ -15,6 +14,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -39,7 +39,8 @@ object OcrEngine {
             // printed in Hindi. OcrRows.pickScript keeps the Devanagari reading only when it found Hindi script.
             val (latinText, hindiText) = coroutineScope {
                 val a = async { rows(read(latin, image)) }
-                val b = async { runCatching { rows(read(devanagari, image)) }.getOrDefault("") }
+                // A failed Hindi reading falls back to Latin only; cancellation (the user left the screen) still propagates.
+                val b = async { try { rows(read(devanagari, image)) } catch (e: CancellationException) { throw e } catch (e: Exception) { "" } }
                 a.await() to b.await()
             }
             val text = OcrRows.pickScript(latinText, hindiText)
@@ -85,8 +86,4 @@ object OcrEngine {
             }
         }.let { if (it.config == Bitmap.Config.HARDWARE) it.copy(Bitmap.Config.ARGB_8888, false) else it }
     }
-
-    @Suppress("unused")
-    private fun decodeLegacy(context: Context, uri: Uri): Bitmap =
-        context.contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it) }
 }

@@ -111,8 +111,9 @@ android {
         outputs.all {
             val abi = (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
                 .filters.find { it.filterType == "ABI" }?.identifier
-            // A release with a built-in key is marked in its file name, so it cannot be mistaken for one to share.
-            val personal = if (buildType.name == "release" && personalRelease) "-personal" else ""
+            // Any APK with a built-in key is marked in its file name, so it cannot be mistaken for one to share.
+            val hasKey = if (buildType.name == "release") personalRelease else buildKey.isNotEmpty()
+            val personal = if (hasKey) "-personal" else ""
             outputFileName = "FinTrack-v${versionName}-${abi ?: "universal"}-${buildType.name}$personal.apk"
         }
     }
