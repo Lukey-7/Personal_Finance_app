@@ -71,4 +71,31 @@ class MigrationTest {
         }
         db.close()
     }
+
+    /**
+     * v1.1.0 shrank a split's SMS row to my share without recording the bank amount, and a v1.1.1 rescan could put
+     * the full amount back. v4 records the bank amount and restores my share; an amount a person changed is kept.
+     */
+    @Test
+    fun migrate3To4RemembersTheBankAmountOfSplitRows() {
+        helper.createDatabase(dbName, 3).apply {
+            fun tx(id: Int, paise: Long) = execSQL("INSERT INTO transactions (id, amountPaise, type, merchant, category, timestamp, bankName, accountRef, source, flow, note, smsHash, refNumber, confidence, needsReview, createdAt, originalAmountPaise, userEdited) VALUES ($id, $paise, 'DEBIT', 'Dinner', 'FOOD', 1700000000000, 'HDFC Bank', '1234', 'SMS', 'EXPENSE', 'Split: Dinner.', 'hash$id', NULL, 90, 0, 1700000000000, NULL, 0)")
+            fun split(id: Int, txId: Int) {
+                execSQL("INSERT INTO splits (id, title, totalPaise, date, mode, payerIndex, linkedTransactionId, note, createdAt) VALUES ($id, 'Dinner', 90000, 1700000000000, 'EQUAL', 0, $txId, NULL, 1700000000000)")
+                execSQL("INSERT INTO split_people (splitId, personIndex, name, isMe) VALUES ($id, 0, 'Me', 1), ($id, 1, 'Asha', 0), ($id, 2, 'Ravi', 0)")
+                execSQL("INSERT INTO split_shares (splitId, personIndex, amountPaise, settledPaise) VALUES ($id, 0, 30000, 0), ($id, 1, 30000, 0), ($id, 2, 30000, 0)")
+            }
+            tx(1, 30_000); split(1, 1) // shrunk by v1.1.0
+            tx(2, 90_000); split(2, 2) // already reset by a v1.1.1 rescan
+            tx(3, 45_000); split(3, 3) // changed by a person afterwards
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(dbName, 4, true, AppDatabase.MIGRATION_3_4)
+        db.query("SELECT id, amountPaise, originalAmountPaise FROM transactions ORDER BY id").use { c ->
+            c.moveToNext(); assertEquals(30_000L, c.getLong(1)); assertEquals(90_000L, c.getLong(2))
+            c.moveToNext(); assertEquals(30_000L, c.getLong(1)); assertEquals(90_000L, c.getLong(2))
+            c.moveToNext(); assertEquals(45_000L, c.getLong(1)); assertTrue(c.isNull(2))
+        }
+        db.close()
+    }
 }

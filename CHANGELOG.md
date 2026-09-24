@@ -3,6 +3,15 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [Unreleased]
+
+### Fixed
+- A rescan no longer puts the full bank amount back on a transaction you split in v1.1.0. Database version 4 (no new columns) records the bank amount on those rows, and restores your share where a v1.1.1 rescan already reset it.
+- A rescan only corrects rows an older version stored the wrong way round. It never changes an amount, so amounts you corrected before v1.1.1 stay as you left them.
+- Transactions imported by v1.0 that you delete stay deleted after a rescan.
+- A same-day refund of the same amount no longer merges into a v1.0 debit and turns it into income.
+- Reading one message's text for the SMS log detail can no longer crash on a missing column. The app is no longer hidden from tablets and Chromebooks on Play because it asks for SMS access.
+
 ## [1.1.1] - 2026-09-23
 
 ### SMS accuracy

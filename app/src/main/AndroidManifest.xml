@@ -5,6 +5,8 @@
     <!-- SMS: read existing transaction messages + listen for new ones. Requested at runtime after an explanation screen. -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <!-- SMS is optional: without this, the permissions above would hide the app from tablets and Chromebooks. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <!-- INTERNET is used ONLY for the optional, user-triggered OpenAI request to api.openai.com. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Lets the system camera app be used for bill photos without the CAMERA permission. -->

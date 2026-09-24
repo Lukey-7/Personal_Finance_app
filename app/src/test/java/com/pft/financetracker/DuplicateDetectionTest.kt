@@ -85,6 +85,14 @@ class DuplicateDetectionTest {
         assertEquals("legacy-hash", dup!!.smsHash)
     }
 
+    /** One legacy row stands for one SMS: once matched, a same-merchant refund that day is a new row. */
+    @Test fun claimedLegacyRowIsNotTakenAgain() = runBlocking {
+        val midnight = startOfDay(now)
+        repo.insert(tx(50_000, "Myntra", "HDFC Bank", midnight, hash = "legacy-hash"))
+        val refund = tx(50_000, "Myntra", "HDFC Bank", midnight + 15 * 3600_000).copy(type = TransactionType.CREDIT, flow = Flow.REFUND)
+        assertNull(repo.findLikelyDuplicate(refund) { true })
+    }
+
     /** Same-day matching must not swallow a genuine repeat purchase: distinct references keep both. */
     @Test fun sameMerchantSameDayWithDifferentRefsAreBothKept() = runBlocking {
         val midnight = startOfDay(now)

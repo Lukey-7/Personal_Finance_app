@@ -116,4 +116,59 @@ class ImportMemoryTest {
         importer.process(sms(icici, noon, "AX-ICICIB"))
         assertEquals(TransactionType.CREDIT, repo.getById(id)!!.type)
     }
+
+    /** A split shrank this row to my share and remembered the bank amount. A rescan must not put the full amount back. */
+    @Test fun rescanLeavesASplitShrunkRowAlone() = runBlocking {
+        val id = storeStaleIcici(userEdited = false)
+        repo.update(repo.getById(id)!!.copy(type = TransactionType.DEBIT, amountPaise = 8_000, originalAmountPaise = 24_000))
+        importer.process(sms(icici, noon, "AX-ICICIB"))
+        assertEquals(8_000L, repo.getById(id)!!.amountPaise)
+    }
+
+    /** Rows from before v1.1.1 carry no edit flag. An amount that differs from the parse was changed on purpose. */
+    @Test fun rescanNeverRewritesAnAmountThatDiffersFromTheParse() = runBlocking {
+        val id = storeStaleIcici(userEdited = false)
+        repo.update(repo.getById(id)!!.copy(amountPaise = 12_000))
+        importer.process(sms(icici, noon, "AX-ICICIB"))
+        val t = repo.getById(id)!!
+        assertEquals(12_000L, t.amountPaise)
+        assertEquals(TransactionType.CREDIT, t.type)
+    }
+
+    private val myntra = "Rs.999.00 debited from a/c **1234 to VPA myntra@ybl (UPI Ref No 422399999999)."
+    private val midnight get() = TransactionRepository.startOfDay(noon)
+
+    /** What v1.0.0 stored for [myntra]: midnight, an older hash, and no SMS log row. */
+    private suspend fun storeLegacyMyntra(): Transaction {
+        val id = repo.insert(Transaction(amountPaise = 99_900, type = TransactionType.DEBIT, merchant = "Myntra", category = Category.SHOPPING, timestamp = midnight,
+            bankName = "HDFC Bank", accountRef = "1234", source = Transaction.Source.SMS, flow = Flow.EXPENSE, smsHash = "v1-legacy-hash"))
+        return repo.getById(id)!!
+    }
+
+    @Test fun deletedLegacyRowStaysDeletedOnRescan() = runBlocking {
+        val row = storeLegacyMyntra()
+        repo.delete(row); importer.forgetDeleted(row)
+        assertEquals(Outcome.IGNORED, importer.process(sms(myntra, noon)))
+        assertEquals(0, repo.getAll().size)
+        // A second rescan settles it by its own hash.
+        assertEquals(Outcome.DUPLICATE, importer.process(sms(myntra, noon)))
+        assertEquals(0, repo.getAll().size)
+    }
+
+    @Test fun deletedLegacyRowSwallowsOnlyOneMessage() = runBlocking {
+        val row = storeLegacyMyntra()
+        repo.delete(row); importer.forgetDeleted(row)
+        importer.process(sms(myntra, noon))
+        val second = myntra.replace("422399999999", "422388888888")
+        assertEquals(Outcome.INSERTED, importer.process(sms(second, noon + 3 * 3600_000)))
+        assertEquals(1, repo.getAll().size)
+    }
+
+    @Test fun legacyRowMatchedByItsDebitIsNotFlippedByASameDayRefund() = runBlocking {
+        val row = storeLegacyMyntra()
+        assertEquals(Outcome.DUPLICATE, importer.process(sms(myntra, noon)))
+        val refund = "Rs.999.00 credited to a/c **1234 from VPA myntra@ybl as refund (UPI Ref No 422377777777)."
+        importer.process(sms(refund, noon + 4 * 3600_000))
+        assertEquals(TransactionType.DEBIT, repo.getById(row.id)!!.type)
+    }
 }
