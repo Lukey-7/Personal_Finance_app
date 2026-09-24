@@ -50,7 +50,7 @@ Three builds were installed in turn as a separate test app (`com.pft.financetrac
 - [x] **v1.1.0:** import, then split the ₹1,299 Amazon card spend with Asha (my share ₹649.50). Net spend ₹4,218 → ₹3,569.
 - [x] **v1.1.1:** upgrade, then "Rescan the last 12 months". Net spend is back to ₹4,218 while Asha still owes ₹650. **Bug reproduced.**
 - [x] **This fix:** upgrade (DB v4 migration). Net spend is ₹3,569 again. A second full rescan keeps it at ₹3,569. No crash in logcat.
-- Noticed: the split screen's date field opens its picker only on a held press. A very quick tap (adb `input tap`) did nothing. Worth checking with a real finger.
+- [x] Found: the split screen's date field reacted only to a *press*, so an instant tap, TalkBack's double-tap, a keyboard or switch access could not open the picker. It now has a real clickable layer (announced as "Date: 14 Sep 2026", action "Pick date"). On the emulator, instant taps (with and without the keyboard open) open it and picking a date works.
 
 ### 8. Minor review items
 - [x] "Rs 500 paid to you by X" is income ("paid to your card" stays a spend). Two corpus rows added.

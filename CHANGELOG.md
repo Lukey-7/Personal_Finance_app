@@ -10,6 +10,7 @@ Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Re
 - A rescan only corrects rows an older version stored the wrong way round. It never changes an amount, so amounts you corrected before v1.1.1 stay as you left them.
 - Transactions imported by v1.0 that you delete stay deleted after a rescan.
 - A same-day refund of the same amount no longer merges into a v1.0 debit and turns it into income.
+- The date on a new split can be changed with TalkBack, a keyboard or switch access, and a very quick tap no longer misses.
 - "Rs 500 paid to you by X" is income, not a spend.
 - Bill items priced without decimals at ₹10,000 or more ("Speaker 12500") are no longer dropped.
 - Leaving the bill screen while a photo is being read now stops the reading.
