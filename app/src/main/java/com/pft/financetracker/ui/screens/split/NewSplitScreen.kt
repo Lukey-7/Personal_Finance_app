@@ -25,8 +25,8 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.size
@@ -74,6 +74,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -424,17 +429,24 @@ private fun Section(title: String, subtitle: String? = null, content: @Composabl
     }
 }
 
-/** A read-only field showing the date, the same shape and height as the text field beside it. */
+/**
+ * A read-only field showing the date, the same shape and height as the text field beside it. A clickable layer on
+ * top opens the picker, so a tap, TalkBack's double-tap, a keyboard or switch access all work (a field that only
+ * watched for a press missed the click-only ones).
+ */
 @Composable
 private fun DateField(date: Long, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val source = remember { MutableInteractionSource() }
-    val pressed by source.collectIsPressedAsState()
-    LaunchedEffect(pressed) { if (pressed) onClick() }
-    OutlinedTextField(
-        value = dateOnly(date), onValueChange = {}, readOnly = true, singleLine = true,
-        label = { Text("Date") },
-        trailingIcon = { Icon(Icons.Outlined.CalendarToday, "Pick date", Modifier.size(20.dp)) },
-        interactionSource = source,
-        modifier = modifier,
-    )
+    Box(modifier) {
+        OutlinedTextField(
+            value = dateOnly(date), onValueChange = {}, readOnly = true, singleLine = true,
+            label = { Text("Date") },
+            trailingIcon = { Icon(Icons.Outlined.CalendarToday, null, Modifier.size(20.dp)) },
+            modifier = Modifier.fillMaxWidth().focusProperties { canFocus = false }.clearAndSetSemantics {},
+        )
+        Box(
+            Modifier.matchParentSize()
+                .clickable(onClickLabel = "Pick date", role = Role.Button, onClick = onClick)
+                .semantics { contentDescription = "Date: ${dateOnly(date)}" }
+        )
+    }
 }
