@@ -101,28 +101,38 @@ class SmsImporter(
         }
     }
 
-    /** The user deleted [t]. Record it so a rescan does not import the same SMS again. */
+    /**
+     * The user deleted [t]. Record it so a rescan does not import the same SMS again. A v1.0.0 import has no log row
+     * and an older hash, so it gets a tombstone instead: [process] lets it swallow one same-amount SMS from that day.
+     */
     suspend fun forgetDeleted(t: Transaction) {
-        t.smsHash?.let { log.updateOutcome(it, Outcomes.IGNORED, Outcomes.DELETED_BY_USER, null) }
+        val hash = t.smsHash ?: return
+        if (log.updateOutcome(hash, Outcomes.IGNORED, Outcomes.DELETED_BY_USER, null) > 0 || t.source != Transaction.Source.SMS) return
+        log.log(
+            SmsLogEntity(sender = t.bankName ?: t.merchant, receivedAt = t.timestamp, outcome = Outcomes.IGNORED, reason = Outcomes.DELETED_BY_USER,
+                amountPaise = t.amountPaise, type = t.type.name, transactionId = null, smsHash = "deleted:$hash", runId = System.currentTimeMillis())
+        )
     }
 
     /** The user said a review item is not a transaction. */
     suspend fun recordDismissed(hash: String) = log.updateOutcome(hash, Outcomes.IGNORED, Outcomes.DISMISSED_BY_USER, null)
 
     /**
-     * A settled SMS whose saved row an older parser got wrong (e.g. an ICICI UPI debit stored as income). Re-parse it and
-     * correct direction, amount, merchant and flow in place, unless a person edited the row or a split owns its amount.
+     * A settled SMS whose saved row an older parser stored the wrong way round (e.g. an ICICI UPI debit stored as
+     * income). Re-parse it and correct direction, merchant and flow in place, unless a person edited the row or a split
+     * owns its amount. Only a row whose amount still matches the parse is touched: a different amount means a person
+     * or a split changed it (rows from before v1.1.1 carry no edit flag), and the amount is never rewritten.
      */
     private suspend fun repairIfWrong(sms: SmsMessage, logged: SmsLogEntity) {
         if (logged.outcome != Outcomes.SAVED) return
         val existing = logged.transactionId?.let { repo.getById(it) } ?: return
         if (existing.userEdited || existing.originalAmountPaise != null || existing.source != Transaction.Source.SMS) return
         val p = (parser.parse(sms) as? ParseResult.Success)?.transaction ?: return
-        if (p.type == existing.type && p.amountPaise == existing.amountPaise) return
+        if (p.amountPaise != existing.amountPaise || p.type == existing.type) return
         val category = Categorizer.categorize(p.merchant, p.type, p.bankName)
         repo.update(
             existing.copy(
-                amountPaise = p.amountPaise, type = p.type, merchant = p.merchant, category = category,
+                type = p.type, merchant = p.merchant, category = category,
                 flow = FlowClassifier.classify(p.type, sms.body, p.merchant, category), refNumber = existing.refNumber ?: p.refNumber,
             )
         )
@@ -157,7 +167,7 @@ class SmsImporter(
                     confidence = p.confidence,
                     needsReview = false,
                 )
-                val existing = repo.findLikelyDuplicate(candidate)
+                val existing = repo.findLikelyDuplicate(candidate) { log.pointsAt(it) }
                 if (existing != null) {
                     // Same payment reported by a second sender, or a row imported by an older version whose
                     // hash no longer matches. Keep one record: the richer of the two for the descriptive
@@ -179,6 +189,12 @@ class SmsImporter(
                     val why = if (candidate.refNumber != null && candidate.refNumber == existing.refNumber) "same_ref_${existing.id}" else "same_amount_within_10min_${existing.id}"
                     log.log(entry(Outcomes.DUPLICATE, why, p.amountPaise, p.type.name, existing.id))
                     return Outcome.DUPLICATE
+                }
+                // The user deleted this payment's v1.0.0 row: use up its tombstone and remember the decision under this hash.
+                log.findTombstone(p.amountPaise, p.timestamp)?.let { tomb ->
+                    log.updateOutcome(tomb.smsHash, Outcomes.IGNORED, "${Outcomes.DELETED_BY_USER}_matched", null)
+                    log.log(entry(Outcomes.IGNORED, Outcomes.DELETED_BY_USER, p.amountPaise, p.type.name))
+                    return Outcome.IGNORED
                 }
                 val id = repo.insert(candidate)
                 if (id == -1L) { log.log(entry(Outcomes.DUPLICATE, "same_sms", p.amountPaise, p.type.name)); return Outcome.DUPLICATE }
@@ -262,7 +278,7 @@ object SmsReader {
             arrayOf(sender, (at - 120_000).toString(), (at + 120_000).toString(), (at - 120_000).toString(), (at + 120_000).toString()),
             "${Telephony.Sms.DATE} ASC"
         ) ?: return null
-        cursor.use { c -> return if (c.moveToFirst()) c.getString(c.getColumnIndex(Telephony.Sms.BODY)) else null }
+        cursor.use { c -> return if (c.moveToFirst()) c.getString(c.getColumnIndexOrThrow(Telephony.Sms.BODY)) else null }
     }
 
     /** Sender IDs like "VM-HDFCBK", "AX-ICICIB-S", "JD-PAYTMB" contain letters; personal numbers do not. */

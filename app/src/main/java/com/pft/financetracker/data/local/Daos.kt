@@ -108,8 +108,17 @@ interface SmsLogDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: SmsLogEntity): Long
 
+    /** Returns the number of rows changed: 0 means this SMS has no log row (a v1.0.0 import). */
     @Query("UPDATE sms_log SET outcome = :outcome, reason = :reason, transactionId = :transactionId WHERE smsHash = :hash")
-    suspend fun updateOutcome(hash: String, outcome: String, reason: String, transactionId: Long?)
+    suspend fun updateOutcome(hash: String, outcome: String, reason: String, transactionId: Long?): Int
+
+    /** An unused record of a deleted v1.0.0 row with this amount in [from, to). */
+    @Query("SELECT * FROM sms_log WHERE smsHash LIKE 'deleted:%' AND reason = 'deleted_by_user' AND amountPaise = :amountPaise AND receivedAt >= :from AND receivedAt < :to ORDER BY receivedAt LIMIT 1")
+    suspend fun findTombstone(amountPaise: Long, from: Long, to: Long): SmsLogEntity?
+
+    /** Whether some SMS already matched this transaction (saved it, or was merged into it). */
+    @Query("SELECT EXISTS(SELECT 1 FROM sms_log WHERE transactionId = :transactionId)")
+    suspend fun pointsAt(transactionId: Long): Boolean
 
     @Query("DELETE FROM sms_log WHERE receivedAt < :before")
     suspend fun pruneBefore(before: Long)

@@ -17,7 +17,7 @@ import java.security.SecureRandom
         TransactionEntity::class, ReviewItemEntity::class, BudgetEntity::class,
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -180,7 +180,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3)
+        /**
+         * v3 -> v4: no schema change. v1.1.0's split flow shrank the linked SMS row to "my share" without recording
+         * the bank amount, so a rescan saw a disagreement and put the full amount back. Record the bank amount on
+         * those rows and restore my share where a rescan already reset it. A row whose amount is neither the total
+         * nor my share was changed by a person and is left alone.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                val fixes = mutableListOf<Triple<Long, Long, Long>>() // id, my share, bank total
+                db.query(
+                    """SELECT t.id, sh.amountPaise, s.totalPaise FROM transactions t
+                       JOIN splits s ON s.linkedTransactionId = t.id
+                       JOIN split_people p ON p.splitId = s.id AND p.isMe = 1
+                       JOIN split_shares sh ON sh.splitId = s.id AND sh.personIndex = p.personIndex
+                       WHERE t.source = 'SMS' AND t.originalAmountPaise IS NULL
+                         AND sh.amountPaise < s.totalPaise AND t.amountPaise IN (s.totalPaise, sh.amountPaise)
+                       ORDER BY s.id"""
+                ).use { c -> while (c.moveToNext()) fixes += Triple(c.getLong(0), c.getLong(1), c.getLong(2)) }
+                for ((id, mine, total) in fixes.distinctBy { it.first }) {
+                    db.execSQL("UPDATE transactions SET amountPaise = ?, originalAmountPaise = ? WHERE id = ?", arrayOf<Any>(mine, total, id))
+                }
+            }
+        }
+
+        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }
 

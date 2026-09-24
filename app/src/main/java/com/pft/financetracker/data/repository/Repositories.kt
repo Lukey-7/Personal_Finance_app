@@ -52,7 +52,7 @@ class TransactionRepository(
      * reporting it, or one of them has no real merchant). Two genuine payments of the same amount to two
      * different merchants from the same bank within ten minutes are kept.
      */
-    suspend fun findLikelyDuplicate(candidate: Transaction, windowMillis: Long = 10 * 60_000L): Transaction? {
+    suspend fun findLikelyDuplicate(candidate: Transaction, windowMillis: Long = 10 * 60_000L, isClaimed: suspend (Long) -> Boolean = { false }): Transaction? {
         candidate.refNumber?.let { ref -> findByRef(ref, candidate.type)?.let { return it } }
 
         // Search the whole calendar day as well as the window: a transaction imported by v1.0.0 sits at
@@ -62,15 +62,18 @@ class TransactionRepository(
         val from = minOf(dayStart, candidate.timestamp - windowMillis)
         val to = maxOf(dayEnd, candidate.timestamp + windowMillis)
 
-        return dao.findSimilar(candidate.amountPaise, from, to).map { it.toDomain() }.firstOrNull { existing ->
+        // Same direction first, so a same-day refund never takes a legacy row its own debit should have matched.
+        return dao.findSimilar(candidate.amountPaise, from, to).map { it.toDomain() }.sortedBy { it.type != candidate.type }.firstOrNull { existing ->
             // Two references that both exist and disagree mean two genuinely different payments.
             if (existing.refNumber != null && candidate.refNumber != null && existing.refNumber != candidate.refNumber) return@firstOrNull false
             val sameMerchant = InsightsEngine.normalizeMerchant(existing.merchant) == InsightsEngine.normalizeMerchant(candidate.merchant)
             val genericMerchant = isGeneric(existing.merchant) || isGeneric(candidate.merchant)
             when {
-                // A v1.0.0 row: exactly midnight on this day, possibly with the direction the old parser guessed.
+                // A v1.0.0 row: exactly midnight on this day, possibly with the direction the old parser guessed. Each
+                // stands for one SMS, so once one has matched it (its own debit, scanned first), a same-day refund of
+                // the same amount is a second payment and must not merge into it and flip it.
                 existing.timestamp == startOfDay(existing.timestamp) && existing.timestamp in dayStart until dayEnd ->
-                    sameMerchant || genericMerchant
+                    !isClaimed(existing.id) && (sameMerchant || genericMerchant)
                 // Minutes apart, same direction: a second sender reporting the same payment, or a generic alert.
                 existing.type == candidate.type && kotlin.math.abs(existing.timestamp - candidate.timestamp) <= windowMillis ->
                     sameMerchant || existing.bankName != candidate.bankName || genericMerchant
@@ -80,11 +83,13 @@ class TransactionRepository(
         }
     }
 
-    private fun startOfDay(t: Long): Long = java.util.Calendar.getInstance().apply {
-        timeInMillis = t
-        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
-        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
-    }.timeInMillis
+    companion object {
+        fun startOfDay(t: Long): Long = java.util.Calendar.getInstance().apply {
+            timeInMillis = t
+            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+        }.timeInMillis
+    }
 
     private fun isGeneric(m: String) = m.startsWith("Payment") || m.startsWith("Credit") || m.length < 3
 
@@ -181,6 +186,9 @@ class SmsLogRepository(private val dao: SmsLogDao) {
     suspend fun getByHash(hash: String) = dao.getByHash(hash)
     suspend fun log(e: SmsLogEntity) = dao.upsert(e)
     suspend fun updateOutcome(hash: String, outcome: String, reason: String, transactionId: Long?) = dao.updateOutcome(hash, outcome, reason, transactionId)
+    suspend fun findTombstone(amountPaise: Long, at: Long): SmsLogEntity? =
+        TransactionRepository.startOfDay(at).let { day -> dao.findTombstone(amountPaise, day, day + 86_400_000L) }
+    suspend fun pointsAt(transactionId: Long) = dao.pointsAt(transactionId)
     suspend fun prune(retainDays: Int = 365) = dao.pruneBefore(System.currentTimeMillis() - retainDays * 86_400_000L)
     suspend fun clearAll() = dao.clear()
 }
