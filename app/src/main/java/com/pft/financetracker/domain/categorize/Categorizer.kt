@@ -9,8 +9,11 @@ import java.util.Locale
  * Longer keyword matches win over shorter ones so "tata power" beats "tata".
  */
 object Categorizer {
+    // "cashback" is a refund (FlowClassifier), not a cash withdrawal; drop it so the ATM keyword "cash" can't match.
+    private val cashback = Regex("""cash\s*back""")
+
     fun categorize(merchant: String, type: TransactionType, bankName: String? = null): Category {
-        val text = merchant.lowercase(Locale.ROOT)
+        val text = merchant.lowercase(Locale.ROOT).replace(cashback, " ")
         var best: Category? = null
         var bestLen = 0
         for (cat in Category.entries) {
