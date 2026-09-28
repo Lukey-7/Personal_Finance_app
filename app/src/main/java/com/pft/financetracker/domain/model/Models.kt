@@ -54,7 +54,8 @@ enum class Category(val label: String, val keywords: List<String>) {
             "swiggy", "zomato", "dominos", "pizza", "kfc", "mcdonald", "burger", "cafe", "coffee", "starbucks",
             "restaurant", "dine", "food", "biryani", "dunkin", "subway", "haldiram", "bakery", "chai", "kitchen",
             "dhaba", "eatsure", "box8", "faasos", "behrouz", "blinkit", "zepto", "instamart", "bigbasket", "grofers",
-            "dmart", "grocery", "kirana", "milk", "dairy", "supermarket"
+            "dmart", "grocery", "kirana", "milk", "dairy", "supermarket", "brewpub", "brewery", "brewing", "pub", "bar", "lounge",
+            "bistro", "grill", "eatery", "diner", "canteen", "tavern", "tapas", "dosa", "chaat", "momos", "social"
         )
     ),
     SHOPPING(

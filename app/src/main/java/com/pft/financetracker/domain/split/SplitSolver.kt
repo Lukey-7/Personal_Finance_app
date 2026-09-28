@@ -78,14 +78,18 @@ object SplitSolver {
         val credits = txns.filter { it.type == TransactionType.CREDIT && it.fromPerson && it.amountPaise > 0 }.sortedBy { it.timestamp }
         if (payments.isEmpty() || credits.isEmpty()) return emptyList()
 
-        val paybacks = assign(payments, credits, window, SplitKind.PAYBACK)
-        val used = paybacks.values.flatten().map { it.txId }.toSet()
-        val advances = assign(payments.filter { it.id !in paybacks.keys }, credits.filter { it.id !in used }, window, SplitKind.ADVANCE)
-
         val overlapping = overlaps(payments, credits, window)
-        return (paybacks.map { (pid, alloc) -> build(payments.first { it.id == pid }, alloc, credits, SplitKind.PAYBACK, overlapping) } +
-            advances.map { (pid, alloc) -> build(payments.first { it.id == pid }, alloc, credits, SplitKind.ADVANCE, overlapping) })
-            .filter { it.allocations.isNotEmpty() }
+        val paybacks = assign(payments, credits, window, SplitKind.PAYBACK)
+            .map { (pid, alloc) -> build(payments.first { it.id == pid }, alloc, credits, SplitKind.PAYBACK, overlapping) }
+        val used = paybacks.flatMap { it.allocations }.map { it.txId }.toSet()
+        val advances = assign(payments, credits.filter { it.id !in used }, window, SplitKind.ADVANCE)
+            .map { (pid, alloc) -> build(payments.first { it.id == pid }, alloc, credits, SplitKind.ADVANCE, overlapping) }
+        // A payment explained both ways (friends paid before it, and one transfer after it fits too) keeps the more
+        // convincing explanation: three friends' Rs 2,000 before a Rs 8,000 hotel beats one Rs 500 after it.
+        val advanceBy = advances.associateBy { it.paymentId }
+        val keptPaybacks = paybacks.filter { p -> advanceBy[p.paymentId]?.let { it.confidence <= p.confidence } ?: true }
+        val keptAdvances = advances.filter { a -> keptPaybacks.none { it.paymentId == a.paymentId } }
+        return (keptPaybacks + keptAdvances).filter { it.allocations.isNotEmpty() }
     }
 
     // ---------------------------------------------------------------------------------------------------------
@@ -113,7 +117,9 @@ object SplitSolver {
             if (exact < unit * 10) continue
             val up = kotlin.math.ceil(exact / unit).toLong() * unit
             val near = (exact / unit).roundToLong() * unit
-            if (amount == up || amount == near) return true
+            // ...but never far from the real share: Rs 8,000 / 7 = Rs 1,142.86 is not paid as Rs 1,200 (found on the
+            // emulator, where it let a hotel booking claim a friend's dinner-and-cab transfer).
+            if ((amount == up || amount == near) && abs(amount - exact) <= exact * 0.03) return true
         }
         return false
     }
@@ -221,21 +227,28 @@ object SplitSolver {
     private fun near(amount: Long, target: Long, parts: Int) = abs(amount - target) <= 100L * parts
 
     /** Transfers that fit the share of more than one payment: the assignment there is a judgement call. */
-    private fun overlaps(payments: List<SplitTx>, credits: List<SplitTx>, window: Long): Set<Long> {
-        val hits = mutableMapOf<Long, Int>()
+    /** For each transfer, the payments whose plausible share it fits (a rival reading of where it belongs). */
+    private fun overlaps(payments: List<SplitTx>, credits: List<SplitTx>, window: Long): Map<Long, List<SplitTx>> {
+        val hits = mutableMapOf<Long, MutableList<SplitTx>>()
         for (p in payments) {
             val cands = candidates(p, credits, window, SplitKind.PAYBACK)
             val share = estimateShare(p, cands) ?: continue
-            cands.filter { fits(it.amountPaise, p.amountPaise, share.k) }.forEach { hits[it.id] = (hits[it.id] ?: 0) + 1 }
+            // Only a plausible rival reading makes a transfer ambiguous: several friends, or a small group. One
+            // transfer that happens to be 1/9 of a bill is not a rival.
+            if (share.support < 2 && share.k > 3) continue
+            cands.filter { fits(it.amountPaise, p.amountPaise, share.k) }.forEach { hits.getOrPut(it.id) { mutableListOf() } += p }
         }
-        return hits.filterValues { it > 1 }.keys
+        return hits
     }
 
-    // ---------------------------------------------------------------------------------------------------------
-    // Confidence and the reasons shown to the user.
-    // ---------------------------------------------------------------------------------------------------------
+    /**
+     * Is transfer [c], given to payment [p], also a believable payback for another payment? Only if that one is about
+     * as close in time: Rs 300 forty minutes after a cab is not ambiguous with a dinner eleven days earlier.
+     */
+    private fun ambiguous(c: SplitTx, p: SplitTx, overlapping: Map<Long, List<SplitTx>>): Boolean =
+        overlapping[c.id].orEmpty().any { q -> q.id != p.id && abs(c.timestamp - q.timestamp) <= 2 * abs(c.timestamp - p.timestamp) + DAY }
 
-    private fun build(p: SplitTx, alloc: List<Allocation>, credits: List<SplitTx>, kind: SplitKind, overlapping: Set<Long>): SplitProposal {
+    private fun build(p: SplitTx, alloc: List<Allocation>, credits: List<SplitTx>, kind: SplitKind, overlapping: Map<Long, List<SplitTx>>): SplitProposal {
         val byId = credits.associateBy { it.id }
         val senders = alloc.mapNotNull { byId[it.txId] }.distinctBy { key(it) }
         val n = senders.size
@@ -254,9 +267,11 @@ object SplitSolver {
             else -> 0
         }
         if (p.fromPerson) c -= 5
-        if (alloc.any { it.txId in overlapping }) c -= 15
+        if (alloc.any { a -> byId[a.txId]?.let { ambiguous(it, p, overlapping) } == true }) c -= 15
         c -= minOf(10, 5 * minOf(2, combined))
         if (k != null && n + 1 == k) c += 5
+        // One friend out of many expected (Rs 500 as 1/16 of a hotel) is a coincidence more often than a split.
+        if (k != null && k - 1 >= 4 && n * 3 < k - 1) c -= 20
         c = c.coerceIn(0, 100)
 
         val mine = p.amountPaise - alloc.sumOf { it.paise }

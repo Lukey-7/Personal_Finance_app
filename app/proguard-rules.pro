@@ -16,3 +16,10 @@
 # SQLCipher uses JNI; keep its classes intact.
 -keep class net.zetetic.database.** { *; }
 -keep class net.zetetic.database.sqlcipher.** { *; }
+
+# pdfbox-android (PDF statements): JPEG-2000 images need an optional decoder that is not shipped; such images are
+# skipped. The library loads resources and some classes by name, so keep it intact.
+-dontwarn com.gemalto.jp2.**
+-keep class com.tom_roush.pdfbox.** { *; }
+-keep class com.tom_roush.fontbox.** { *; }
+-keep class com.tom_roush.harmony.** { *; }

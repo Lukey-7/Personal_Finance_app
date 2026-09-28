@@ -184,4 +184,32 @@ class SplitEngineTest {
         engine.run()
         assertEquals("accepted splits are frozen", 600_00L, byMerchant("Toit").amountPaise)
     }
+
+    /**
+     * Found on the emulator: asked about Ronak's weekend, the model put all of Priya's Rs 1,200 on SBOW and the app
+     * could only suggest. What the rules explain exactly is no longer sent to the AI at all.
+     */
+    @Test fun exactLocalAnswersAreNotSentToTheAi() = runBlocking {
+        weekend().forEach { importer.process(it) }
+        aiAnswer = { """{"groups":[{"payment":"P1","allocations":[{"incoming":"C2","amount":1200}],"confidence":95}]}""" }
+        val r = engine.run()
+        assertEquals(0, aiCalls)
+        assertEquals(2, r.applied)
+        assertEquals(1_000_00L, byMerchant("Sbow").amountPaise)
+    }
+
+    /** Found on the emulator: a quick run without AI (after an undo, or a new SMS) must not undo an AI-found split. */
+    @Test fun localOnlyRunKeepsAiFoundSplits() = runBlocking {
+        importer.process(debit("1800.00", "toit.brewpub@ybl", at(0, 21)))
+        importer.process(credit("500.00", "rahul@okicici", at(1, 9)))
+        importer.process(credit("700.00", "priya@okaxis", at(1, 10)))
+        aiAnswer = { """{"groups":[{"payment":"P1","allocations":[{"incoming":"C1","amount":500},{"incoming":"C2","amount":700}],"people":3,"confidence":88}]}""" }
+        engine.run()
+        assertEquals(600_00L, byMerchant("Toit").amountPaise)
+        engine.run(useAi = false)
+        assertEquals(600_00L, byMerchant("Toit").amountPaise)
+        importer.process(credit("50.00", "neha@okhdfcbank", at(2, 9)))
+        engine.run(useAi = false)
+        assertEquals(600_00L, byMerchant("Toit").amountPaise)
+    }
 }

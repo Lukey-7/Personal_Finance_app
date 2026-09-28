@@ -103,11 +103,13 @@ object AppHistoryParser {
     private val dateLike = Regex("""\b(today|yesterday|\d{1,2}\s+(?:$months)\b[^\n]*|(?:$months)\s+\d{1,2}\b[^\n]*|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}[^\n]*)""", RegexOption.IGNORE_CASE)
     private val monthHeader = Regex("""^(?:$months)\s*\d{0,4}$""", RegexOption.IGNORE_CASE)
 
-    data class Line(val text: String, val x: Float, val y: Float, val h: Float)
+    /** One OCR line; [w] is its box width (0 when unknown), used to tell a misread ₹ from a real digit. */
+    data class Line(val text: String, val x: Float, val y: Float, val h: Float, val w: Float = 0f)
 
     fun parse(lines: List<Line>, now: Long = System.currentTimeMillis()): List<StatementRow> {
         val sorted = lines.filter { it.text.isNotBlank() }.sortedBy { it.y }
         if (sorted.isEmpty()) return emptyList()
+        val amounts = resolveAmounts(sorted)
         val rows = mutableListOf<StatementRow>()
         var sectionDate: Long? = null
         val used = mutableSetOf<Int>()
@@ -116,17 +118,17 @@ object AppHistoryParser {
                 parseWhen(l.text, now)?.let { sectionDate = it }
                 continue
             }
-            val am = amountRx.find(l.text) ?: continue
-            val paise = Math.round(((am.groupValues[2].ifBlank { am.groupValues[4] }).replace(",", "").toDoubleOrNull() ?: continue) * 100)
+            val am = amounts[i] ?: continue
+            val paise = am.paise
             if (paise <= 0) continue
-            val sign = am.groupValues[1].ifBlank { am.groupValues[3] }
+            val sign = am.sign
             // The row: lines at the same height, plus the one or two lines just below (date, status).
             val band = sorted.withIndex().filter { (j, o) -> j !in used && (abs(o.y - l.y) <= maxOf(l.h, o.h) * 0.7f || (o.y > l.y && o.y - l.y <= l.h * 2.6f)) }
             val text = band.joinToString(" \n ") { it.value.text }
             if (skipWords.containsMatchIn(text)) { band.forEach { used += it.index }; continue }
-            val nameLine = band.map { it.value }.filter { it !== l && amountRx.find(it.text) == null && dateLike.find(it.text) == null }
+            val nameLine = band.filter { (j, o) -> o !== l && j !in amounts && amountRx.find(o.text) == null && dateLike.find(o.text) == null }.map { it.value }
                 .map { prefix.replace(it.text.trim(), "").trim() }.firstOrNull { it.isNotBlank() && !noise.matches(it) && it.count { c -> c.isLetter() } >= 2 }
-                ?: prefix.replace(l.text.replace(am.value, "").trim(), "").trim().takeIf { it.count { c -> c.isLetter() } >= 2 }
+                ?: prefix.replace(l.text.replace(am.matched, "").trim(), "").trim().takeIf { it.count { c -> c.isLetter() } >= 2 }
                 ?: continue
             val type = when {
                 sign == "+" -> TransactionType.CREDIT
@@ -142,6 +144,61 @@ object AppHistoryParser {
         // Overlapping screenshots show some rows twice.
         return rows.distinctBy { listOf(it.counterparty.lowercase(Locale.ROOT), it.amountPaise, it.type, it.time ?: it.date) }
             .sortedWith(compareBy({ it.date }, { it.time ?: 0L })).mapIndexed { i, r -> r.copy(order = i) }
+    }
+
+    private data class Amt(val sign: String, val paise: Long, val matched: String)
+
+    /** An amount alone on its line, right-aligned: "+ ₹300", "₹349", or what OCR makes of them ("+ 7300", "349", "T900"). */
+    private val numericRx = Regex("""^([+\-−])?\s*(₹|rs\.?|inr|[^\d\s,.+\-−])?\s*(\d[\d,]*(?:\.\d{1,2})?)$""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Amounts per line index. Payment apps print ₹ before every amount, and on-device OCR reads it badly: it drops
+     * it ("349" for ₹349), reads it as a letter ("T900") or, worst, as a 7 ("+ 7300" for ₹300, "760" for ₹60).
+     * Text alone cannot tell ₹60 from ₹760, but the box width can: amounts are right-aligned in one font, every
+     * glyph about as wide as a digit, so a box three glyphs wide is "₹60". The glyph width is estimated from all the
+     * amounts on the screen together, and each amount takes the reading that fits its own width.
+     */
+    private fun resolveAmounts(lines: List<Line>): Map<Int, Amt> {
+        if (lines.isEmpty()) return emptyMap()
+        val maxRight = lines.maxOf { it.x + it.w }
+        data class Cand(val idx: Int, val line: Line, val sign: String, val junk: String?, val digits: String, val matched: String)
+        val cands = lines.withIndex().mapNotNull { (i, l) ->
+            val t = l.text.trim()
+            val m = numericRx.matchEntire(t) ?: return@mapNotNull null
+            if (maxRight > 0 && l.x < 0.45f * maxRight) return@mapNotNull null // amounts sit on the right; names and dates on the left
+            Cand(i, l, m.groupValues[1], m.groupValues[2].ifBlank { null }, m.groupValues[3], t)
+        }
+        fun units(d: String) = d.sumOf { if (it.isDigit()) 1.0 else 0.35 }
+        fun options(c: Cand): List<Pair<String, Double>> {
+            val out = mutableListOf(c.digits to 1 + units(c.digits)) // "₹" + digits: ₹ dropped, or read as a letter
+            if (c.junk == null && c.digits.length >= 2 && c.digits[0] in "72") c.digits.drop(1).trimStart(',').let { out += it to 1 + units(it) } // ₹ read as 7 or 2
+            return out
+        }
+        val signUnits = 1.75 // "+" and the space after it
+        fun err(c: Cand, n: Double, g: Double) = kotlin.math.abs(c.line.w / g - (if (c.sign.isNotEmpty()) signUnits else 0.0) - n)
+        val measured = cands.filter { it.line.w > 0 }
+        val g = if (measured.size >= 2) (8..400).map { it / 2.0 }.minByOrNull { g -> measured.sumOf { c -> options(c).minOf { err(c, it.second, g) } } } else null
+
+        val out = mutableMapOf<Int, Amt>()
+        for (c in cands) {
+            val opts = options(c)
+            val digits = when {
+                g != null && c.line.w > 0 -> opts.minByOrNull { err(c, it.second, g) }!!.first
+                // No widths: Indian apps write thousands with a comma, so a comma-less 4-digit "7300" is ₹300.
+                opts.size > 1 && c.digits.length >= 4 && !c.digits.contains(',') && c.digits[0] == '7' -> opts[1].first
+                else -> opts[0].first
+            }
+            val paise = digits.replace(",", "").toDoubleOrNull()?.let { Math.round(it * 100) } ?: continue
+            out[c.idx] = Amt(if (c.sign == "−") "-" else c.sign, paise, c.matched)
+        }
+        // Amounts inside longer text with an explicit currency ("Paid ₹250 to Swiggy").
+        for ((i, l) in lines.withIndex()) {
+            if (i in out) continue
+            val am = amountRx.find(l.text) ?: continue
+            val paise = (am.groupValues[2].ifBlank { am.groupValues[4] }).replace(",", "").toDoubleOrNull()?.let { Math.round(it * 100) } ?: continue
+            out[i] = Amt(am.groupValues[1].ifBlank { am.groupValues[3] }.let { if (it == "−") "-" else it }, paise, am.value)
+        }
+        return out
     }
 
     /** "Today, 8:30 pm", "Yesterday", "12 Sep, 8:30 PM", "Sep 12, 2026", "12 September 2026", "12/09/2026 20:30". */

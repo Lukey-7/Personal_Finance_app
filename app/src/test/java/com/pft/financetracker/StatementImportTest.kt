@@ -224,4 +224,58 @@ class StatementImportTest {
         }
         return out.toByteArray()
     }
+
+    /**
+     * Real ML Kit output for two overlapping Google Pay screenshots (emulator, 28 Sep 2026). OCR dropped the ₹
+     * ("349"), read it as a letter ("T900") and as a 7 ("+ 7300" for ₹300, "760" for ₹60). Box widths tell them apart.
+     */
+    @Test fun rupeeSignMisreadByOcrIsResolvedByWidth() {
+        val now = java.util.Calendar.getInstance().apply { set(2026, 8, 28, 11, 0) }.timeInMillis
+        fun l(x: Int, y: Int, w: Int, h: Int, t: String) = AppHistoryParser.Line(t, x.toFloat(), y.toFloat(), h.toFloat(), w.toFloat())
+        val lines = listOf(
+            l(37, 47, 67, 24, "10:34"), l(51, 158, 352, 44, "Transaction history"), l(53, 249, 245, 36, "September 2026"),
+            l(85, 494, 21, 29, "K"), l(84, 639, 23, 27, "U"),
+            l(173, 331, 191, 30, "Sneha Rao"), l(172, 377, 227, 34, "24 Sep, 11:05 pm"),
+            l(174, 476, 233, 31, "Karan Mehta"), l(172, 522, 228, 34, "24 Sep, 10:50 pm"),
+            l(174, 622, 87, 30, "Uber"), l(173, 668, 228, 31, "24 Sep, 10:15 pm"),
+            l(173, 770, 130, 42, "Swiggy"), l(172, 812, 212, 34, "23 Sep, 8:40 pm"),
+            l(748, 344, 121, 34, "+300"), l(748, 489, 121, 33, "+ 7300"), l(784, 634, 84, 31, "T900"), l(784, 779, 84, 31, "349"),
+            l(37, 100047, 66, 24, "10:34"), l(53, 100155, 245, 37, "September 2026"), l(84, 100254, 23, 26, "U"),
+            l(174, 100237, 88, 30, "Uber"), l(172, 100282, 228, 33, "24 Sep, 10:15 pm"),
+            l(172, 100386, 130, 41, "Swiggy"), l(172, 100428, 212, 36, "23 Sep, 8:40 pm"),
+            l(173, 100528, 188, 30, "Chai Point"), l(172, 100574, 212, 32, "23 Sep, 4:10 pm"),
+            l(784, 100250, 86, 31, "900"), l(784, 100395, 83, 30, "349"), l(808, 100541, 63, 29, "760"),
+        )
+        val rows = AppHistoryParser.parse(lines, now).associateBy { it.counterparty }
+        assertEquals(setOf("Sneha Rao", "Karan Mehta", "Uber", "Swiggy", "Chai Point"), rows.keys)
+        assertEquals(300_00L, rows["Sneha Rao"]!!.amountPaise); assertEquals(TransactionType.CREDIT, rows["Sneha Rao"]!!.type)
+        assertEquals(300_00L, rows["Karan Mehta"]!!.amountPaise); assertEquals(TransactionType.CREDIT, rows["Karan Mehta"]!!.type)
+        assertEquals(900_00L, rows["Uber"]!!.amountPaise); assertEquals(TransactionType.DEBIT, rows["Uber"]!!.type)
+        assertEquals(349_00L, rows["Swiggy"]!!.amountPaise)
+        assertEquals(60_00L, rows["Chai Point"]!!.amountPaise)
+    }
+
+    /** An annual statement: 1,500 rows read, balance-checked and split-analysed in well under the time a user waits. */
+    @Test fun annualStatementIsFast() {
+        val rnd = java.util.Random(7)
+        var bal = 100_000_00L
+        val start = java.util.Calendar.getInstance().apply { set(2025, 9, 1) }.timeInMillis
+        val fmt = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.ENGLISH)
+        val csv = StringBuilder("Date,Narration,Withdrawal Amt.,Deposit Amt.,Closing Balance").append('\n')
+        repeat(1_500) { i ->
+            val credit = rnd.nextInt(4) == 0
+            val amt = (rnd.nextInt(3_000) + 50) * 100L
+            bal += if (credit) amt else -amt
+            val who = listOf("SWIGGY", "UBER INDIA", "RAHUL SHARMA", "AMAZON", "PRIYA NAIR", "ZOMATO", "OLA")[rnd.nextInt(7)]
+            csv.append("${fmt.format(start + i * 5 * 3_600_000L)},UPI-$who-x@ybl-${426200000000L + i},${if (credit) "" else "%.2f".format(amt / 100.0)},${if (credit) "%.2f".format(amt / 100.0) else ""},${"%.2f".format(bal / 100.0)}").append('\n')
+        }
+        val t0 = System.currentTimeMillis()
+        val s = StatementInterpreter.interpret(CsvReader.read(csv.toString().toByteArray()), ImportFormat.CSV)
+        val txs = s.rows.mapIndexed { i, r -> SplitTx(i.toLong(), r.amountPaise, r.type, r.date + r.order * 1_000L, r.counterparty, r.category, r.kind == CounterpartyKind.PERSON) }
+        SplitSolver.solve(txs)
+        val ms = System.currentTimeMillis() - t0
+        assertEquals(1_500, s.rows.size)
+        assertEquals(0, s.problems.size)
+        assertTrue("took $ms ms", ms < 15_000)
+    }
 }

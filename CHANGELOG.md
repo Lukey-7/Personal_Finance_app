@@ -3,6 +3,43 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [1.2.0] - 2026-09-28
+
+Focus: **split intelligence** (when you pay for a group and friends pay you back, only your share counts) and
+**importing statements and screenshots**. Existing data is migrated in place (database version 5).
+
+### Split intelligence (new)
+- FinTrack spots group payments by itself: one payment, then friends sending back about the bill divided by the
+  number of people, within 2 weeks. Your spend counts only your share; their transfers are marked "Split settlement"
+  instead of income. Example: Rs 12,000 for 12 at dinner, 11 friends pay Rs 1,000 back → Rs 1,000 spent.
+- Handles shared cabs next to the dinner, one transfer covering two bills (Rs 1,200 = dinner Rs 1,000 + cab Rs 200),
+  a share paid in two parts, rounded shares (Rs 1,030 for Rs 1,028.33), friends who pay late (they join the split
+  when they pay) and friends who haven't paid yet (their share stays in your spend until they do).
+- Money collected **before** you pay (a trip) is recognised too, and always waits for your yes.
+- Clear cases apply automatically with an "Auto-split" tag and one-tap undo; unsure ones appear on Home as
+  "Looks like a shared payment" with Yes / Not a split. Every split shows why it was found. "Not a split" is remembered.
+- **AI for the unclear cases** (uneven shares): with an OpenAI key, the app asks the model about payments the rules
+  cannot explain. Only amounts, days and payment types are sent; people appear as "Person A", never by name. Every AI
+  answer passes the same hard checks before it can change a number: a wrong or strange answer is thrown away.
+- Manual splits: "Settle" now offers the friend's actual transfer, so it stops counting as income.
+- Home shows friends' paybacks on their own line, "Paid back by friends".
+
+### Import statements and screenshots (new)
+- Bank statements from any bank as **PDF** (including password-protected and scanned), **Excel** (.xlsx, and the
+  HTML ".xls" many banks send) or **CSV**, and **payment-app screenshots** (Google Pay, PhonePe, Paytm, Amazon Pay).
+  Settings → Import statements, or the upload icon on Activity.
+- No per-bank templates: columns are found by what they mean (Date / Narration / Withdrawal / Deposit / Balance and
+  their synonyms), with a fallback that reads the content itself.
+- The running balance is checked on every row; a row that doesn't add up goes to the review list instead of being guessed.
+- Payments you already have from SMS are recognised and skipped (and an SMS arriving after an import is not counted twice).
+- A preview shows what will be added before anything is saved; every import can be undone.
+- On-device OCR misreads the ₹ sign in screenshots (as a 7, a letter, or not at all); the width of each amount's box
+  decides the right reading.
+
+### Device test
+- `docs/DEVICE-TEST-v1.2.md`: SMS, CSV, locked PDF, Excel and screenshots on an emulator with real OpenAI calls; nine
+  issues found there are fixed and covered by tests.
+
 ## [1.1.2] - 2026-09-28
 
 ### Fixed

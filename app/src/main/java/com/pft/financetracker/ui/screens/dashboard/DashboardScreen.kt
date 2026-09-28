@@ -236,11 +236,12 @@ fun DashboardScreen(
                 FinCard(Modifier.padding(horizontal = Gutter)) {
                     Text("Not counted as spend", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Moving money between your own accounts, paying card bills and investing are shown here so they never inflate your spending.",
+                        "Moving money between your own accounts, paying card bills, investing and friends paying back their share of a split are shown here so they never inflate your spending or income.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (summary.transfersOutPaise > 0) LineRow("Transfers & card bill payments", summary.transfersOutPaise) { onDrill(Bucket.TRANSFERS, null) }
-                    if (summary.transfersInPaise > 0) LineRow("Transfers in", summary.transfersInPaise) { onDrill(Bucket.TRANSFERS, null) }
+                    if (summary.transfersInPaise - summary.settlementsInPaise > 0) LineRow("Transfers in", summary.transfersInPaise - summary.settlementsInPaise) { onDrill(Bucket.TRANSFERS, null) }
+                    if (summary.settlementsInPaise > 0) LineRow("Paid back by friends", summary.settlementsInPaise) { onDrill(Bucket.TRANSFERS, null) }
                     if (summary.investmentsPaise > 0) LineRow("Investments", summary.investmentsPaise) { onDrill(Bucket.INVESTMENTS, null) }
                     if (!includeCash && summary.cashPaise > 0) LineRow("Cash withdrawals", summary.cashPaise) { onDrill(Bucket.CASH, null) }
                 }

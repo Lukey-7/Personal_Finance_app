@@ -70,6 +70,7 @@ class SplitEngine(
         val autoSplits = splits.filter { it.source != SplitSource.MANUAL.name }
 
         var undone = 0
+        val aiRun = useAi && ai != null && aiEnabled()
         // Automatic splits whose rows vanished (deleted) are undone; ones the user accepted or whose rows a person
         // edited since are frozen as they are.
         val frozen = mutableSetOf<Long>()
@@ -79,6 +80,9 @@ class SplitEngine(
             if (ls.isEmpty() || ls.any { byTx[it.transactionId] == null }) { undo(s, ls, byTx, links); undone++; continue }
             if (payment != null && decisions[payment]?.decision == Decision.ACCEPTED) frozen += s.id
             else if (ls.any { byTx[it.transactionId]?.userEdited == true }) frozen += s.id
+            // Only an AI run can judge what the AI found. A quick local run (after an SMS, an undo) keeps it as it is;
+            // found on the emulator, where undoing one split silently undid an AI-found one too.
+            else if (!aiRun && s.source == SplitSource.AUTO_AI.name) frozen += s.id
         }
         val txns = if (undone > 0) txDao.getAll().map { it.toDomain() } else txnsAtStart
         val liveAuto = splitDao.allSplits().filter { it.source != SplitSource.MANUAL.name && it.id !in frozen }
@@ -115,9 +119,12 @@ class SplitEngine(
         val local = SplitSolver.solve(view, windowDays)
         var aiProposals: MutableList<SplitProposal>? = null
         val asked = mutableSetOf<Long>()
-        if (useAi && ai != null && aiEnabled()) {
+        if (aiRun) {
             for (req in aiRequests(view, local)) {
-                val answer = cache?.get(req.json) ?: ai.judge(req)?.also { cache?.put(req.json, it) } ?: continue
+                val answer = cache?.get(req.json) ?: ai.judge(req)?.also { cache?.put(req.json, it) }
+                // Debug builds only: the anonymised request and the model's answer, to turn real cases into tests.
+                if (com.pft.financetracker.BuildConfig.DEBUG) runCatching { android.util.Log.d("FinTrackSplitAI", "request=${req.json} answer=$answer") }
+                if (answer == null) continue
                 val parsed = req.parse(answer) ?: continue
                 (aiProposals ?: mutableListOf<SplitProposal>().also { aiProposals = it }).addAll(parsed)
                 asked += req.payments
@@ -172,22 +179,27 @@ class SplitEngine(
                 // Uneven shares no rule can see: money from people soon after a payment of some size.
                 (p.amountPaise >= 200_00 && cands.any { c -> c.timestamp - p.timestamp <= 3 * SplitSolver.DAY })
         }
-        if (interesting.isEmpty()) return emptyList()
-        // Nothing to ask when the solver is sure about every one of them and nothing overlaps.
-        if (interesting.all { p -> localBy[p.id]?.let { it.level == SplitProposal.Level.HIGH && it.allocations.all { a -> credits.first { c -> c.id == a.txId }.amountPaise == a.paise } } == true }) return emptyList()
+        // What the local rules explain exactly (high confidence: shares that add up) is settled; asking the AI about it
+        // only invites a worse answer (found on the emulator: it missed a transfer covering two bills). The AI gets
+        // the rest, without the transfers those settled payments already account for.
+        val settled = local.filter { it.level == SplitProposal.Level.HIGH }
+        val taken = settled.flatMap { it.allocations }.map { it.txId }.toSet()
+        val askable = interesting.filter { p -> settled.none { it.paymentId == p.id } }
+        if (askable.isEmpty()) return emptyList()
+        val free = credits.filter { it.id !in taken }
 
         val clusters = mutableListOf<MutableList<SplitTx>>()
-        for (p in interesting) {
+        for (p in askable) {
             val last = clusters.lastOrNull()
             if (last != null && p.timestamp - last.last().timestamp <= window && last.size < 25) last += p else clusters += mutableListOf(p)
         }
-        return clusters.map { ps ->
-            val from = ps.first().timestamp - window
-            val to = ps.last().timestamp + window
-            val maxAmount = ps.maxOf { it.amountPaise }
-            val cs = credits.filter { it.timestamp in from..to && it.amountPaise < maxAmount }
+        return clusters.mapNotNull { ps ->
+            // Only transfers that could be a payback for one of these payments: after it, within the window, smaller
+            // than it. Found on the emulator: sending the fortnight *before* as well invited the model to call earlier
+            // transfers paybacks (the verifier threw that out, but the real split was lost with it).
+            val cs = free.filter { c -> ps.any { p -> c.timestamp > p.timestamp && c.timestamp - p.timestamp <= window && c.amountPaise < p.amountPaise } }
                 .sortedBy { c -> ps.minOf { kotlin.math.abs(c.timestamp - it.timestamp) } }.take(80)
-            SplitAiRequest.build(ps, cs)
+            if (cs.isEmpty()) null else SplitAiRequest.build(ps, cs)
         }
     }
 

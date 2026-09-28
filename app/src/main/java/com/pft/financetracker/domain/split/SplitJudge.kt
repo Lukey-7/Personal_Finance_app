@@ -88,7 +88,9 @@ object SplitDecider {
         val aiBy = ai.orEmpty().filter { SplitVerifier.problems(it, byId, windowDays).isEmpty() }.associateBy { it.paymentId }
         val chosen = mutableListOf<Pair<SplitProposal, Boolean>>()
         for (pid in (localBy.keys + aiBy.keys)) {
-            val l = localBy[pid]
+            // A low-confidence local guess is no opinion: it must not veto a confident AI answer (found on the
+            // emulator: a 30% "1/9 of the bill" guess turned the AI's clear uneven split into a mere suggestion).
+            val l = localBy[pid]?.takeIf { it.level != SplitProposal.Level.LOW || aiBy[pid] == null }
             val a = aiBy[pid]
             val viaAi = ai != null && pid in askedAi
             val pick: Pair<SplitProposal, Boolean>? = when {
@@ -211,11 +213,11 @@ class SplitAiRequest private constructor(
 You get the user's outgoing "payments" and the incoming transfers from individual people ("incoming") over a few weeks. People are anonymised as "Person A", "Person B". Days are counted from day 0; "time" is the clock time.
 
 Find which incoming transfers are friends paying back a share of which payment. Rules:
-- A payback comes AFTER the payment, within 14 days. Kind "payback".
+- A payback comes AFTER the payment: its "day" (and "time" on the same day) is LATER than the payment's. Never use an incoming transfer that is earlier than the payment. Within 14 days. Kind "payback".
 - Friends may also send money BEFORE the user pays (collecting for a trip). Kind "advance". Only report advances when several people sent similar amounts shortly before a larger payment.
 - One transfer may cover shares of two payments (e.g. 1200 = 1000 for dinner + 200 for the cab); split its amount across them. Every transfer you use must be used in FULL across your groups.
 - Shares are usually the bill divided by the number of people, often rounded (1028.33 paid as 1030 or 1000). Uneven shares happen too.
-- The shares you allocate to one payment must not exceed that payment.
+- The shares you allocate to one payment must add up to LESS than that payment (the user pays a share too). A transfer larger than a payment cannot be its payback alone.
 - Salary, refunds and unrelated transfers are NOT paybacks. A single transfer that merely happens to be half of an unrelated shopping bill is weak evidence; give it low confidence.
 - If nothing is a group payment, return an empty list. Do not invent.
 

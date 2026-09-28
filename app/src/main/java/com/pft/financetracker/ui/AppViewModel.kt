@@ -315,7 +315,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Split intelligence ----
     fun acceptSplit(id: Long) = viewModelScope.launch { c.splitEngine.accept(id) }
-    fun rejectSplit(id: Long) = viewModelScope.launch { c.splitEngine.reject(id) }
+    /** Undo or "not a split"; then re-check at once, so a transfer this split shared with another one is re-read. */
+    fun rejectSplit(id: Long) = viewModelScope.launch { c.splitEngine.reject(id); refreshSplits(useAi = false) }
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */

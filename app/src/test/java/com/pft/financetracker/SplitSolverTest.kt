@@ -132,4 +132,41 @@ class SplitSolverTest {
         val d = SplitDecider.decide(SplitSolver.solve(txns), null, emptySet(), txns.associateBy { it.id }).single()
         assertFalse(d.auto)
     }
+
+    /**
+     * The whole month the emulator test imported (SMS weekend + PDF Pop Tates + Excel advance and uneven Toit). Found
+     * there: Rs 8,000 / 7 "rounded" to Rs 1,200 let the hotel claim Priya's dinner-and-cab transfer.
+     */
+    @Test fun aWholeMonthOfSharedPaymentsStaysApart() {
+        val sep5 = sat - 14 * 86_400_000L
+        fun d(day: Int, h: Int, m: Int = 0) = sep5 + (day - 5) * 86_400_000L + h * 3_600_000L + m * 60_000L
+        val month = weekend + listOf(
+            pay(100, 12_340, "Pop Tates", Category.OTHER, d(5, 12)),
+        ) + friends.mapIndexed { i, n -> got(101L + i, 1_030, "$n Kumar", d(6, 12, i)) } + listOf(
+            pay(120, 150, "Rapido", Category.TRANSPORT, d(6, 12, 30)),
+            got(130, 2_000, "Ana", d(10, 12)), got(131, 2_000, "Ben", d(10, 12, 1)), got(132, 2_000, "Cal", d(11, 12)),
+            pay(133, 8_000, "Makemytrip", Category.TRANSPORT, d(12, 12)),
+            pay(134, 1_800, "Toit Brewpub", Category.OTHER, d(13, 12), toPerson = true),
+            got(135, 500, "Rahul", d(14, 12)), got(136, 700, "Priya", d(14, 12, 1)),
+            // The screenshots: a Rs 900 cab on the 24th, two friends Rs 300 each 35-50 minutes later.
+            pay(140, 900, "Uber", Category.TRANSPORT, d(24, 22, 15)), got(141, 300, "Karan Mehta", d(24, 22, 50)), got(142, 300, "Sneha Rao", d(24, 23, 5)),
+        )
+        val ps = SplitSolver.solve(month).associateBy { it.paymentId }
+        assertEquals(11_000_00L, ps[1]!!.allocatedPaise)
+        assertEquals(400_00L, ps[2]!!.allocatedPaise)
+        assertEquals(11 * 1_030_00L, ps[100]!!.allocatedPaise)
+        assertEquals(SplitKind.ADVANCE, ps[133]!!.kind)
+        assertEquals(6_000_00L, ps[133]!!.allocatedPaise)
+        // Uneven shares are for the AI: locally at most a low-confidence guess, which is never applied or suggested.
+        assertTrue(ps[134] == null || ps[134]!!.level == SplitProposal.Level.LOW)
+        val decided = SplitDecider.decide(ps.values.toList(), null, emptySet(), month.associateBy { it.id }).associateBy { it.proposal.paymentId }
+        assertNull(decided[134])
+        assertEquals("Rs 300 x 2 forty minutes after the cab is not ambiguous with Toit eleven days earlier", setOf(1L, 2L, 100L, 140L), decided.filterValues { it.auto }.keys)
+        assertFalse("the advance waits for a yes", decided[133]!!.auto)
+        // The AI's uneven answer for Toit applies despite the weak local guess.
+        val ai = listOf(SplitProposal(134, SplitKind.PAYBACK, listOf(com.pft.financetracker.domain.split.Allocation(135, 500_00), com.pft.financetracker.domain.split.Allocation(136, 700_00)),
+            null, 3, 85, listOf("uneven"), com.pft.financetracker.domain.split.SplitSource.AUTO_AI))
+        val withAi = SplitDecider.decide(ps.values.toList(), ai, setOf(134L), month.associateBy { it.id }).associateBy { it.proposal.paymentId }
+        assertTrue(withAi[134]!!.auto)
+    }
 }

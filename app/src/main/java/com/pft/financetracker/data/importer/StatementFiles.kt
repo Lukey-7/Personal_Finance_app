@@ -130,6 +130,8 @@ class StatementFiles(private val context: Context) {
             } finally { bmp.recycle() }
         }
         if (words.isEmpty()) return Read.Error("No text found in the image. Try a sharper screenshot.")
+        // Debug builds only: what OCR saw, so screenshot layouts can be turned into unit tests. Release builds never log it.
+        if (com.pft.financetracker.BuildConfig.DEBUG) lines.forEach { android.util.Log.d("FinTrackImport", "line x=${it.x.toInt()} y=${it.y.toInt()} w=${it.w.toInt()} h=${it.h.toInt()} '${it.text}'") }
         val asTable = StatementInterpreter.interpret(PositionedTable.toTable(words), ImportFormat.IMAGE)
         val asApp = ParsedStatement(ImportFormat.APP_SCREENSHOT, AppHistoryParser.parse(lines), emptyList())
         val best = if (asTable.rows.size >= asApp.rows.size && asTable.rows.size >= 2) asTable else asApp

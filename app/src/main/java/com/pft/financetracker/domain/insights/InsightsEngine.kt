@@ -78,6 +78,8 @@ data class PeriodSummary(
     val byAccount: List<AccountSpend>,
     val count: Int,
     val expenseCount: Int,
+    /** Part of [transfersInPaise]: friends paying back their share of a split. */
+    val settlementsInPaise: Long = 0,
 ) {
     val netSpendPaise: Long get() = grossSpendPaise - refundsPaise
     val savingsPaise: Long get() = incomePaise - netSpendPaise
@@ -152,6 +154,7 @@ object InsightsEngine {
             incomePaise = income.sumOf { it.amountPaise },
             transfersOutPaise = transfersOut.sumOf { it.amountPaise },
             transfersInPaise = transfersIn.sumOf { it.amountPaise },
+            settlementsInPaise = transfersIn.filter { it.flow == Flow.SETTLEMENT }.sumOf { it.amountPaise },
             investmentsPaise = investments.sumOf { it.amountPaise },
             cashPaise = cash.sumOf { it.amountPaise },
             byCategory = byCat,

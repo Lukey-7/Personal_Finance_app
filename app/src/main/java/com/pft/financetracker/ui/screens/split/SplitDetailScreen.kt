@@ -91,7 +91,7 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(money(split.totalPaise, true), style = MaterialTheme.typography.displaySmall)
                     Text("${dateOnly(split.date)} · ${split.mode.label} · paid by ${split.people.getOrNull(split.payerIndex)?.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    split.myShare?.let { Text("Your share: ${money(it.amountPaise, true)} (counted as your spend)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold) }
+                    split.myShare?.let { Text(if (split.isSuggestion) "Your share would be ${money(it.amountPaise, true)} (not applied yet)" else "Your share: ${money(it.amountPaise, true)} (counted as your spend)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold) }
                     split.linkedTransactionId?.let { txId -> TextButton(onClick = { onOpenTransaction(txId) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text("Open linked transaction") } }
                     split.note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 }
