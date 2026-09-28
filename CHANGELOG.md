@@ -3,6 +3,41 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [1.2.1] - 2026-09-28
+
+Focus: **edge cases in split intelligence and statement import**, found with 130 new tests (each written to fail
+first), a code review and a security review, then checked on an emulator. Existing data is migrated in place
+(database version 6).
+
+### Fixed: money counted wrong or lost
+- Two identical payments in one statement or screenshot (two Rs 20 teas) are both kept; before, the second was dropped.
+- Placeholder reference numbers ("0", "-", zeros) no longer make a new row look like a months-old duplicate.
+- A row whose date can't be read goes to review instead of vanishing.
+- Accepting or rejecting a split never overwrites your own edit; accepting after you correct the bill splits the
+  corrected amount.
+- One friend's transfer can't pay for a manual split and an automatic one at the same time; a manual split made later
+  takes its friend's transfer back from an automatic guess.
+- After "Not a split", those transfers are only suggested for another payment, never applied on their own.
+- An SMS arriving for a settled transfer, or while an import preview is open, no longer counts money twice.
+- "Clean up duplicates" keeps the copy a split uses; undoing an import keeps rows another import or an SMS also has.
+- Deleting (or un-importing) a transfer that settled a manual split makes that share owed again.
+- An AI outage no longer undoes AI-found splits; only readable AI answers are cached.
+
+### Fixed: reading files and screenshots
+- Dr/Cr before or after amounts, trailing minus, "Sept", ISO dates with +05:30, Excel formula noise and scientific
+  numbers, UTF-16 files, stray quotes, late or two-line headers, card-number columns, footers vs wrapped narrations,
+  narration lines above or below their date line in PDFs, rows after a statement summary.
+- Screenshots: October dates, "Sep 12" day headers, month headers, a misread rupee sign with Indian grouping or paise,
+  failed / pending / requested rows skipped even when the status line says more.
+- Groups of up to 100 people; senders with no name ("AK", a phone number) count as one person; placeholder names
+  ("Credit", "Friend") and "cash back" are never a friend paying back.
+- Cashback is no longer categorised as Cash / ATM; the review banner says "items" for SMS and statement rows alike.
+
+### Security
+- Spreadsheets: zip bombs, huge column references and XML DOCTYPE / entity tricks are refused (an external entity
+  could read a local file before). The ".xls" HTML reader runs in linear time.
+- PDFs load with a memory limit and huge pages render at a capped size; an empty password counts as no password.
+
 ## [1.2.0] - 2026-09-28
 
 Focus: **split intelligence** (when you pay for a group and friends pay you back, only your share counts) and
