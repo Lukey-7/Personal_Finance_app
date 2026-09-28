@@ -368,8 +368,8 @@ fun DashboardScreen(
     }
 }
 
-/** "1 SMS needs review" / "3 SMS need review". */
-internal fun reviewLine(n: Int) = if (n == 1) "1 SMS needs review" else "$n SMS need review"
+/** "1 item needs review" / "3 items need review". Neutral: the queue holds both SMS and statement rows. */
+internal fun reviewLine(n: Int) = if (n == 1) "1 item needs review" else "$n items need review"
 
 @Composable
 private fun MathRow(label: String, paise: Long, sign: String, color: Color, onClick: () -> Unit) {
