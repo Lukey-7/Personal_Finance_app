@@ -20,7 +20,7 @@ import java.util.Locale
 object PayerClassifier {
     /** What the money is (checked against the whole text): these are never a friend paying back. */
     private val natureWords = Regex(
-        """\b(salary|payroll|sal\s+for|stipend|pension|interest|int\.?\s*pd|dividend|refund|reversal|reversed|cashback|charge ?back|nach|ach|ecs|emi)\b""",
+        """\b(salary|payroll|sal\s+for|stipend|pension|interest|int\.?\s*pd|dividend|refund|reversal|reversed|cash ?back|charge ?back|nach|ach|ecs|emi)\b""",
         RegexOption.IGNORE_CASE,
     )
     /**

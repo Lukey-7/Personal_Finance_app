@@ -34,5 +34,8 @@ class PayerClassifierEdgeTest {
         assertEquals(PERSON, kind("Ramesh Kumar", "UPI/P2A/412345678901/RAMESH KUMAR"))
         assertEquals(ORGANISATION, kind("Acme Corp Ltd", "NEFT CR-HDFC0000001-ACME CORP LTD-SALARY"))
         assertEquals(ORGANISATION, kind("Swiggy", "Refund of Rs 250 from Swiggy"))
+        // "Cash back" in two words is cashback too, never a friend paying back (the categorizer no longer calls it ATM).
+        assertEquals(ORGANISATION, kind("Cash Back"))
+        assertEquals(ORGANISATION, kind("Rahul Sharma", "Cash back of Rs 50 credited to your account"))
     }
 }
