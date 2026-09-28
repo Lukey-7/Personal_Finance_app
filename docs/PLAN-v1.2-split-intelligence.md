@@ -1,6 +1,6 @@
 # v1.2 Plan: Import Anything + Split Intelligence
 
-**Status:** approved in principle on 28 Sep 2026 ("yes to all 12 points"). Each milestone is reviewed before its code starts.
+**Status:** approved 28 Sep 2026. Answers refined the same day (see section 2). M0 first, then M1 onward.
 **Source:** Ronak's feedback (26 Sep 2026) and the repayment gap found in the code on 28 Sep 2026.
 **Replaces:** `PLAN-v1.1.3.md` (too narrow: no statements, no AI, no shared cabs).
 
@@ -19,18 +19,18 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done and verified
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Which AI | **Cloud first** (OpenAI, already in the app), behind a provider interface so Claude or an on-device model (Gemini Nano, Gemma) can be added later |
-| 2 | What is sent to the AI | **Anonymised:** amounts, dates and times, direction, category, merchant *type*. People become "Person A/B/C". No real names, account numbers, SMS or statement text. |
-| 3 | Whose API key | **The user's own key** (as today). An app-provided paid service is a later business decision. |
+| 1 | Which AI | **OpenAI** (already in the app), behind a provider interface so other providers or an on-device model can be added later |
+| 2 | What is sent to the AI | **Anonymised:** amounts, dates and times, direction, category, merchant *type*. People become "Person A/B/C". Real names and the rest of the text stay on the phone. |
+| 3 | Whose API key | **The user's own key**, as today. Releases keep the built-in key (your choice). A paid service is out of scope. |
 | 4 | Combined paybacks (one transfer covering dinner + cab) | **Yes**, handled in v1.2 |
-| 5 | Payback window | **14 days** by default. Setting: 7 / 14 / 30 days (30 for trips). |
-| 6 | Advance collection (friends pay you *before* you pay) | **Yes**, included |
+| 5 | Payback window | **2 weeks (14 days).** A setting for 7 / 14 / 30 days can come later. |
+| 6 | Advance collection (friends pay you *before* you pay) | **Included, but always asks.** The app suggests it and the user confirms or rejects; it is never applied automatically. |
 | 7 | Automatic vs asking | **High confidence applies automatically** with an "Auto-split" badge and one-tap undo. **Medium confidence asks.** Low is left alone. |
-| 8 | Which banks and apps | Generic by design. Test fixtures cover HDFC, SBI, ICICI, Axis, Kotak statements and Amazon Pay, GPay, PhonePe, Paytm screenshots. Real samples from you and Ronak are added when shared. |
-| 9 | Sample files | Synthetic fixtures now. Real statements and screenshots (names and account numbers blanked) are added as test fixtures when shared, and are not committed unless you say so. |
+| 8 | Which banks and apps | **Cover them broadly.** Generic by design. Fixtures for the major Indian banks (SBI, HDFC, ICICI, Axis, Kotak, PNB, Bank of Baroda, Canara, Union, IDFC First, Yes, IndusInd) and apps (Amazon Pay, GPay, PhonePe, Paytm, CRED), modelled on public demo/sample statements found online. |
+| 9 | Sample files | **Synthetic and public demo samples for now.** Real ones can be added later. |
 | 10 | Locked PDFs | Ask for the password once. It is used on the phone only and never stored. |
 | 11 | AI cost on big files | Accepted. Only the transactions around possible shared spends are sent, in batches, so an annual statement costs a few rupees, not the whole file. |
-| 12 | Release | **v1.1.2 ships first** (the pushed review fixes). This work is **v1.2**. |
+| 12 | Release | **v1.1.2 ships first** as a signed release with the built-in key, like v1.1.1. This work is **v1.2**. |
 
 ## 3. The core problem, as one real weekend
 
@@ -85,7 +85,7 @@ This weekend is **acceptance test #1**. It has to come out exactly right from SM
 ### M0: Release v1.1.2
 - [ ] Version 1.1.2, CHANGELOG "Unreleased" → 1.1.2, README check
 - [ ] Signed release APKs build, tag `v1.1.2`, push
-- [ ] GitHub release (created as a **draft** for you to publish)
+- [ ] GitHub release with the signed `-personal` arm64 APK, like v1.1.1
 
 ### M1: Import foundation and CSV/Excel
 - [ ] `ImportSource` on transactions (SMS / CSV / XLSX / XLS / PDF / IMAGE / MANUAL) and an `importBatchId` so a whole import can be undone. DB v5 with a migration test.
@@ -123,7 +123,7 @@ This weekend is **acceptance test #1**. It has to come out exactly right from SM
 - [ ] **Undo:** restores everything exactly and records the decision
 - [ ] **Keeping up to date:** runs after every SMS scan, import and manual entry. Late paybacks join their group.
 - [ ] **Manual splits:** the Settle button offers matching incoming payments, which fixes the repayment gap from 28 Sep
-- [ ] Acceptance tests: Ronak's weekend (section 3), advance collection, a trip with 30-day paybacks
+- [ ] Acceptance tests: Ronak's weekend (section 3), a payback on day 13 (joins) and on day 15 (does not), advance collection (always a suggestion, never auto-applied)
 - [ ] **Trap tests (must NOT split):** salary, monthly rent from a flatmate, a single loan repayment, a refund, ₹1,000 from a friend after an unrelated electronics purchase, a friend paying you for something you bought them long ago, a spend already split by hand
 
 ### M5: AI judge
@@ -141,7 +141,7 @@ This weekend is **acceptance test #1**. It has to come out exactly right from SM
   | – | medium | pass | **ask** |
   | – | any | **fail** | local answer only, or skip |
 - [ ] Tests with a **fake provider** (fixed answers, including wrong and malicious ones, to prove the verifier stops them). One live smoke test with your key, run only with your go-ahead because it costs money.
-- [ ] Settings: "Use AI to detect splits" (off by default until a key is set), plus the window setting
+- [ ] Settings: "Use AI to detect splits" (on when a key is set)
 
 ### M6: Screens
 - [ ] "Auto-split" badge on transactions with a **"Why?"** sheet ("11 people paid back ₹1,000 each within a day; Priya's ₹1,200 covers SBOW and the Uber")
@@ -154,8 +154,8 @@ This weekend is **acceptance test #1**. It has to come out exactly right from SM
 - [ ] All unit, corpus, fixture and scenario tests pass, and lint shows 0 errors
 - [ ] **Emulator** on a separate AVD `fintest-split`, so the shared `fintest` and its ₹4,218 baseline are untouched: Ronak's weekend as real SMS, then the same weekend as CSV, PDF and screenshots, and check the dashboard shows exactly ₹1,000 / ₹200 / ₹180
 - [ ] Upgrade test v1.1.2 → v1.2.0 with existing data (like the v4 check)
-- [ ] README privacy section updated: what the split AI sends, and that it's opt-in
-- [ ] CHANGELOG, version 1.2.0, tag, signed APKs, draft GitHub release
+- [ ] README privacy section updated: what the split AI sends
+- [ ] CHANGELOG, version 1.2.0, tag, signed APKs, GitHub release
 
 ## 6. Risks
 
@@ -170,8 +170,6 @@ This weekend is **acceptance test #1**. It has to come out exactly right from SM
 | PDF library size | Measured in the M2 spike; per-ABI APKs keep downloads small |
 | Cost of annual statements | Only candidate windows are sent, with an estimate shown first |
 
-## 7. Waiting on you (not blocking the start)
-- Real samples: one statement per bank you use and one screenshot per payment app, with names and account numbers blanked
-- Which banks and apps you and Ronak use, so their fixtures come first
+## 7. Later (not blocking)
+- Real statements and screenshots from you and Ronak, added as fixtures when available
 - Go-ahead for the paid live AI smoke test (M5)
-- Publishing the v1.1.2 draft release on GitHub (M0)

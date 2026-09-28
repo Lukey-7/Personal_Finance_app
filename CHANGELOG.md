@@ -3,7 +3,7 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
-## [Unreleased]
+## [1.1.2] - 2026-09-28
 
 ### Fixed
 - A rescan no longer puts the full bank amount back on a transaction you split in v1.1.0. Database version 4 (no new columns) records the bank amount on those rows, and restores your share where a v1.1.1 rescan already reset it.
