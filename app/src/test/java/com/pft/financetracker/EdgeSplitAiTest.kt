@@ -36,8 +36,10 @@ class EdgeSplitAiTest {
         assertNotNull(p); assertEquals(1, p!!.size)
     }
 
-    @Test fun anAnswerWithoutAGroupsListIsNotAnAnswer() {
-        assertNull(req().parse("{}"))
+    @Test fun onlyBrokenJsonIsNotAnAnswer() {
+        // Valid JSON without a groups list is the model saying "nothing here": an answer (cached, not re-paid for).
+        assertEquals(emptyList<Any>(), req().parse("{}"))
+        assertEquals(emptyList<Any>(), req().parse("""{"result":"no group payments"}"""))
         assertNull(req().parse(""))
         assertNull(req().parse("[]"))
         assertNull(req().parse("""{"groups":[{"payment":"P1","allocations":[{"incoming":"C1","amo"""))

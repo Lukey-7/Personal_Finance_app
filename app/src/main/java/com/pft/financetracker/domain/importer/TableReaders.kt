@@ -164,16 +164,22 @@ object XlsxReader {
         }
     }
 
-    private fun hasDoctype(bytes: ByteArray): Boolean {
-        val pattern = "<!DOCTYPE".toByteArray()
-        outer@ for (i in 0..bytes.size - pattern.size) {
-            for (j in pattern.indices) {
-                val b = bytes[i + j].toInt().toChar().uppercaseChar()
-                if (b != pattern[j].toInt().toChar()) continue@outer
+    /** "<!DOCTYPE" in any encoding a parser accepts for these parts: UTF-8/ASCII, UTF-16 LE or BE. */
+    internal fun hasDoctype(bytes: ByteArray): Boolean {
+        val word = "<!DOCTYPE"
+        fun find(step: Int, offset: Int): Boolean {
+            val span = word.length * step
+            outer@ for (i in 0..bytes.size - span) {
+                for (j in word.indices) {
+                    val at = i + j * step
+                    if (bytes[at + offset].toInt().toChar().uppercaseChar() != word[j]) continue@outer
+                    if (step == 2 && bytes[at + 1 - offset] != 0.toByte()) continue@outer
+                }
+                return true
             }
-            return true
+            return false
         }
-        return false
+        return find(1, 0) || find(2, 0) || find(2, 1)
     }
 
     private fun sharedStrings(bytes: ByteArray): List<String> {
@@ -225,7 +231,7 @@ object XlsxReader {
         sax(bytes, object : DefaultHandler() {
             override fun startElement(uri: String?, localName: String?, qName: String, a: Attributes) {
                 when (qName.substringAfter(':')) {
-                    "row" -> rowIdx = (a.getValue("r")?.toIntOrNull() ?: (rowIdx + 1))
+                    "row" -> { rowIdx = (a.getValue("r")?.toIntOrNull() ?: (rowIdx + 1)); col = -1 }
                     "c" -> {
                         val ref = a.getValue("r")
                         col = if (ref == null) col + 1 else colIndex(ref.takeWhile { it.isLetter() })
@@ -267,15 +273,19 @@ object XlsxReader {
     private fun number(raw: String): String {
         val d = raw.toBigDecimalOrNull() ?: return raw
         val cents = d.setScale(2, RoundingMode.HALF_UP)
-        val scientific = raw.contains('e', ignoreCase = true)
-        val noise = d.scale() > 2 && (d - cents).abs() < BigDecimal("0.000001")
-        return if (scientific || noise) cents.toPlainString() else raw
+        return when {
+            // "1.5E3" -> "1500", and a 16-digit reference stored as a number stays a whole number.
+            raw.contains('e', ignoreCase = true) -> cents.stripTrailingZeros().let { if (it.scale() < 0) it.setScale(0) else it }.toPlainString()
+            d.scale() > 2 && (d - cents).abs() < BigDecimal("0.000001") -> cents.toPlainString()
+            else -> raw
+        }
     }
 
     /** "A" -> 0, "AB" -> 27. Anything past three letters (beyond XFD, Excel's last column) is out of range. */
     private fun colIndex(letters: String): Int {
-        if (letters.isEmpty() || letters.length > 3) return -1
-        return letters.uppercase().fold(0) { acc, c -> acc * 26 + (c - 'A' + 1) } - 1
+        val up = letters.uppercase()
+        if (up.isEmpty() || up.length > 3 || up.any { it !in 'A'..'Z' }) return -1
+        return up.fold(0) { acc, c -> acc * 26 + (c - 'A' + 1) } - 1
     }
 }
 
@@ -316,11 +326,15 @@ object HtmlTableReader {
         return rows
     }
 
-    private fun clean(html: String) = unescape(anyTag.replace(html, " ")).replace(Regex("""\s+"""), " ").trim()
+    private val spaces = Regex("""\s+""")
+    private val hexEntity = Regex("""&#[xX]([0-9a-fA-F]{1,6});""")
+    private val decEntity = Regex("""&#(\d{1,7});""")
+
+    private fun clean(html: String) = unescape(anyTag.replace(html, " ")).replace(spaces, " ").trim()
 
     private fun unescape(s: String): String = s
-        .replace(Regex("""&#[xX]([0-9a-fA-F]{1,6});""")) { m -> m.groupValues[1].toIntOrNull(16)?.let { cp -> String(Character.toChars(cp.coerceIn(0, 0x10FFFF))) } ?: m.value }
-        .replace(Regex("""&#(\d{1,7});""")) { m -> m.groupValues[1].toIntOrNull()?.let { cp -> String(Character.toChars(cp.coerceIn(0, 0x10FFFF))) } ?: m.value }
+        .replace(hexEntity) { m -> m.groupValues[1].toIntOrNull(16)?.let { cp -> String(Character.toChars(cp.coerceIn(0, 0x10FFFF))) } ?: m.value }
+        .replace(decEntity) { m -> m.groupValues[1].toIntOrNull()?.let { cp -> String(Character.toChars(cp.coerceIn(0, 0x10FFFF))) } ?: m.value }
         .replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&")
 }
 

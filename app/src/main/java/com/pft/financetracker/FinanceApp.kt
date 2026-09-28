@@ -33,7 +33,7 @@ class AppContainer(context: Context) {
         cache = settings.aiAnswerCache,
     )
     val statementFiles: StatementFiles = StatementFiles(context)
-    val statementImporter: StatementImporter = StatementImporter(db.transactionDao(), transactions, db.importDao())
+    val statementImporter: StatementImporter = StatementImporter(db.transactionDao(), transactions, db.importDao(), smsLog)
 }
 
 class FinanceApp : Application() {

@@ -55,6 +55,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE refNumber = :ref LIMIT 1")
     suspend fun findAnyByRef(ref: String): TransactionEntity?
 
+    @Query("SELECT * FROM transactions WHERE refNumber = :ref")
+    suspend fun findAllByRef(ref: String): List<TransactionEntity>
+
     @Query("SELECT * FROM transactions WHERE smsHash = :hash LIMIT 1")
     suspend fun getByHash(hash: String): TransactionEntity?
 
@@ -173,6 +176,10 @@ interface SplitDao {
 
     @Query("DELETE FROM split_links WHERE id = :id")
     suspend fun deleteLink(id: Long)
+
+    @Update suspend fun updateLink(e: SplitLinkEntity)
+
+    @Update suspend fun updateShare(e: SplitShareEntity)
 
     @Query("UPDATE splits SET linkedTransactionId = :txId WHERE id = :splitId")
     suspend fun link(splitId: Long, txId: Long?)

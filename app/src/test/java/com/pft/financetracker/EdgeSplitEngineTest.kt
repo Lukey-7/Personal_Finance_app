@@ -85,13 +85,27 @@ class EdgeSplitEngineTest {
 
     // ---- 7. User edits survive accept and reject ----------------------------------------------------------------
 
-    @Test fun acceptAfterTheUserEditedThePaymentKeepsTheEdit() = runBlocking {
+    @Test fun acceptAfterTheUserCorrectedThePaymentSplitsTheCorrectedAmount() = runBlocking {
         val p = pay(1_000, "Dominos", t0)
-        got(500, "Rahul Sharma", t0 + H)
+        val c = got(500, "Rahul Sharma", t0 + H)
         assertEquals(1, engine.run().suggested)
-        repo.update(tx(p).copy(amountPaise = 800_00, userEdited = true))
+        repo.update(tx(p).copy(amountPaise = 800_00, userEdited = true)) // the bill was really Rs 800
         engine.accept(splits().single().id)
-        assertEquals(800_00L, tx(p).amountPaise)
+        assertEquals("my share of the corrected bill", 300_00L, tx(p).amountPaise)
+        assertEquals(800_00L, tx(p).originalAmountPaise)
+        assertEquals(Flow.SETTLEMENT, tx(c).flow)
+        assertConsistent()
+    }
+
+    @Test fun acceptDoesNothingWhenTheCorrectedBillIsSmallerThanFriendsShares() = runBlocking {
+        val p = pay(1_000, "Dominos", t0)
+        val c = got(500, "Rahul Sharma", t0 + H)
+        engine.run()
+        repo.update(tx(p).copy(amountPaise = 400_00, userEdited = true))
+        engine.accept(splits().single().id)
+        assertEquals(400_00L, tx(p).amountPaise)
+        assertEquals(Flow.INCOME, tx(c).flow)
+        assertEquals(SplitStatus.SUGGESTED.name, splits().single().status)
     }
 
     @Test fun rejectAfterTheUserEditedRowsKeepsTheEdits() = runBlocking {
@@ -103,6 +117,7 @@ class EdgeSplitEngineTest {
         repo.update(tx(b).copy(flow = Flow.TRANSFER, userEdited = true))
         engine.reject(splits().single().id)
         assertEquals(1_500_00L, tx(p).amountPaise)
+        assertEquals("no split any more, so no 'your share' mark", null, tx(p).originalAmountPaise)
         assertEquals(Flow.TRANSFER, tx(b).flow)
         assertEquals(Flow.INCOME, tx(a).flow); assertEquals(Flow.INCOME, tx(c).flow)
     }

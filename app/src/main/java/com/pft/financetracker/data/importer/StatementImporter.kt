@@ -23,6 +23,7 @@ class StatementImporter(
     private val txDao: TransactionDao,
     private val repo: TransactionRepository,
     private val importDao: ImportDao,
+    private val smsLog: com.pft.financetracker.data.repository.SmsLogRepository? = null,
 ) {
     data class Preview(
         val statement: ParsedStatement,
@@ -49,9 +50,9 @@ class StatementImporter(
         // The same reference number, amount and (within a week) date. The date guard matters: some banks reuse
         // cheque-style numbers, and a ref alone once matched a payment months away.
         r.ref?.let { ref ->
-            txDao.findAnyByRef(ref)?.toDomain()
-                ?.takeIf { (it.amountPaise == r.amountPaise || it.originalAmountPaise == r.amountPaise) && kotlin.math.abs(it.timestamp - r.date) <= 7 * 86_400_000L }
-                ?.let { if (it.id !in consumed) return it }
+            txDao.findAllByRef(ref).map { it.toDomain() }
+                .firstOrNull { it.id !in consumed && (it.amountPaise == r.amountPaise || it.originalAmountPaise == r.amountPaise) && kotlin.math.abs(it.timestamp - r.date) <= 7 * DAY }
+                ?.let { return it }
         }
         // Same amount and direction within a day either side (statements book some payments a day late). Names
         // must agree: ten Rs 1,000 paybacks on one day are ten different people.
@@ -71,7 +72,12 @@ class StatementImporter(
             )
         )
         var added = 0
+        // Look again: an SMS for the same payment may have arrived while the preview was on screen.
+        val consumed = p.duplicates.map { it.second.id }.toMutableSet()
+        val lateDuplicates = mutableListOf<Pair<StatementRow, Transaction>>()
         for (r in p.newRows) {
+            val late = findExisting(r, consumed)
+            if (late != null) { lateDuplicates += r to late; consumed += late.id; continue }
             val t = Transaction(
                 amountPaise = r.amountPaise, type = r.type, merchant = r.counterparty, category = r.category,
                 // Statements give the day, not the time: noon keeps it on that day, and the row order keeps same-day
@@ -81,12 +87,14 @@ class StatementImporter(
                 smsHash = hash(r), refNumber = r.ref, confidence = if (r.balanceOk == true) 95 else 85,
                 counterpartyKind = r.kind, importBatchId = batchId,
             )
-            if (repo.insert(t) > 0) added++
+            // A row this import just added is not a duplicate of the next identical one (two Rs 20 teas).
+            val id = repo.insert(t)
+            if (id > 0) { added++; consumed += id }
         }
         // Fill in what the statement knows and the stored row lacks. Read the row again: the preview may have been on
         // screen while an SMS or a split changed it, and writing the preview's copy back would undo that.
         val matched = mutableListOf<ImportMatchEntity>()
-        for ((r, seen) in p.duplicates) {
+        for ((r, seen) in p.duplicates + lateDuplicates) {
             val existing = txDao.getById(seen.id)?.toDomain() ?: continue
             val filled = existing.copy(refNumber = existing.refNumber ?: r.ref, counterpartyKind = existing.counterpartyKind ?: r.kind)
             if (filled != existing) txDao.update(filled.toEntity())
@@ -104,7 +112,7 @@ class StatementImporter(
             )
             if (ok) review++
         }
-        val batch = importDao.get(batchId)!!.copy(added = added, needsReview = review)
+        val batch = importDao.get(batchId)!!.copy(added = added, duplicates = p.duplicates.size + lateDuplicates.size, needsReview = review)
         importDao.update(batch)
         return batch
     }
@@ -116,10 +124,16 @@ class StatementImporter(
     suspend fun undo(batchId: Long) {
         for (t in txDao.getByBatch(batchId)) {
             val other = importDao.matchesFor(t.id).firstOrNull { it.batchId != batchId && importDao.get(it.batchId) != null }
-            if (other != null) {
-                txDao.update(t.copy(importBatchId = other.batchId))
-                importDao.deleteMatch(other.id)
-            } else txDao.delete(t)
+            when {
+                other != null -> {
+                    txDao.update(t.copy(importBatchId = other.batchId))
+                    importDao.deleteMatch(other.id)
+                    importDao.get(other.batchId)?.let { b -> importDao.update(b.copy(added = b.added + 1, duplicates = maxOf(0, b.duplicates - 1))) }
+                }
+                // An SMS reported the same payment since: it is the SMS's row now, and the SMS won't be read again.
+                smsLog?.pointsAt(t.id) == true -> txDao.update(t.copy(importBatchId = null))
+                else -> txDao.delete(t)
+            }
         }
         importDao.deleteMatchesForBatch(batchId)
         importDao.delete(batchId)
@@ -128,6 +142,8 @@ class StatementImporter(
     /** Identical rows in one file (two Rs 20 teas) are told apart by their occurrence; the first keeps the old hash. */
     private fun hash(r: StatementRow) = "stmt:" + sha("${r.date}|${r.amountPaise}|${r.type}|${r.narration.trim().lowercase()}|${r.balancePaise}" +
         if (r.occurrence > 0) "|#${r.occurrence}" else "")
+
+    private companion object { const val DAY = 86_400_000L }
 
     private fun sha(s: String): String = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }.take(32)
 }

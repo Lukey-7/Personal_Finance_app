@@ -218,7 +218,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun mergeDuplicates(onDone: (Int) -> Unit = {}) = viewModelScope.launch {
         val pairs = _duplicates.value
-        c.transactions.mergeDuplicates(pairs)
+        c.transactions.mergeDuplicates(pairs) { id -> c.db.splitDao().linksForTransaction(id).isNotEmpty() }
         _duplicates.value = emptyList()
         onDone(pairs.size)
     }

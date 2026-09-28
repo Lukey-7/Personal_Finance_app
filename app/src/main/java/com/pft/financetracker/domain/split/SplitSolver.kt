@@ -177,7 +177,8 @@ object SplitSolver {
         //    at most strongly wins (the dinner 11 friends paid back beats a grocery run nobody else paid for), then the
         //    closest in time. Never twice from the same person for the same payment.
         for (c in left.toList()) {
-            val target = open.filter { c.id in it.cands && it.slots > 0 && key(c) !in it.paidBy && fits(c.amountPaise, it.p.amountPaise, it.share.k) }
+            val kc = key(c)
+            val target = open.filter { c.id in it.cands && it.slots > 0 && kc !in it.paidBy && fits(c.amountPaise, it.p.amountPaise, it.share.k) }
                 .sortedWith(compareByDescending<Open> { it.strength }.thenBy { abs(c.timestamp - it.p.timestamp) })
                 .firstOrNull() ?: continue
             give(target, c, c.amountPaise); left -= c
@@ -186,7 +187,8 @@ object SplitSolver {
         // 2. One transfer covering shares of two or three payments ("Rs 1,200 = dinner Rs 1,000 + cab Rs 200"). Prefer
         //    payments other friends already paid back, so a coincidental sum with an unrelated payment loses.
         for (c in left.toList()) {
-            val fitsIn = open.filter { c.id in it.inWindow && it.slots > 0 && key(c) !in it.paidBy && it.share.paise < c.amountPaise }
+            val kc = key(c)
+            val fitsIn = open.filter { c.id in it.inWindow && it.slots > 0 && kc !in it.paidBy && it.share.paise < c.amountPaise }
             val combo = combos(fitsIn, c.amountPaise)
                 .maxWithOrNull(compareBy<List<Open>> { set -> set.count { it.alloc.isNotEmpty() } }.thenBy { set -> set.sumOf { it.strength } }) ?: continue
             var rest = c.amountPaise

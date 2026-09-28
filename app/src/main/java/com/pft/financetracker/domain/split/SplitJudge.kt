@@ -132,15 +132,15 @@ class SplitAiRequest private constructor(
 
     /**
      * Parse the model's JSON answer into proposals. Anything malformed is skipped, never guessed. Null when the answer
-     * is not an answer at all (not JSON, cut off, no "groups" list): the caller then treats the AI as not asked.
-     * An empty "groups" list is an answer: "no group payments here".
+     * is not an answer at all (not JSON, or cut off): the caller then treats the AI as not asked. Valid JSON without
+     * a "groups" list is the model saying "no group payments here": an empty answer, cached like any other.
      */
     fun parse(answer: String): List<SplitProposal>? {
         // Models sometimes wrap the JSON in a code fence or a sentence: read the outermost {...}.
         val start = answer.indexOf('{'); val end = answer.lastIndexOf('}')
         if (start < 0 || end <= start) return null
         val root = runCatching { JSONObject(answer.substring(start, end + 1)) }.getOrNull() ?: return null
-        val groups = root.optJSONArray("groups") ?: return null
+        val groups = root.optJSONArray("groups") ?: return emptyList()
         val out = mutableListOf<SplitProposal>()
         for (i in 0 until groups.length()) {
             val g = groups.optJSONObject(i) ?: continue

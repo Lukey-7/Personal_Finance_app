@@ -154,14 +154,18 @@ class TransactionRepository(
     }
 
     /** Delete the redundant row of each pair, keeping any detail it had that the survivor lacked. */
-    suspend fun mergeDuplicates(pairs: List<DuplicatePair>) {
-        for (p in pairs) {
+    suspend fun mergeDuplicates(pairs: List<DuplicatePair>, isLinked: suspend (Long) -> Boolean = { false }) {
+        for (pair in pairs) {
+            // A split points at one copy (a settled transfer, a shrunk payment): that copy survives, with the other's
+            // details, so the split's numbers and links stay whole.
+            val p = if (isLinked(pair.drop.id) && !isLinked(pair.keep.id)) DuplicatePair(keep = pair.drop, drop = pair.keep) else pair
             val merged = p.keep.copy(
                 merchant = if (isGeneric(p.keep.merchant) && !isGeneric(p.drop.merchant)) p.drop.merchant else p.keep.merchant,
                 accountRef = p.keep.accountRef ?: p.drop.accountRef,
                 refNumber = p.keep.refNumber ?: p.drop.refNumber,
                 bankName = p.keep.bankName ?: p.drop.bankName,
                 note = p.keep.note ?: p.drop.note,
+                counterpartyKind = p.keep.counterpartyKind ?: p.drop.counterpartyKind,
             )
             if (merged != p.keep) dao.update(merged.toEntity())
             dao.delete(p.drop.toEntity())

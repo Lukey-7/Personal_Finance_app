@@ -52,7 +52,10 @@ object PayerClassifier {
     private val merchantLocal = Regex("""^(q\d{5,}|paytmqr\w*|paytm-\d+|bharatpe\w*|mab\.\w+|\d{4,}\.\w+|.*(?:merchant|store|shop|qr|pos|payments?|pay|biz|ltd|pvt|technolog)\w*)$""", RegexOption.IGNORE_CASE)
     private val mobile = Regex("""^(?:91)?[6-9]\d{9}$""")
 
-    private val stop = setOf("upi", "imps", "neft", "rtgs", "mr", "mrs", "ms", "dr", "shri", "smt", "kumar", "transfer", "payment", "from", "to", "by", "the", "via")
+    /** Words that say nothing about who someone is, including the placeholders used for unnamed senders. */
+    private val stop = setOf("upi", "imps", "neft", "rtgs", "mr", "mrs", "ms", "dr", "shri", "smt", "kumar", "transfer", "payment", "from", "to", "by", "the", "via",
+        "credit", "debit", "friend", "received")
+    private val longWord = Regex("""[a-z]{3,}""")
 
     fun classify(text: String, merchant: String, type: TransactionType): CounterpartyKind {
         val t = "$text $merchant"
@@ -89,7 +92,8 @@ object PayerClassifier {
      * a statement and "Rahul" from an SMS are recognised as one person when needed (see [sameParty]).
      */
     fun partyTokens(name: String): Set<String> = name.lowercase(Locale.ROOT)
-        .split(Regex("""[^a-z]+""")).filter { it.length >= 3 && it !in stop }.toSet()
+        .split(nonLetters).filter { it.length >= 3 && it !in stop }.toSet()
+    private val nonLetters = Regex("""[^a-z]+""")
 
     /**
      * "The same sender" for grouping transfers: the name's meaningful words, or, when it has none ("AK", a bare phone
@@ -97,8 +101,12 @@ object PayerClassifier {
      */
     fun partyKey(name: String, rowId: Long): String {
         partyTokens(name).sorted().joinToString(" ").takeIf { it.isNotBlank() }?.let { return it }
-        val raw = name.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
-        return if (raw.isEmpty() || raw in setOf("credit", "debit", "payment", "upi", "imps", "neft", "transfer", "friend")) "#$rowId" else "=$raw"
+        val lower = name.lowercase(Locale.ROOT)
+        // Only short names and numbers ("AK", "9876543210") stand for one person as written. A name made only of
+        // stop words ("Credit", "Mr Kumar") could be anyone: each row is its own sender.
+        if (longWord.containsMatchIn(lower)) return "#$rowId"
+        val raw = lower.filter { it.isLetterOrDigit() }
+        return if (raw.isEmpty()) "#$rowId" else "=$raw"
     }
 
     /** Two names plausibly describe the same person or business: they share a meaningful word. */

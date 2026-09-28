@@ -76,8 +76,9 @@ class SplitEngine(
         // A friend's transfer that settled a manual split is gone (deleted, or its import undone): they owe that share
         // again, and the link to the missing row goes.
         val manualIds = splits.filter { it.source == SplitSource.MANUAL.name }.map { it.id }.toSet()
-        for (l in links.filter { it.splitId in manualIds && it.role != Role.PAYMENT && byTx[it.transactionId] == null }) {
-            l.shareId?.let { id -> splitDao.share(id)?.let { sh -> splitDao.settle(id, maxOf(0L, sh.settledPaise - l.allocatedPaise)) } }
+        // A link made before v1.2.1 whose share could not be worked out on upgrade is kept: it is the only record.
+        for (l in links.filter { it.splitId in manualIds && it.role != Role.PAYMENT && it.shareId != null && byTx[it.transactionId] == null }) {
+            splitDao.share(l.shareId!!)?.let { sh -> splitDao.settle(sh.id, maxOf(0L, sh.settledPaise - l.allocatedPaise)) }
             splitDao.deleteLink(l.id)
         }
 
@@ -113,7 +114,9 @@ class SplitEngine(
         val rejectedTransfers = decisions.filterValues { it.decision == Decision.REJECTED_TRANSFER }.keys
         // Friends' transfers that pay back a manual split of mine (a v1.1 split, or one never linked) are not free
         // for another payment of the same size to claim.
-        val manualPaybacks = manualPaybacks(splits.filter { it.source == SplitSource.MANUAL.name }, txns, liveLinks)
+        // Only manual links count as "already linked" here: a transfer an automatic split took first is still the friend
+        // paying back the manual split, and the automatic guess gives it up.
+        val manualPaybacks = manualPaybacks(splits.filter { it.source == SplitSource.MANUAL.name }, txns, liveLinks.filter { it.splitId in manualSplitIds })
 
         val view = txns.mapNotNull { t ->
             if (t.id in frozenTx || t.needsReview || t.source == Transaction.Source.SPLIT) return@mapNotNull null
@@ -136,6 +139,7 @@ class SplitEngine(
         var aiProposals: MutableList<SplitProposal>? = null
         val asked = mutableSetOf<Long>()
         if (aiRun) {
+            var unanswered = false
             for (req in aiRequests(view, local)) {
                 // A cached answer is reused only while it still reads as an answer. Only answers that parse are cached,
                 // so a cut-off reply (timeout mid-stream) is asked again next time instead of blocking that week for good.
@@ -148,10 +152,14 @@ class SplitEngine(
                 }
                 // Debug builds only: the anonymised request and the model's answer, to turn real cases into tests.
                 if (com.pft.financetracker.BuildConfig.DEBUG) runCatching { android.util.Log.d("FinTrackSplitAI", "request=${req.json} answer=$answer") }
-                if (parsed == null) continue
+                if (parsed == null) { unanswered = true; continue }
                 (aiProposals ?: mutableListOf<SplitProposal>().also { aiProposals = it }).addAll(parsed)
                 asked += req.payments
             }
+            // Offline, a timeout, a cut-off reply: without the AI's view an AI-found split can't be judged, and judging it
+            // locally would undo it now and redo it next time. Run as a local run instead, which keeps AI splits as they
+            // are. Answers that did come back are cached for the next AI run.
+            if (unanswered) return runLocked(useAi = false)
         }
         val decided = SplitDecider.decide(local, aiProposals, asked, viewById, windowDays)
             .map { d -> if (d.auto && d.proposal.allocations.any { it.txId in rejectedTransfers }) d.copy(auto = false) else d }
@@ -307,7 +315,7 @@ class SplitEngine(
                 val t = byTx[l.transactionId] ?: continue
                 // Only what the split set is put back: an amount or flow a person changed since stays theirs.
                 val restored = if (l.role == Role.PAYMENT) {
-                    if (t.amountPaise == l.allocatedPaise) t.copy(amountPaise = l.prevAmountPaise ?: t.amountPaise, originalAmountPaise = null) else t
+                    if (t.amountPaise == l.allocatedPaise) t.copy(amountPaise = l.prevAmountPaise ?: t.amountPaise, originalAmountPaise = null) else t.copy(originalAmountPaise = null)
                 } else {
                     val stillUsed = allLinks.any { it.transactionId == l.transactionId && it.splitId != s.id && it.splitId in otherApplied }
                     if (stillUsed || t.flow != Flow.SETTLEMENT) t else t.copy(flow = Flow.fromName(l.prevFlow) ?: Flow.INCOME)
@@ -323,13 +331,37 @@ class SplitEngine(
     // ---------------------------------------------------------------------------------------------------------
 
     /** "Yes, apply it": a suggestion becomes applied, and the split is frozen as the user confirmed it. */
-    suspend fun accept(splitId: Long) = lock.withLock {
-        val s = splitDao.getSplit(splitId) ?: return@withLock
+    suspend fun accept(splitId: Long): Boolean = lock.withLock {
+        var s = splitDao.getSplit(splitId) ?: return@withLock false
         if (s.status != SplitStatus.APPLIED.name) {
+            val links = splitDao.linksFor(splitId)
+            val friends = links.filter { it.role != Role.PAYMENT }
+            // A suggestion can wait for days. A friend's transfer that since settled a manual split (or another applied
+            // split), or that the person re-filed, can't pay for this one too: leave the suggestion as it is.
+            val splitsById = splitDao.allSplits().associateBy { it.id }
+            val elsewhere = splitDao.allLinks().filter { l -> l.splitId != splitId && splitsById[l.splitId]?.let { it.source == SplitSource.MANUAL.name || it.status == SplitStatus.APPLIED.name } == true }
+            for (l in friends) {
+                val t = txDao.getById(l.transactionId)?.toDomain() ?: return@withLock false
+                if (elsewhere.filter { it.transactionId == t.id }.sumOf { it.allocatedPaise } + l.allocatedPaise > t.amountPaise) return@withLock false
+                if (t.flow != Flow.SETTLEMENT && t.flow != (Flow.fromName(l.prevFlow) ?: Flow.INCOME)) return@withLock false
+            }
+            // The person corrected the bill since it was suggested: split the corrected amount (my share is what the
+            // friends didn't pay of it). A corrected bill smaller than the friends' shares can't be this split.
+            val pay = links.firstOrNull { it.role == Role.PAYMENT }
+            val payTx = pay?.let { txDao.getById(it.transactionId)?.toDomain() }
+            if (pay != null && payTx != null && payTx.amountPaise != (pay.prevAmountPaise ?: payTx.amountPaise)) {
+                val friendsPaise = friends.sumOf { it.allocatedPaise }
+                if (payTx.amountPaise <= friendsPaise) return@withLock false
+                val mine = payTx.amountPaise - friendsPaise
+                splitDao.updateLink(pay.copy(allocatedPaise = mine, prevAmountPaise = payTx.amountPaise))
+                splitDao.sharesFor(splitId).firstOrNull { it.personIndex == 0 }?.let { splitDao.updateShare(it.copy(amountPaise = mine)) }
+                s = s.copy(totalPaise = payTx.amountPaise)
+            }
             splitDao.updateSplit(s.copy(status = SplitStatus.APPLIED.name))
             applyEffects(splitId)
         }
         s.linkedTransactionId?.let { splitDao.insertDecision(SplitDecisionEntity(paymentTransactionId = it, decision = Decision.ACCEPTED)) }
+        true
     }
 
     /** "Not a split" / undo: everything goes back exactly as it was, and this payment is never split automatically again. */
@@ -348,9 +380,12 @@ class SplitEngine(
      * share is marked paid. Undone by [unlinkManual] when the split is deleted.
      */
     suspend fun linkSettlement(splitId: Long, shareId: Long, newSettledPaise: Long, credit: Transaction, amountPaise: Long) = lock.withLock {
-        splitDao.insertLinks(listOf(SplitLinkEntity(0, splitId, credit.id, Role.PAYBACK, amountPaise, credit.flow.name, null, shareId = shareId)))
-        txDao.update(credit.copy(flow = Flow.SETTLEMENT).toEntity())
-        splitDao.settle(shareId, newSettledPaise)
+        // Read the row again: the settle sheet may have been open while an SMS, an import or an edit changed it.
+        val current = txDao.getById(credit.id)?.toDomain() ?: return@withLock
+        splitDao.insertLinks(listOf(SplitLinkEntity(0, splitId, current.id, Role.PAYBACK, amountPaise, current.flow.name, null, shareId = shareId)))
+        txDao.update(current.copy(flow = Flow.SETTLEMENT).toEntity())
+        val settled = splitDao.share(shareId)?.let { minOf(it.amountPaise, it.settledPaise + amountPaise) } ?: newSettledPaise
+        splitDao.settle(shareId, settled)
     }
 
     /** Before a manual split is deleted: transfers linked to it count as what they were again. */

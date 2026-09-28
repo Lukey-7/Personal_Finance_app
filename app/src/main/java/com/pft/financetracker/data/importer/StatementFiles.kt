@@ -66,6 +66,10 @@ class StatementFiles(private val context: Context) {
             Read.Error(e.message ?: "The file is too large to read on this phone.")
         } catch (e: ImportRejected) {
             Read.Error(e.message ?: "This file could not be read.")
+        } catch (e: java.io.IOException) {
+            // PDFBox reports its memory cap as a plain IOException ("Maximum allowed scratch file memory exceeded").
+            if (e.message?.contains("memory", ignoreCase = true) == true) Read.Error("The file is too large to read on this phone.")
+            else Read.Error("Could not read this file (${e.javaClass.simpleName}).")
         } catch (e: Exception) {
             Read.Error("Could not read this file (${e.javaClass.simpleName}).")
         }
@@ -92,7 +96,8 @@ class StatementFiles(private val context: Context) {
             for (page in 0 until minOf(d.numberOfPages, PdfLimits.MAX_OCR_PAGES)) {
                 // A giant page (a 200-inch MediaBox) would need a bitmap far bigger than the phone's memory.
                 val box = d.getPage(page).mediaBox
-                val bmp: Bitmap = renderer.renderImageWithDPI(page, PdfLimits.renderDpi(box.width, box.height))
+                // One broken page (an impossible box) is skipped, not the whole statement.
+                val bmp: Bitmap = runCatching { renderer.renderImageWithDPI(page, PdfLimits.renderDpi(box.width, box.height)) }.getOrNull() ?: continue
                 try { ocrWords += OcrEngine.recognizeWords(bmp, page).first } finally { bmp.recycle() }
             }
             return Read.Ok(StatementInterpreter.interpret(PositionedTable.toTable(ocrWords), ImportFormat.PDF_SCANNED), name)

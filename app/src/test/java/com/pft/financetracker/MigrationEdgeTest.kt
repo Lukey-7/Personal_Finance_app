@@ -52,6 +52,20 @@ class MigrationEdgeTest {
         db.close()
     }
 
+    @Test fun v5To6RemembersWhichShareAnOldSettlementPaid() {
+        helper.createDatabase(dbName, 5).apply {
+            execSQL("INSERT INTO transactions (id, amountPaise, type, merchant, category, timestamp, bankName, accountRef, source, flow, note, smsHash, refNumber, confidence, needsReview, createdAt, originalAmountPaise, userEdited, counterpartyKind, importBatchId) VALUES (7, 50000, 'CREDIT', 'Rahul Sharma', 'INCOME', $t0, NULL, NULL, 'SMS', 'SETTLEMENT', NULL, 'h7', NULL, 90, 0, $t0, NULL, 0, 'PERSON', NULL)")
+            execSQL("INSERT INTO splits (id, title, totalPaise, date, mode, payerIndex, linkedTransactionId, note, createdAt, source, status, confidence, reasons, kind) VALUES (1, 'Movie', 150000, $t0, 'EQUAL', 0, NULL, NULL, $t0, 'MANUAL', 'APPLIED', NULL, NULL, 'PAYBACK')")
+            listOf("Me", "Priya", "Rahul").forEachIndexed { i, n -> execSQL("INSERT INTO split_people (splitId, personIndex, name, isMe) VALUES (1, $i, '$n', ${if (i == 0) 1 else 0})") }
+            (0..2).forEach { i -> execSQL("INSERT INTO split_shares (id, splitId, personIndex, amountPaise, settledPaise) VALUES (${10 + i}, 1, $i, 50000, ${if (i == 2) 50000 else 0})") }
+            execSQL("INSERT INTO split_links (splitId, transactionId, role, allocatedPaise, prevFlow, prevAmountPaise) VALUES (1, 7, 'PAYBACK', 50000, 'INCOME', NULL)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(dbName, 6, true, AppDatabase.MIGRATION_5_6)
+        db.query("SELECT shareId FROM split_links").use { c -> c.moveToNext(); assertEquals("Rahul's share", 12L, c.getLong(0)) }
+        db.close()
+    }
+
     @Test fun anEmptyV1DatabaseUpgradesAllTheWay() {
         helper.createDatabase(dbName, 1).close()
         helper.runMigrationsAndValidate(dbName, AppDatabase.ALL_MIGRATIONS.last().endVersion, true, *AppDatabase.ALL_MIGRATIONS).close()

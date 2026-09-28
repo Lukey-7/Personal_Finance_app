@@ -254,6 +254,25 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_import_matches_batchId ON import_matches (batchId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_import_matches_transactionId ON import_matches (transactionId)")
                 db.execSQL("ALTER TABLE split_links ADD COLUMN shareId INTEGER")
+                // Links made by v1.2.0's "settle with a transaction": find the share by the friend's name, where only one fits.
+                val found = mutableListOf<Pair<Long, Long>>()
+                db.query(
+                    """SELECT l.id, l.splitId, t.merchant FROM split_links l JOIN splits s ON s.id = l.splitId JOIN transactions t ON t.id = l.transactionId
+                       WHERE s.source = 'MANUAL' AND l.role != 'PAYMENT'"""
+                ).use { c ->
+                    while (c.moveToNext()) {
+                        val linkId = c.getLong(0); val splitId = c.getLong(1); val merchant = c.getString(2)
+                        val people = mutableListOf<Pair<Int, String>>()
+                        db.query("SELECT personIndex, name FROM split_people WHERE splitId = ? AND isMe = 0", arrayOf<Any>(splitId)).use { p ->
+                            while (p.moveToNext()) people += p.getInt(0) to p.getString(1)
+                        }
+                        val who = people.filter { (_, name) -> com.pft.financetracker.domain.split.PayerClassifier.sameParty(merchant, name) }.singleOrNull() ?: continue
+                        db.query("SELECT id FROM split_shares WHERE splitId = ? AND personIndex = ?", arrayOf<Any>(splitId, who.first)).use { sh ->
+                            if (sh.moveToNext()) found += linkId to sh.getLong(0)
+                        }
+                    }
+                }
+                for ((linkId, shareId) in found) db.execSQL("UPDATE split_links SET shareId = ? WHERE id = ?", arrayOf<Any>(shareId, linkId))
             }
         }
 

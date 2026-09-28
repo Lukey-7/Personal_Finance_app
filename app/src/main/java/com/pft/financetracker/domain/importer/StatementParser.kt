@@ -86,12 +86,14 @@ object ColumnDetector {
     /** True when the cell is exactly a header word (used to spot a header repeated on a later page). */
     fun isHeaderCell(cell: String): Boolean { val n = norm(cell); return n.isNotEmpty() && synonyms.any { (_, ws) -> n in ws } }
 
+    private val cardRx = Regex("""\bcard\b""")
+
     /** Role for one header cell, or null. Longest synonym wins ("withdrawal amt" over "amt"). */
     fun roleOf(cell: String): Role? {
         val n = norm(cell)
         if (n.isEmpty() || n.length > 40) return null
         // "Credit Card No" / "Card Number" hold a masked card number, not money.
-        if (Regex("""\bcard\b""").containsMatchIn(n)) return null
+        if (cardRx.containsMatchIn(n)) return null
         var best: Role? = null; var bestLen = 0
         for ((role, words) in synonyms) for (w in words) {
             val hit = n == w || n.startsWith("$w ") || n.endsWith(" $w") || (w.length >= 5 && n.contains(w))
@@ -166,7 +168,8 @@ object ColumnDetector {
 /** Dates as banks print them, plus Excel serials. Indian order (day first) when ambiguous. */
 object Dates {
     private val patterns = listOf(
-        "yyyy-MM-dd'T'HH:mm:ss.SSSX", "yyyy-MM-dd'T'HH:mm:ssX",
+        // XXX reads "+05:30" and "Z", XX "+0530", X "+05".
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX", "yyyy-MM-dd'T'HH:mm:ssXXX", "yyyy-MM-dd'T'HH:mm:ssXX", "yyyy-MM-dd'T'HH:mm:ss.SSSX", "yyyy-MM-dd'T'HH:mm:ssX",
         "dd/MM/yyyy HH:mm:ss", "dd/MM/yyyy HH:mm", "dd-MM-yyyy HH:mm:ss", "dd-MM-yyyy HH:mm", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss",
         "dd MMM yyyy, hh:mm a", "dd MMM yyyy hh:mm a", "dd MMM yyyy HH:mm", "dd-MMM-yyyy HH:mm:ss",
         "dd/MM/yyyy", "dd/MM/yy", "dd-MM-yyyy", "dd-MM-yy", "dd.MM.yyyy", "dd.MM.yy", "yyyy-MM-dd", "yyyy/MM/dd",
@@ -175,10 +178,19 @@ object Dates {
     )
     private val looksDate = Regex("""\d{1,4}[-/. ](?:\d{1,2}|[A-Za-z]{3,9})[-/. ,]+\d{2,4}|^[A-Za-z]{3,9} \d{1,2}, \d{4}|^\d{1,2}[A-Za-z]{3}\d{2,4}""")
 
+    private val spaces = Regex("""\s+""")
+    private val septRx = Regex("""(?i)\bsept\b""")
+
+    /**
+     * A cell of the date column: anything [parse] reads, plus Excel serials with a short fraction ("46266.5" is noon).
+     * Elsewhere those look like money, so only the date column reads them as dates.
+     */
+    fun parseDateCell(raw: String): Long? = parse(raw) ?: raw.trim().takeIf { it.contains('.') }?.let { excelSerial("xlserial:$it") }
+
     /** Epoch millis (local time), or null. */
     fun parse(raw: String, now: Long = System.currentTimeMillis()): Long? {
         // "Sept" is how Indian banks and en-IN write September; the English formatter only knows "Sep".
-        val s = raw.trim().replace(Regex("""\s+"""), " ").replace(Regex("""(?i)\bsept\b"""), "Sep")
+        val s = raw.trim().replace(spaces, " ").replace(septRx, "Sep")
         if (s.isEmpty() || s.length > 32) return null
         excelSerial(s)?.let { return it }
         if (!looksDate.containsMatchIn(s)) return null
@@ -287,8 +299,10 @@ object NarrationParser {
  */
 object StatementInterpreter {
     private val footer = Regex("""\b(opening balance|closing balance|total|grand total|statement summary|brought forward|carried forward|b/f|c/f|end of statement|page \d+)\b""", RegexOption.IGNORE_CASE)
-    /** A line that is only a footer ("Page 2 of 5", "Closing Balance | 9,500.00 Cr"), not a narration that mentions one ("TOTAL ENERGIES"). */
-    private val footerOnly = Regex("""^\s*(opening balance|closing balance|grand total|total|statement summary|brought forward|carried forward|b/f|c/f|end of statement|page \d+(?: of \d+)?)\b[^a-z]*(?:\b(?:cr|dr)\b[^a-z]*)?$""", RegexOption.IGNORE_CASE)
+    /** Footer phrases no narration uses: wherever they appear on an undated line, the line is not a transaction. */
+    private val footerPhrase = Regex("""\b(opening balance|closing balance|statement summary|brought forward|carried forward|b/f|c/f|end of statement|page \d+)\b""", RegexOption.IGNORE_CASE)
+    /** "Total" on its own (with numbers): "TOTAL ENERGIES" is a narration that wrapped, "Total | 1,000.00" is a footer. */
+    private val totalOnly = Regex("""^\s*(grand )?total\b[^a-z]*(?:\b(?:cr|dr)\b[^a-z]*)?$""", RegexOption.IGNORE_CASE)
     private val summaryStart = Regex("""\b(statement summary|end of statement)\b""", RegexOption.IGNORE_CASE)
     private val openingRx = Regex("""opening balance|brought forward|b/f""", RegexOption.IGNORE_CASE)
 
@@ -298,18 +312,20 @@ object StatementInterpreter {
         val raws = mutableListOf<Raw>()
         val problems = mutableListOf<RowProblem>()
         var opening: Long? = null
+        var inSummary = false
         for ((i, row) in table.withIndex()) {
             if (i <= map.headerRow) continue
             fun cell(r: ColumnDetector.Role) = map[r]?.let { row.getOrNull(it) }?.trim().orEmpty()
             val text = row.filter { it.isNotBlank() }.joinToString(" | ")
             if (row.count { ColumnDetector.isHeaderCell(it) } >= 3) continue // header repeated on a new page
-            val date = Dates.parse(cell(ColumnDetector.Role.DATE)) ?: Dates.parse(cell(ColumnDetector.Role.VALUE_DATE))
+            val date = Dates.parseDateCell(cell(ColumnDetector.Role.DATE)) ?: Dates.parseDateCell(cell(ColumnDetector.Role.VALUE_DATE))
             val desc = cell(ColumnDetector.Role.DESC)
             val hasMoney = listOf(ColumnDetector.Role.DEBIT, ColumnDetector.Role.CREDIT, ColumnDetector.Role.AMOUNT).any { Amounts.parse(cell(it)) != null }
             if (date == null) {
-                // The account summary after the table ("Opening Balance  Dr Count  Cr Count  Debits ...") is not transactions.
-                if (summaryStart.containsMatchIn(text)) break
-                if (footerOnly.matches(text) || (hasMoney && footer.containsMatchIn(text))) {
+                // An account summary ("Opening Balance  Dr Count  Cr Count  Debits ...") has undated number lines that are
+                // not transactions. Dated rows after it (a consolidated statement) are still read.
+                if (summaryStart.containsMatchIn(text)) inSummary = true
+                if (footerPhrase.containsMatchIn(text) || totalOnly.matches(text) || (hasMoney && footer.containsMatchIn(text))) {
                     if (openingRx.containsMatchIn(text) && opening == null)
                         opening = Amounts.parseSigned(cell(ColumnDetector.Role.BALANCE))?.let { if (it.dr == true) -it.paise else it.paise }
                     continue
@@ -320,8 +336,8 @@ object StatementInterpreter {
                     if (last != null && desc.isNotBlank()) raws[raws.size - 1] = last.copy(narration = "${last.narration} $desc".trim(), text = "${last.text} $desc")
                     continue
                 }
-                // Bare numbers with no narration: a summary or subtotal line, not a transaction.
-                if (desc.isBlank()) continue
+                // Bare numbers with no narration, or the numbers of an account summary: not a transaction.
+                if (desc.isBlank() || inSummary) continue
                 // Money and a narration on a line whose date can't be read: never guess, never drop it. It goes to review below.
             }
             if (footer.containsMatchIn(desc) && openingRx.containsMatchIn(desc)) {

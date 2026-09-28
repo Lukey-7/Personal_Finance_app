@@ -60,24 +60,41 @@ object PositionedTable {
             body += Row(lines[i].page, lines[i].y, cells)
         }
 
-        // Rows drawn vertically centred put the first line of a long narration *above* the date line. A text-only line
-        // that sits closer to the next dated line than to the previous one belongs to the next transaction.
+        // Wrapped narration lines sit below their date line (top-aligned rows) or on both sides of it (vertically centred
+        // rows, where a long narration starts *above* the date). A run of text-only lines between two dated rows on one
+        // page is split at its widest vertical gap: lines before it belong to the row above, lines after it to the row
+        // below. A tie keeps them with the row above, which is how most statements are drawn.
         val roles = header.map { ColumnDetector.roleOf(it.text) }
         val moneyRoles = setOf(ColumnDetector.Role.DEBIT, ColumnDetector.Role.CREDIT, ColumnDetector.Role.AMOUNT, ColumnDetector.Role.BALANCE)
-        fun dated(r: Row) = r.cells.indices.any { j -> (roles[j] == ColumnDetector.Role.DATE || roles[j] == ColumnDetector.Role.VALUE_DATE) && Dates.parse(r.cells[j]) != null }
-        fun textOnly(r: Row) = !dated(r) && r.cells.indices.none { j -> roles[j] in moneyRoles && r.cells[j].isNotBlank() } && r.cells.any { it.isNotBlank() }
-        // Bottom-up, so two such lines above one row keep their order when both move down.
-        for (k in body.indices.reversed()) {
-            val r = body[k]
-            if (!textOnly(r)) continue
-            val prev = (k - 1 downTo 0).firstOrNull { dated(body[it]) }?.let { body[it] }?.takeIf { it.page == r.page }
-            val next = (k + 1 until body.size).firstOrNull { !textOnly(body[it]) }?.let { body[it] }?.takeIf { dated(it) && it.page == r.page }
-            if (next != null && (prev == null || next.y - r.y < r.y - prev.y)) {
-                for (j in next.cells.indices) next.cells[j] = (r.cells[j] + " " + next.cells[j]).trim()
-                body.removeAt(k)
-            }
+        val dated = BooleanArray(body.size) { k -> body[k].cells.indices.any { j -> (roles[j] == ColumnDetector.Role.DATE || roles[j] == ColumnDetector.Role.VALUE_DATE) && Dates.parse(body[k].cells[j]) != null } }
+        val textOnly = BooleanArray(body.size) { k -> !dated[k] && body[k].cells.indices.none { j -> roles[j] in moneyRoles && body[k].cells[j].isNotBlank() } && body[k].cells.any { it.isNotBlank() } }
+        val moveDown = BooleanArray(body.size)
+        var k = 0
+        while (k < body.size) {
+            if (!textOnly[k]) { k++; continue }
+            val start = k
+            while (k < body.size && textOnly[k]) k++
+            val above = start - 1; val below = k
+            if (above < 0 || below >= body.size || !dated[above] || !dated[below]) continue
+            if (body[above].page != body[below].page || (start until below).any { body[it].page != body[above].page }) continue
+            // Gaps: above -> first line, between lines, last line -> below. Split after the widest (last widest on a tie).
+            val ys = listOf(body[above].y) + (start until below).map { body[it].y } + body[below].y
+            val gaps = ys.zipWithNext { a, b -> b - a }
+            val widest = gaps.indices.maxWithOrNull(compareBy<Int> { gaps[it] }.thenBy { it })!!
+            for (m in start + widest until below) moveDown[m] = true
         }
-        return listOf(header.map { it.text }) + body.map { it.cells }
+        val out = mutableListOf<List<String>>()
+        out += header.map { it.text }
+        val carry = mutableListOf<Row>()
+        for ((m, r) in body.withIndex()) {
+            if (moveDown[m]) { carry += r; continue }
+            if (carry.isNotEmpty()) {
+                for (j in r.cells.indices) r.cells[j] = (carry.joinToString(" ") { it.cells[j] } + " " + r.cells[j]).trim()
+                carry.clear()
+            }
+            out += r.cells
+        }
+        return out
     }
 
     private fun lines(words: List<Word>): List<Line> {
@@ -119,7 +136,11 @@ object AppHistoryParser {
     private val noise = Regex("""^(debited from|credited to|paid|received|completed|successful|success|view details|upi|split|bank|₹.*|\d.*)$""", RegexOption.IGNORE_CASE)
     private val months = "jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|january|february|march|april|june|july|august|september|october|november|december"
     private val dateLike = Regex("""\b(today|yesterday|\d{1,2}\s+(?:$months)\b[^\n]*|(?:$months)\s+\d{1,2}\b[^\n]*|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}[^\n]*)""", RegexOption.IGNORE_CASE)
-    private val monthHeader = Regex("""^(?:$months)\s*\d{0,4}$""", RegexOption.IGNORE_CASE)
+    /** "September", "September 2026": a month, not a day ("Sep 12" is a day header and dates the rows below it). */
+    private val monthHeader = Regex("""^(?:$months)(?:\s+\d{4})?$""", RegexOption.IGNORE_CASE)
+    private val statusStart = Regex("""^\W*(failed|declined|pending|processing|cancelled|expired|reversed|request(?:ed)?|scheduled)\b""", RegexOption.IGNORE_CASE)
+    private val debitMarkers = Regex("""\b(paid to|sent to|debited)\b""", RegexOption.IGNORE_CASE)
+    private val indianRx = Regex("""^\d{1,2}(,\d{2})*,\d{3}$""")
 
     /**
      * One OCR line; [w] is its box width (0 when unknown), used to tell a misread ₹ from a real digit. [page] is which
@@ -149,15 +170,19 @@ object AppHistoryParser {
             // The row: lines at the same height, plus the one or two lines just below (date, status).
             val band = sorted.withIndex().filter { (j, o) -> j !in used && (abs(o.y - l.y) <= maxOf(l.h, o.h) * 0.7f || (o.y > l.y && o.y - l.y <= l.h * 2.6f)) }
             val text = band.joinToString(" \n ") { it.value.text }
-            if (band.any { statusLine(it.value.text) }) { band.forEach { used += it.index }; continue }
-            val nameLine = band.filter { (j, o) -> o !== l && j !in amounts && amountRx.find(o.text) == null && dateLike.find(o.text) == null }.map { it.value }
-                .map { prefix.replace(it.text.trim(), "").trim() }.firstOrNull { it.isNotBlank() && !noise.matches(it) && it.count { c -> c.isLetter() } >= 2 }
-                ?: prefix.replace(l.text.replace(am.matched, "").trim(), "").trim().takeIf { it.count { c -> c.isLetter() } >= 2 }
-                ?: continue
+            val named = band.filter { (j, o) -> o !== l && j !in amounts && amountRx.find(o.text) == null && dateLike.find(o.text) == null }.map { it.value }
+                .map { it to prefix.replace(it.text.trim(), "").trim() }.firstOrNull { (_, n) -> n.isNotBlank() && !noise.matches(n) && n.count { c -> c.isLetter() } >= 2 }
+                ?: (l to prefix.replace(l.text.replace(am.matched, "").trim(), "").trim()).takeIf { it.second.count { c -> c.isLetter() } >= 2 }
+            // Failed, pending, requested or scheduled: a status word on any other line of the row ("Pending · Today",
+            // "Failed - money will be refunded"), or at the start of the name line ("Request from Rahul"). A merchant
+            // called "Pending Bills Store" under "Paid to" is still a payment.
+            val status = band.any { (_, o) -> o !== named?.first && skipWords.containsMatchIn(o.text) } || (named != null && statusStart.containsMatchIn(named.first.text.replace(am.matched, "")))
+            if (status) { band.forEach { used += it.index }; continue }
+            val nameLine = named?.second ?: continue
             val type = when {
                 sign == "+" -> TransactionType.CREDIT
                 sign == "-" || sign == "−" -> TransactionType.DEBIT
-                creditWords.containsMatchIn(text) && !Regex("""\b(paid to|sent to|debited)\b""", RegexOption.IGNORE_CASE).containsMatchIn(text) -> TransactionType.CREDIT
+                creditWords.containsMatchIn(text) && !debitMarkers.containsMatchIn(text) -> TransactionType.CREDIT
                 else -> TransactionType.DEBIT
             }
             val whenText = band.map { it.value.text }.firstNotNullOfOrNull { dateLike.find(it)?.value }
@@ -170,14 +195,8 @@ object AppHistoryParser {
         // Rs 20 teas on one day), so each row is kept as many times as the screenshot that shows it most often.
         val kept = rows.indices.groupBy { i -> rows[i].let { listOf(it.counterparty.lowercase(Locale.ROOT), it.amountPaise, it.type, it.time ?: it.date) } }.values
             .flatMap { same -> same.groupBy { pages[it] }.values.maxByOrNull { it.size }!!.map { rows[it] } }
-        return kept.sortedWith(compareBy({ it.date }, { it.time ?: 0L })).mapIndexed { i, r -> r.copy(order = i) }
-    }
-
-    /** A status line ("Failed", "Payment failed", "Refund processing"), not a name that happens to contain the word. */
-    private fun statusLine(t: String): Boolean {
-        if (!skipWords.containsMatchIn(t)) return false
-        val rest = t.replace(skipWords, " ").replace(Regex("""\b(payment|transaction|money|transfer|refund|upi|is|was|has|been|your|the|of|to|by|bank|request)\b""", RegexOption.IGNORE_CASE), " ")
-        return rest.count { it.isLetter() } < 3
+        // Numbered like statement rows, so two identical teas stay two transactions when stored.
+        return StatementInterpreter.numbered(kept.sortedWith(compareBy({ it.date }, { it.time ?: 0L })))
     }
 
     private data class Amt(val sign: String, val paise: Long, val matched: String)
@@ -216,7 +235,11 @@ object AppHistoryParser {
         val g = when {
             measured.size >= 2 -> (8..400).map { it / 2.0 }.minByOrNull { g -> measured.sumOf { c -> options(c).minOf { err(c, it.second, g) } } }
             // One amount can't fit a glyph width on its own; a digit is about 0.55 of the line height in these apps.
-            measured.size == 1 && measured[0].line.h > 0 -> measured[0].line.h * 0.55
+            // That is only an estimate, so it decides only when one reading fits clearly better (by half a glyph).
+            measured.size == 1 && measured[0].line.h > 0 -> (measured[0].line.h * 0.55).takeIf { g1 ->
+                val errs = options(measured[0]).map { err(measured[0], it.second, g1) }.sorted()
+                errs.size < 2 || errs[1] - errs[0] >= 0.5
+            }
             else -> null
         }
 
@@ -248,7 +271,7 @@ object AppHistoryParser {
     /** "1,23,456" or "999" (whole rupees; paise ignored). A number without commas is fine too. */
     private fun indianGrouping(d: String): Boolean {
         val r = d.substringBefore('.')
-        return !r.contains(',') || Regex("""^\d{1,2}(,\d{2})*,\d{3}$""").matches(r)
+        return !r.contains(',') || indianRx.matches(r)
     }
 
     /** "Today, 8:30 pm", "Yesterday", "12 Sep, 8:30 PM", "Sep 12, 2026", "12 September 2026", "12/09/2026 20:30". */
