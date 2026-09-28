@@ -98,4 +98,23 @@ class MigrationTest {
         }
         db.close()
     }
+
+    /** v1.2: existing transactions and splits survive; the new columns start empty and splits count as manual. */
+    @Test
+    fun migrate4To5KeepsDataAndAddsSplitIntelligenceTables() {
+        helper.createDatabase(dbName, 4).apply {
+            execSQL("INSERT INTO transactions (id, amountPaise, type, merchant, category, timestamp, bankName, accountRef, source, flow, note, smsHash, refNumber, confidence, needsReview, createdAt, originalAmountPaise, userEdited) VALUES (1, 30000, 'DEBIT', 'Dinner', 'FOOD', 1700000000000, 'HDFC Bank', '1234', 'SMS', 'EXPENSE', NULL, 'h1', NULL, 90, 0, 1700000000000, 90000, 0)")
+            execSQL("INSERT INTO splits (id, title, totalPaise, date, mode, payerIndex, linkedTransactionId, note, createdAt) VALUES (1, 'Dinner', 90000, 1700000000000, 'EQUAL', 0, 1, NULL, 1700000000000)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(dbName, 5, true, AppDatabase.MIGRATION_4_5)
+        db.query("SELECT amountPaise, originalAmountPaise, counterpartyKind, importBatchId FROM transactions WHERE id = 1").use { c ->
+            c.moveToNext(); assertEquals(30_000L, c.getLong(0)); assertEquals(90_000L, c.getLong(1)); assertTrue(c.isNull(2)); assertTrue(c.isNull(3))
+        }
+        db.query("SELECT source, status, kind FROM splits WHERE id = 1").use { c ->
+            c.moveToNext(); assertEquals("MANUAL", c.getString(0)); assertEquals("APPLIED", c.getString(1)); assertEquals("PAYBACK", c.getString(2))
+        }
+        db.query("SELECT COUNT(*) FROM split_links").use { c -> c.moveToNext(); assertEquals(0, c.getInt(0)) }
+        db.close()
+    }
 }

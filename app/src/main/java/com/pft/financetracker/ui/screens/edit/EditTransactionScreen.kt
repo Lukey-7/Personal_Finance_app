@@ -45,6 +45,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,7 +70,7 @@ import com.pft.financetracker.ui.components.SoftPanel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: () -> Unit) {
+fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSplit: (Long) -> Unit = {}, onBack: () -> Unit) {
     var existing by remember { mutableStateOf<Transaction?>(null) }
     var amount by remember { mutableStateOf("") }
     var merchant by remember { mutableStateOf("") }
@@ -132,6 +133,8 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
         confidence = existing?.confidence ?: 100,
         needsReview = false,
         originalAmountPaise = existing?.originalAmountPaise,
+        counterpartyKind = existing?.counterpartyKind,
+        importBatchId = existing?.importBatchId,
     )
 
     Scaffold(
@@ -153,6 +156,22 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onBack: 
                 .padding(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            val autoSplit = id?.let { vm.autoSplitOf.collectAsState().value[it] }
+            existing?.takeIf { it.originalAmountPaise != null || autoSplit != null }?.let { t ->
+                SoftPanel {
+                    CapsLabel(if (autoSplit != null) "Auto-split" else "Split")
+                    Text(
+                        if (t.type == TransactionType.DEBIT && t.originalAmountPaise != null) "The bank reported ${com.pft.financetracker.ui.components.money(t.originalAmountPaise)}; only your share, ${com.pft.financetracker.ui.components.money(t.amountPaise)}, counts as spend."
+                        else "This transfer is a friend paying back their share, so it isn't counted as income.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    autoSplit?.reasons?.take(3)?.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    if (autoSplit != null) Row {
+                        TextButton(onClick = { onOpenSplit(autoSplit.id) }) { Text("Open split") }
+                        TextButton(onClick = { vm.rejectSplit(autoSplit.id); onBack() }) { Text("Not a split") }
+                    }
+                }
+            }
             reviewBody?.let {
                 SoftPanel {
                     CapsLabel("Original message")

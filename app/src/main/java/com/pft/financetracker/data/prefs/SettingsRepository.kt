@@ -49,6 +49,17 @@ class SettingsRepository(context: Context) {
     private val _myName = MutableStateFlow(plain.getString(KEY_MY_NAME, "Me") ?: "Me")
     val myName: StateFlow<String> = _myName
 
+    /** Split intelligence may ask the AI (with the user's key) about unclear group payments. On by default. */
+    private val _splitAi = MutableStateFlow(plain.getBoolean(KEY_SPLIT_AI, true))
+    val splitAi: StateFlow<Boolean> = _splitAi
+    fun setSplitAi(v: Boolean) { plain.edit().putBoolean(KEY_SPLIT_AI, v).apply(); _splitAi.value = v }
+
+    /**
+     * AI answers kept by request, so an unchanged week is never asked (or paid for) twice. The requests are the
+     * anonymised payloads, the answers the model's JSON; at most 300 are kept.
+     */
+    val aiAnswerCache = PrefsAiAnswerCache(context)
+
     init {
         _hasApiKey.value = runCatching { !secure.getString(KEY_API, null).isNullOrBlank() }.getOrDefault(false)
     }
@@ -103,6 +114,8 @@ class SettingsRepository(context: Context) {
         _autoImport.value = true
         _countCashAsSpend.value = true
         _myName.value = "Me"
+        _splitAi.value = true
+        aiAnswerCache.clear()
     }
 
     private companion object {
@@ -112,7 +125,24 @@ class SettingsRepository(context: Context) {
         const val KEY_AUTO_IMPORT = "auto_import"
         const val KEY_CASH_SPEND = "cash_as_spend"
         const val KEY_MY_NAME = "my_name"
+        const val KEY_SPLIT_AI = "split_ai"
         const val KEY_API_SEEDED = "api_key_seeded"
         const val KEY_API_USER_MANAGED = "api_key_user_managed"
     }
+}
+
+/**
+ * AI answers kept by request, so an unchanged week is never asked (or paid for) twice. Keys are hashes of the
+ * anonymised payloads; values the model's JSON. At most about 300 are kept.
+ */
+class PrefsAiAnswerCache(context: Context) : com.pft.financetracker.data.split.AiAnswerCache {
+    private val prefs = context.getSharedPreferences("fintrack_ai_cache", Context.MODE_PRIVATE)
+    private fun key(req: String) = java.security.MessageDigest.getInstance("SHA-256").digest(req.toByteArray()).joinToString("") { "%02x".format(it) }
+    override fun get(requestJson: String): String? = prefs.getString(key(requestJson), null)
+    override fun put(requestJson: String, answer: String) {
+        val e = prefs.edit()
+        if (prefs.all.size > 300) prefs.all.keys.take(100).forEach { e.remove(it) }
+        e.putString(key(requestJson), answer).apply()
+    }
+    fun clear() = prefs.edit().clear().apply()
 }

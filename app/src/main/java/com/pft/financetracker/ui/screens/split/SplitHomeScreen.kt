@@ -115,13 +115,20 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
                         Column(Modifier.weight(1f)) {
                             Text(s.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "${dateOnly(s.date)} · ${s.people.size} people · ${s.mode.label} · paid by ${s.people.getOrNull(s.payerIndex)?.name ?: "?"}",
+                                listOfNotNull(
+                                    when { s.isSuggestion -> "Suggested"; s.isAuto -> "Auto-split"; else -> null },
+                                    dateOnly(s.date), "${s.people.size} people",
+                                    if (s.isAuto) "your share ${money(s.myShare?.amountPaise ?: 0)}" else "${s.mode.label} · paid by ${s.people.getOrNull(s.payerIndex)?.name ?: "?"}",
+                                ).joinToString(" · "),
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text(money(s.totalPaise), fontWeight = FontWeight.SemiBold)
-                            Text(if (s.settled) "settled" else "${money(s.outstandingPaise)} open", style = MaterialTheme.typography.labelSmall, color = if (s.settled) Income else MaterialTheme.colorScheme.tertiary)
+                            Text(
+                                when { s.isSuggestion -> "tap to review"; s.settled -> "settled"; else -> "${money(s.outstandingPaise)} open" },
+                                style = MaterialTheme.typography.labelSmall, color = if (s.settled && !s.isSuggestion) Income else MaterialTheme.colorScheme.tertiary,
+                            )
                         }
                     }
                 }

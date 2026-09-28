@@ -93,6 +93,48 @@ class OpenAiClient(private val model: String = "gpt-4o-mini") {
         }
     }
 
+    /**
+     * One JSON-mode chat call (used by split intelligence). [user] must already be anonymised by the caller; see
+     * [com.pft.financetracker.domain.split.SplitAiRequest]. Returns the model's JSON text.
+     */
+    suspend fun chatJson(apiKey: String, system: String, user: String, maxTokens: Int = 1500): Result = withContext(Dispatchers.IO) {
+        val body = JSONObject().apply {
+            put("model", model)
+            put("temperature", 0)
+            put("max_tokens", maxTokens)
+            put("response_format", JSONObject().put("type", "json_object"))
+            put("messages", JSONArray().apply {
+                put(JSONObject().put("role", "system").put("content", system))
+                put(JSONObject().put("role", "user").put("content", user))
+            })
+        }
+        post(apiKey, body)
+    }
+
+    private fun post(apiKey: String, body: JSONObject): Result = try {
+        val conn = (URL("https://api.openai.com/v1/chat/completions").openConnection() as HttpsURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 20_000
+            readTimeout = 90_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Authorization", "Bearer $apiKey")
+            useCaches = false
+        }
+        conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+        val code = conn.responseCode
+        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+        val text = stream?.bufferedReader()?.use { it.readText() } ?: ""
+        conn.disconnect()
+        if (code !in 200..299) {
+            Result.Error(sanitize(runCatching { JSONObject(text).getJSONObject("error").getString("message") }.getOrDefault("HTTP $code")))
+        } else {
+            Result.Ok(JSONObject(text).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content").trim())
+        }
+    } catch (e: Exception) {
+        Result.Error(sanitize(e.message ?: "Network error"))
+    }
+
     /** Make sure an error string can never echo the key back into the UI. */
     private fun sanitize(s: String) = s.replace(Regex("""sk-[A-Za-z0-9_\-]{8,}"""), "sk-***")
 

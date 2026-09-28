@@ -74,7 +74,7 @@ fun TransactionRow(t: Transaction, showDate: Boolean = true, onClick: () -> Unit
             )
             // A short flow tag only where the colour alone doesn't say it; the date only where the list
             // has no date headers of its own (Activity groups by day, so it would just repeat).
-            val tag = flowTag(t.flow) ?: if (showDate) shortDate(t.timestamp) else null
+            val tag = flowTag(t.flow) ?: (if (t.originalAmountPaise != null && t.type == TransactionType.DEBIT) "Your share" else null) ?: if (showDate) shortDate(t.timestamp) else null
             if (tag != null) Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }

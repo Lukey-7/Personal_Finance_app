@@ -21,6 +21,15 @@ enum class Flow(val label: String) {
     }
 }
 
+/** The other side of a transaction. Only money from a PERSON can be a split payback. */
+enum class CounterpartyKind {
+    PERSON, ORGANISATION, UNKNOWN;
+
+    companion object {
+        fun fromName(name: String?): CounterpartyKind? = entries.firstOrNull { it.name == name }
+    }
+}
+
 /** Money helpers. All amounts are stored as whole paise (Long) so sums never drift. */
 object Money {
     fun toPaise(rupees: Double): Long = Math.round(rupees * 100.0)
@@ -137,8 +146,13 @@ data class Transaction(
     val originalAmountPaise: Long? = null,
     /** A person corrected this row; automatic processes must leave it alone. */
     val userEdited: Boolean = false,
+    /** Who is on the other side: a person or an organisation. Decided once, while the SMS or statement text is at hand. */
+    val counterpartyKind: CounterpartyKind? = null,
+    /** The statement or screenshot import that added this row, so a whole import can be undone. Null for SMS and manual rows. */
+    val importBatchId: Long? = null,
 ) {
-    enum class Source { SMS, MANUAL, SPLIT }
+    /** SMS alert, typed by hand, created by a split, or read from an imported statement / screenshot. */
+    enum class Source { SMS, MANUAL, SPLIT, STATEMENT }
     val amount: Double get() = Money.toRupees(amountPaise)
 }
 

@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Sms
+import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,7 +49,7 @@ import com.pft.financetracker.ui.components.money
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Unit, onOpenReview: () -> Unit, onOpenSmsLog: () -> Unit) {
+fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Unit, onOpenReview: () -> Unit, onOpenSmsLog: () -> Unit, onOpenImport: () -> Unit = {}) {
     val txns by vm.transactions.collectAsState()
     val reviewCount by vm.reviewCount.collectAsState()
     var query by remember { mutableStateOf("") }
@@ -74,6 +75,7 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
                             Icon(Icons.Outlined.Inbox, "Needs review: $reviewCount")
                         }
                     }
+                    IconButton(onClick = onOpenImport) { Icon(Icons.Outlined.UploadFile, "Import statement") }
                     IconButton(onClick = onOpenSmsLog) { Icon(Icons.Outlined.Sms, "SMS log") }
                 },
             )

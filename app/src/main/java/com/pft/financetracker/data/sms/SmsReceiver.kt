@@ -30,6 +30,9 @@ class SmsReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 container.importer.process(SmsMessage(sender, body, ts))
+                // A friend's payback may complete a shared payment. Local rules only: a receiver has seconds, and the
+                // AI judge runs on the next scan or import instead.
+                container.splitEngine.run(useAi = false)
             } catch (_: Exception) {
                 // Never crash the receiver; a missed message can be picked up by the next inbox scan.
             } finally {

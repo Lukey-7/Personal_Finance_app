@@ -17,6 +17,7 @@ import com.pft.financetracker.domain.parser.Hashing
 import com.pft.financetracker.domain.parser.ParseResult
 import com.pft.financetracker.domain.parser.SmsMessage
 import com.pft.financetracker.domain.parser.SmsParser
+import com.pft.financetracker.domain.split.PayerClassifier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -166,6 +167,8 @@ class SmsImporter(
                     refNumber = p.refNumber,
                     confidence = p.confidence,
                     needsReview = false,
+                    // Decided now, while the full text (VPA, P2A/P2M markers) is at hand: the body is not stored.
+                    counterpartyKind = PayerClassifier.classify(sms.body, p.merchant, p.type),
                 )
                 val existing = repo.findLikelyDuplicate(candidate) { log.pointsAt(it) }
                 if (existing != null) {
@@ -183,6 +186,10 @@ class SmsImporter(
                         repo.richer(existing, candidate).copy(
                             id = existing.id, smsHash = existing.smsHash, type = candidate.type, flow = candidate.flow, category = candidate.category,
                             amountPaise = existing.amountPaise, originalAmountPaise = existing.originalAmountPaise, note = existing.note,
+                            counterpartyKind = existing.counterpartyKind ?: candidate.counterpartyKind, importBatchId = existing.importBatchId,
+                            source = existing.source,
+                            // A statement row only knew the day; the SMS knows the minute.
+                            timestamp = if (existing.source == Transaction.Source.STATEMENT) candidate.timestamp else existing.timestamp,
                         )
                     }
                     if (merged != existing) repo.update(merged)

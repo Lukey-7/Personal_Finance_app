@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.ui.text.style.TextOverflow
 import com.pft.financetracker.ui.components.AddFab
@@ -100,6 +101,7 @@ fun DashboardScreen(
     onOpenBudgets: () -> Unit,
     onOpenSmsLog: (Long?) -> Unit,
     onDrill: (Bucket, Category?) -> Unit,
+    onOpenSplit: (Long) -> Unit = {},
 ) {
     val txns by vm.transactions.collectAsState()
     val budgets by vm.budgets.collectAsState()
@@ -107,6 +109,7 @@ fun DashboardScreen(
     val importState by vm.importState.collectAsState()
     val choice by vm.period.collectAsState()
     val includeCash by vm.countCashAsSpend.collectAsState()
+    val suggestions by vm.splitSuggestions.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var showRange by remember { mutableStateOf(false) }
 
@@ -200,6 +203,30 @@ fun DashboardScreen(
                             fontWeight = FontWeight.Bold,
                             color = if (summary.savingsPaise >= 0) Income else Expense,
                         )
+                    }
+                }
+            }
+
+            // ---- Shared payments waiting for a yes ----
+            if (suggestions.isNotEmpty()) item {
+                FinCard(Modifier.padding(horizontal = Gutter)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Groups, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(10.dp))
+                        Text(if (suggestions.size == 1) "Looks like a shared payment" else "${suggestions.size} payments look shared", style = MaterialTheme.typography.titleMedium)
+                    }
+                    suggestions.take(3).forEachIndexed { i, s ->
+                        if (i > 0) Hairline()
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val mine = s.myShare?.amountPaise ?: s.totalPaise
+                            Text("${money(s.totalPaise)} at ${s.title} · your share would be ${money(mine)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            s.reasons.firstOrNull { !it.startsWith("Your share") }?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(onClick = { vm.acceptSplit(s.id) }) { Text("Yes, split it") }
+                                TextButton(onClick = { vm.rejectSplit(s.id) }) { Text("Not a split") }
+                                TextButton(onClick = { onOpenSplit(s.id) }) { Text("Details") }
+                            }
+                        }
                     }
                 }
             }

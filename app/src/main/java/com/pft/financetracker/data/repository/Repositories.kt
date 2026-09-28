@@ -20,6 +20,7 @@ import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.domain.split.BillItem
+import com.pft.financetracker.domain.split.PayerClassifier
 import com.pft.financetracker.domain.split.Split
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -63,12 +64,19 @@ class TransactionRepository(
         val to = maxOf(dayEnd, candidate.timestamp + windowMillis)
 
         // Same direction first, so a same-day refund never takes a legacy row its own debit should have matched.
-        return dao.findSimilar(candidate.amountPaise, from, to).map { it.toDomain() }.sortedBy { it.type != candidate.type }.firstOrNull { existing ->
+        val similar = dao.findSimilar(candidate.amountPaise, minOf(from, dayStart - 86_400_000L), to).map { it.toDomain() }
+        val sameDayUnique = similar.count { it.type == candidate.type && it.source == Transaction.Source.STATEMENT } == 1
+        return similar.sortedBy { it.type != candidate.type }.firstOrNull { existing ->
             // Two references that both exist and disagree mean two genuinely different payments.
             if (existing.refNumber != null && candidate.refNumber != null && existing.refNumber != candidate.refNumber) return@firstOrNull false
             val sameMerchant = InsightsEngine.normalizeMerchant(existing.merchant) == InsightsEngine.normalizeMerchant(candidate.merchant)
             val genericMerchant = isGeneric(existing.merchant) || isGeneric(candidate.merchant)
             when {
+                // A row imported from a statement only knows its day (and the statement may book it a day late). Same
+                // direction, and the names must agree: ten Rs 1,000 paybacks on one day are ten different people.
+                existing.source == Transaction.Source.STATEMENT ->
+                    existing.type == candidate.type && kotlin.math.abs(startOfDay(existing.timestamp) - dayStart) <= 86_400_000L &&
+                        !isClaimed(existing.id) && (PayerClassifier.sameParty(existing.merchant, candidate.merchant) || (genericMerchant && sameDayUnique))
                 // A v1.0.0 row: exactly midnight on this day, possibly with the direction the old parser guessed. Each
                 // stands for one SMS, so once one has matched it (its own debit, scanned first), a same-day refund of
                 // the same amount is a second payment and must not merge into it and flip it.
@@ -196,12 +204,17 @@ class SmsLogRepository(private val dao: SmsLogDao) {
 class SplitRepository(private val dao: SplitDao) {
     val all: Flow<List<Split>> = combine(dao.observeSplits(), dao.observePeople(), dao.observeShares()) { s, p, sh -> assembleSplits(s, p, sh) }
     val recentPeople: Flow<List<String>> = dao.observeRecentPeople().map { list -> list.map { it.name } }
+    val links: Flow<List<com.pft.financetracker.data.local.SplitLinkEntity>> = dao.observeLinks()
 
     suspend fun itemsFor(splitId: Long): List<BillItem> = dao.itemsFor(splitId).map { it.toDomain() }
 
     suspend fun save(split: Split, items: List<BillItem>): Long {
         val id = dao.insertFull(
-            SplitEntity(0, split.title, split.totalPaise, split.date, split.mode.name, split.payerIndex, split.linkedTransactionId, split.note, split.createdAt),
+            SplitEntity(
+                0, split.title, split.totalPaise, split.date, split.mode.name, split.payerIndex, split.linkedTransactionId, split.note, split.createdAt,
+                source = split.source.name, status = split.status.name, confidence = split.confidence,
+                reasons = split.reasons.joinToString("\n").ifBlank { null }, kind = split.kind.name,
+            ),
             split.people.mapIndexed { i, p -> SplitPersonEntity(0, 0, i, p.name, p.isMe) },
             split.shares.map { SplitShareEntity(0, 0, it.personIndex, it.amountPaise, it.settledPaise) },
             items.map { it.toEntity(0) },
@@ -214,5 +227,5 @@ class SplitRepository(private val dao: SplitDao) {
     suspend fun settle(shareId: Long, settledPaise: Long) = dao.settle(shareId, settledPaise)
     suspend fun link(splitId: Long, txId: Long?) = dao.link(splitId, txId)
     suspend fun delete(splitId: Long) = dao.deleteSplit(splitId)
-    suspend fun clearAll() { dao.clear(); dao.clearRecentPeople() }
+    suspend fun clearAll() { dao.clearLinks(); dao.clear(); dao.clearRecentPeople(); dao.clearDecisions() }
 }

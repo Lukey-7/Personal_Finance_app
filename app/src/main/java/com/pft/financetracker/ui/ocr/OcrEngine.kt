@@ -58,6 +58,35 @@ object OcrEngine {
         }
     }
 
+    /**
+     * Words with their positions, for statement photos and payment-app screenshots (see PositionedTable and
+     * AppHistoryParser). Latin script only: statements and app histories are printed in English.
+     */
+    suspend fun recognizeWords(bitmap: Bitmap, page: Int = 0): Pair<List<com.pft.financetracker.domain.importer.Word>, List<com.pft.financetracker.domain.importer.AppHistoryParser.Line>> =
+        withContext(Dispatchers.Default) {
+            val latin = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            try {
+                val result = read(latin, InputImage.fromBitmap(bitmap, 0))
+                val lines = result.textBlocks.flatMap { it.lines }
+                val words = lines.flatMap { line ->
+                    line.elements.mapNotNull { e ->
+                        val b = e.boundingBox ?: return@mapNotNull null
+                        com.pft.financetracker.domain.importer.Word(e.text, b.left.toFloat(), b.centerY().toFloat(), b.width().toFloat(), b.height().toFloat(), page)
+                    }
+                }
+                val appLines = lines.mapNotNull { line ->
+                    val b = line.boundingBox ?: return@mapNotNull null
+                    com.pft.financetracker.domain.importer.AppHistoryParser.Line(line.text, b.left.toFloat(), b.centerY().toFloat() + page * 100_000f, b.height().toFloat())
+                }
+                words to appLines
+            } finally {
+                latin.close()
+            }
+        }
+
+    /** Decode an image (capped at 2000px) for [recognizeWords]. The caller recycles it. */
+    fun decodeForWords(context: Context, uri: Uri): Bitmap = decode(context, uri)
+
     private suspend fun read(recognizer: TextRecognizer, image: InputImage): Text = suspendCancellableCoroutine { cont ->
         recognizer.process(image)
             .addOnSuccessListener { cont.resume(it) }

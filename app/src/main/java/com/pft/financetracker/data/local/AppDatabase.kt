@@ -16,8 +16,9 @@ import java.security.SecureRandom
     entities = [
         TransactionEntity::class, ReviewItemEntity::class, BudgetEntity::class,
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
+        SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun budgetDao(): BudgetDao
     abstract fun smsLogDao(): SmsLogDao
     abstract fun splitDao(): SplitDao
+    abstract fun importDao(): ImportDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -204,7 +206,45 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        /**
+         * v4 -> v5 (v1.2): statement import and split intelligence. Transactions learn who the other side is and
+         * which import added them; splits learn whether they were found automatically; three new tables hold the
+         * split links, "not a split" decisions and the import history. Existing rows are untouched.
+         */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN counterpartyKind TEXT")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN importBatchId INTEGER")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_importBatchId ON transactions (importBatchId)")
+                db.execSQL("ALTER TABLE splits ADD COLUMN source TEXT NOT NULL DEFAULT 'MANUAL'")
+                db.execSQL("ALTER TABLE splits ADD COLUMN status TEXT NOT NULL DEFAULT 'APPLIED'")
+                db.execSQL("ALTER TABLE splits ADD COLUMN confidence INTEGER")
+                db.execSQL("ALTER TABLE splits ADD COLUMN reasons TEXT")
+                db.execSQL("ALTER TABLE splits ADD COLUMN kind TEXT NOT NULL DEFAULT 'PAYBACK'")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS split_links (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, splitId INTEGER NOT NULL, transactionId INTEGER NOT NULL,
+                        role TEXT NOT NULL, allocatedPaise INTEGER NOT NULL, prevFlow TEXT, prevAmountPaise INTEGER,
+                        FOREIGN KEY(splitId) REFERENCES splits(id) ON UPDATE NO ACTION ON DELETE CASCADE)"""
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_split_links_splitId ON split_links (splitId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_split_links_transactionId ON split_links (transactionId)")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS split_decisions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, paymentTransactionId INTEGER NOT NULL,
+                        decision TEXT NOT NULL, decidedAt INTEGER NOT NULL)"""
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_split_decisions_paymentTransactionId ON split_decisions (paymentTransactionId)")
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS import_batches (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, fileName TEXT NOT NULL, format TEXT NOT NULL,
+                        importedAt INTEGER NOT NULL, rowsFound INTEGER NOT NULL, added INTEGER NOT NULL, duplicates INTEGER NOT NULL,
+                        needsReview INTEGER NOT NULL, balanceMismatches INTEGER NOT NULL, firstDate INTEGER, lastDate INTEGER)"""
+                )
+            }
+        }
+
+        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
     }
 }
 

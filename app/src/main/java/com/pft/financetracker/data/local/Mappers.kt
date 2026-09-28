@@ -2,6 +2,7 @@ package com.pft.financetracker.data.local
 
 import com.pft.financetracker.domain.model.Budget
 import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.CounterpartyKind
 import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
@@ -10,6 +11,9 @@ import com.pft.financetracker.domain.split.Person
 import com.pft.financetracker.domain.split.Split
 import com.pft.financetracker.domain.split.SplitMode
 import com.pft.financetracker.domain.split.SplitShare
+import com.pft.financetracker.domain.split.SplitKind
+import com.pft.financetracker.domain.split.SplitSource
+import com.pft.financetracker.domain.split.SplitStatus
 
 fun TransactionEntity.toDomain(): Transaction {
     val t = runCatching { TransactionType.valueOf(type) }.getOrDefault(TransactionType.DEBIT)
@@ -31,6 +35,8 @@ fun TransactionEntity.toDomain(): Transaction {
         needsReview = needsReview,
         originalAmountPaise = originalAmountPaise,
         userEdited = userEdited,
+        counterpartyKind = CounterpartyKind.fromName(counterpartyKind),
+        importBatchId = importBatchId,
     )
 }
 
@@ -52,6 +58,8 @@ fun Transaction.toEntity() = TransactionEntity(
     needsReview = needsReview,
     originalAmountPaise = originalAmountPaise,
     userEdited = userEdited,
+    counterpartyKind = counterpartyKind?.name,
+    importBatchId = importBatchId,
 )
 
 fun BudgetEntity.toDomain() = Budget(Category.fromName(category), monthlyLimitPaise)
@@ -73,6 +81,11 @@ fun assembleSplits(splits: List<SplitEntity>, people: List<SplitPersonEntity>, s
             linkedTransactionId = s.linkedTransactionId,
             note = s.note,
             createdAt = s.createdAt,
+            source = runCatching { SplitSource.valueOf(s.source) }.getOrDefault(SplitSource.MANUAL),
+            status = runCatching { SplitStatus.valueOf(s.status) }.getOrDefault(SplitStatus.APPLIED),
+            confidence = s.confidence,
+            reasons = s.reasons?.split('\n')?.filter { it.isNotBlank() } ?: emptyList(),
+            kind = runCatching { SplitKind.valueOf(s.kind) }.getOrDefault(SplitKind.PAYBACK),
         )
     }
 }

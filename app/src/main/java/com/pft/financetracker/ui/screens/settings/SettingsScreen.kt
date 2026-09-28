@@ -75,6 +75,8 @@ import androidx.compose.material.icons.outlined.ManageHistory
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.UploadFile
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Sms
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material3.Icon
@@ -87,7 +89,7 @@ import com.pft.financetracker.ui.components.bottomPadding
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
+fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
@@ -95,6 +97,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
     val autoImport by vm.autoImport.collectAsState()
     val cashAsSpend by vm.countCashAsSpend.collectAsState()
     val myName by vm.myName.collectAsState()
+    val splitAi by vm.splitAi.collectAsState()
     var nameInput by remember(myName) { mutableStateOf(myName) }
     var exportingSplits by remember { mutableStateOf(false) }
     val aiState by vm.aiState.collectAsState()
@@ -163,6 +166,14 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
                 }
             }
 
+            Section("Import statements", Icons.Outlined.UploadFile) {
+                Text(
+                    "Add a bank statement (PDF, Excel, CSV) or payment-app screenshots. Read on this phone; payments you already have from SMS are skipped.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                ActionRow("Import a statement or screenshots", Icons.Outlined.UploadFile, onOpenImport)
+            }
+
             Section("Clean up duplicates", Icons.Outlined.CleaningServices) {
                 Text(
                     "Looks for the same payment stored twice - usually rows imported by an older version, before the app could spot a bank and a UPI app reporting one payment. Nothing is deleted until you confirm.",
@@ -225,6 +236,30 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit) {
                     exportLauncher.launch("fintrack-splits-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ENGLISH).format(Date()) + ".csv")
                 })
                 Text("Bill photos are read on this phone with an offline text recogniser and are not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Section("Split intelligence", Icons.Outlined.Groups) {
+                Text(
+                    "When you pay for a group and friends pay you back, only your share counts as your spending. FinTrack spots this by itself: " +
+                        "clear cases are applied (tap Undo on any of them), unclear ones wait for your yes in the Split tab.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(
+                    Modifier.fillMaxWidth().toggleable(value = splitAi, role = Role.Switch, enabled = hasKey, onValueChange = { vm.setSplitAi(it) }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Use AI for unclear cases")
+                        Text(
+                            if (hasKey) "Uneven shares and one transfer covering two bills. Sent to OpenAI: amounts, days and payment types only; people appear as \"Person A\", never by name."
+                            else "Needs an OpenAI key (below). Without it, the rules on this phone still handle the clear cases.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = splitAi && hasKey, onCheckedChange = null, enabled = hasKey)
+                }
+                ActionRow("Check again now", Icons.Outlined.Sync, { vm.refreshSplits() })
             }
 
             Section("AI monthly summary (optional)", Icons.Outlined.AutoAwesome) {

@@ -9,6 +9,10 @@ enum class SplitMode(val label: String) {
     BY_ITEM("By item"),
 }
 
+enum class SplitSource { MANUAL, AUTO_LOCAL, AUTO_AI }
+enum class SplitStatus { APPLIED, SUGGESTED }
+enum class SplitKind { PAYBACK, ADVANCE }
+
 data class Person(val id: Long = 0, val name: String, val isMe: Boolean = false)
 
 /** One line on the bill. [assignedTo] are person indices (into the people list) sharing this item. */
@@ -50,7 +54,19 @@ data class Split(
     val linkedTransactionId: Long? = null,
     val note: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
+    /** MANUAL (made by you), AUTO_LOCAL or AUTO_AI (found by split intelligence). */
+    val source: SplitSource = SplitSource.MANUAL,
+    /** SUGGESTED splits wait for your yes; APPLIED ones change your numbers. */
+    val status: SplitStatus = SplitStatus.APPLIED,
+    /** 0-100, for automatic splits. */
+    val confidence: Int? = null,
+    /** Plain-language reasons an automatic split was found ("11 people paid back Rs 1,000 each"). */
+    val reasons: List<String> = emptyList(),
+    /** PAYBACK: friends paid you back after you paid. ADVANCE: friends paid you before you paid. */
+    val kind: SplitKind = SplitKind.PAYBACK,
 ) {
+    val isAuto: Boolean get() = source != SplitSource.MANUAL
+    val isSuggestion: Boolean get() = status == SplitStatus.SUGGESTED
     val myIndex: Int get() = people.indexOfFirst { it.isMe }
     val myShare: SplitShare? get() = shares.firstOrNull { it.personIndex == myIndex }
     val iPaid: Boolean get() = payerIndex == myIndex

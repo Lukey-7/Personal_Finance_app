@@ -45,8 +45,24 @@ interface TransactionDao {
      * Candidates for the "same payment, two SMS" check: same amount (or the bank amount a split shrank) within a
      * time window. Direction is filtered by the caller, because a v1.0.0 row may carry the wrong one.
      */
-    @Query("SELECT * FROM transactions WHERE (amountPaise = :amountPaise OR originalAmountPaise = :amountPaise) AND timestamp BETWEEN :from AND :to AND source = 'SMS'")
+    @Query("SELECT * FROM transactions WHERE (amountPaise = :amountPaise OR originalAmountPaise = :amountPaise) AND timestamp BETWEEN :from AND :to AND source IN ('SMS', 'STATEMENT')")
     suspend fun findSimilar(amountPaise: Long, from: Long, to: Long): List<TransactionEntity>
+
+    /** Any stored row (SMS, statement, manual) with this bank amount in [from, to]: the duplicate check for imports. */
+    @Query("SELECT * FROM transactions WHERE (amountPaise = :amountPaise OR originalAmountPaise = :amountPaise) AND type = :type AND timestamp BETWEEN :from AND :to")
+    suspend fun findSameAmount(amountPaise: Long, type: String, from: Long, to: Long): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE refNumber = :ref LIMIT 1")
+    suspend fun findAnyByRef(ref: String): TransactionEntity?
+
+    @Query("SELECT * FROM transactions WHERE smsHash = :hash LIMIT 1")
+    suspend fun getByHash(hash: String): TransactionEntity?
+
+    @Query("SELECT * FROM transactions WHERE importBatchId = :batchId")
+    suspend fun getByBatch(batchId: Long): List<TransactionEntity>
+
+    @Query("SELECT * FROM transactions WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<Long>): List<TransactionEntity>
 }
 
 @Dao
@@ -178,4 +194,76 @@ interface SplitDao {
 
     @Query("DELETE FROM recent_people")
     suspend fun clearRecentPeople()
+
+    // ---- Split intelligence ----
+    @Query("SELECT * FROM splits WHERE id = :id")
+    suspend fun getSplit(id: Long): SplitEntity?
+
+    @Query("SELECT * FROM splits WHERE source != 'MANUAL'")
+    suspend fun autoSplits(): List<SplitEntity>
+
+    @Query("SELECT * FROM splits")
+    suspend fun allSplits(): List<SplitEntity>
+
+    @Query("SELECT * FROM split_people WHERE splitId = :splitId ORDER BY personIndex")
+    suspend fun peopleFor(splitId: Long): List<SplitPersonEntity>
+
+    @Query("SELECT * FROM split_shares WHERE splitId = :splitId ORDER BY personIndex")
+    suspend fun sharesFor(splitId: Long): List<SplitShareEntity>
+
+    @Query("SELECT * FROM split_links")
+    fun observeLinks(): Flow<List<SplitLinkEntity>>
+
+    @Query("SELECT * FROM split_links")
+    suspend fun allLinks(): List<SplitLinkEntity>
+
+    @Query("SELECT * FROM split_links WHERE splitId = :splitId")
+    suspend fun linksFor(splitId: Long): List<SplitLinkEntity>
+
+    @Query("SELECT * FROM split_links WHERE transactionId = :transactionId")
+    suspend fun linksForTransaction(transactionId: Long): List<SplitLinkEntity>
+
+    @Insert suspend fun insertLinks(e: List<SplitLinkEntity>)
+
+    @Query("DELETE FROM split_links WHERE splitId = :splitId")
+    suspend fun deleteLinks(splitId: Long)
+
+    @Update suspend fun updateSplit(e: SplitEntity)
+
+    @Query("DELETE FROM split_shares WHERE splitId = :splitId")
+    suspend fun deleteShares(splitId: Long)
+
+    @Query("DELETE FROM split_people WHERE splitId = :splitId")
+    suspend fun deletePeople(splitId: Long)
+
+    @Query("SELECT * FROM split_decisions")
+    suspend fun decisions(): List<SplitDecisionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDecision(e: SplitDecisionEntity)
+
+    @Query("DELETE FROM split_links")
+    suspend fun clearLinks()
+
+    @Query("DELETE FROM split_decisions")
+    suspend fun clearDecisions()
+}
+
+@Dao
+interface ImportDao {
+    @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
+    fun observeBatches(): Flow<List<ImportBatchEntity>>
+
+    @Insert suspend fun insert(e: ImportBatchEntity): Long
+
+    @Update suspend fun update(e: ImportBatchEntity)
+
+    @Query("SELECT * FROM import_batches WHERE id = :id")
+    suspend fun get(id: Long): ImportBatchEntity?
+
+    @Query("DELETE FROM import_batches WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("DELETE FROM import_batches")
+    suspend fun clear()
 }

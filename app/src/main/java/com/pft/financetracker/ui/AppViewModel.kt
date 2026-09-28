@@ -29,6 +29,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import com.pft.financetracker.data.importer.StatementFiles
+import com.pft.financetracker.data.importer.StatementImporter
+import com.pft.financetracker.data.local.ImportBatchEntity
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -50,6 +55,16 @@ sealed class OcrUiState {
     data object Running : OcrUiState()
     data class Done(val bill: ParsedBill) : OcrUiState()
     data class Error(val message: String) : OcrUiState()
+}
+
+/** Importing a statement or screenshots: read -> (password) -> preview -> saved. */
+sealed class StatementUiState {
+    data object Idle : StatementUiState()
+    data object Reading : StatementUiState()
+    data class NeedsPassword(val uri: Uri, val fileName: String, val wrong: Boolean) : StatementUiState()
+    data class Preview(val preview: StatementImporter.Preview) : StatementUiState()
+    data class Saved(val batch: ImportBatchEntity) : StatementUiState()
+    data class Error(val message: String) : StatementUiState()
 }
 
 /** Which period the dashboard shows. Kept in the view model so it survives tab switches. */
@@ -84,6 +99,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val smsLog: StateFlow<List<SmsLogEntity>> = c.smsLog.recent.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val smsLogCounts: StateFlow<Map<String, Int>> = c.smsLog.counts.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val splits: StateFlow<List<Split>> = c.splits.all.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    /** Automatic splits waiting for a yes or no. */
+    val splitSuggestions: StateFlow<List<Split>> = c.splits.all.map { l -> l.filter { it.isSuggestion } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    /** Transaction id -> the applied automatic split it belongs to (for the "Auto-split" badge). */
+    val autoSplitOf: StateFlow<Map<Long, Split>> = combine(c.splits.all, c.splits.links) { ss, ls ->
+        val applied = ss.filter { it.isAuto && !it.isSuggestion }.associateBy { it.id }
+        ls.mapNotNull { l -> applied[l.splitId]?.let { l.transactionId to it } }.toMap()
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+    val importBatches: StateFlow<List<ImportBatchEntity>> = c.db.importDao().observeBatches().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val splitAi: StateFlow<Boolean> = c.settings.splitAi
     val recentPeople: StateFlow<List<String>> = c.splits.recentPeople.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val hasApiKey: StateFlow<Boolean> = c.settings.hasApiKey
@@ -107,6 +131,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _ocrState = MutableStateFlow<OcrUiState>(OcrUiState.Idle)
     val ocrState: StateFlow<OcrUiState> = _ocrState
 
+    private val _statementState = MutableStateFlow<StatementUiState>(StatementUiState.Idle)
+    val statementState: StateFlow<StatementUiState> = _statementState
+
+    init {
+        // Pick up anything new (and ask the AI about unclear groups) whenever the app starts.
+        refreshSplits()
+    }
+
+    /** Re-run split intelligence. Cheap without AI; with AI, unchanged weeks come from the cache. */
+    fun refreshSplits(useAi: Boolean = true) = viewModelScope.launch(Dispatchers.IO) { runCatching { c.splitEngine.run(useAi) } }
+
     fun hasSmsPermission() = c.importer.hasSmsPermission()
 
     fun scanInbox(full: Boolean = false) {
@@ -116,6 +151,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val since = if (full) 0L else lastImportAt.value
             val stats = runCatching { c.importer.scanInbox(since) }.getOrElse { ImportStats(0, 0, 0, 0, 0, 0) }
             _importState.value = ImportUiState.Done(stats)
+            withContext(Dispatchers.IO) { runCatching { c.splitEngine.run() } }
         }
     }
 
@@ -130,11 +166,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // An existing row saved from the editor was corrected by a person: protect it from automatic rewrites.
         if (t.id == 0L) c.transactions.insert(t) else c.transactions.update(t.copy(userEdited = true))
         onDone()
+        refreshSplits(useAi = false)
     }
 
     fun delete(t: Transaction) = viewModelScope.launch {
         c.transactions.delete(t)
         c.importer.forgetDeleted(t)
+        refreshSplits(useAi = false)
     }
 
     suspend fun getTransaction(id: Long): Transaction? = c.transactions.getById(id)
@@ -268,7 +306,77 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun settleShare(shareId: Long, settledPaise: Long) = viewModelScope.launch { c.splits.settle(shareId, settledPaise) }
-    fun deleteSplit(id: Long) = viewModelScope.launch { c.splits.delete(id) }
+    fun deleteSplit(id: Long) = viewModelScope.launch {
+        val s = splits.value.firstOrNull { it.id == id }
+        // An automatic split is undone exactly (numbers restored, never suggested again); a manual one releases any
+        // transfers linked to it before it goes.
+        if (s?.isAuto == true) c.splitEngine.reject(id) else { c.splitEngine.unlinkManual(id); c.splits.delete(id) }
+    }
+
+    // ---- Split intelligence ----
+    fun acceptSplit(id: Long) = viewModelScope.launch { c.splitEngine.accept(id) }
+    fun rejectSplit(id: Long) = viewModelScope.launch { c.splitEngine.reject(id) }
+    fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
+
+    /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */
+    fun settleCandidates(split: Split, remainingPaise: Long): List<Transaction> {
+        val used = autoSplitOf.value.keys
+        return transactions.value.filter {
+            it.type == TransactionType.CREDIT && it.flow == Flow.INCOME && it.id !in used &&
+                it.timestamp >= split.date - 86_400_000L && it.timestamp <= split.date + 45 * 86_400_000L && it.amountPaise <= remainingPaise &&
+                (it.counterpartyKind ?: com.pft.financetracker.domain.split.PayerClassifier.classify("", it.merchant, it.type)) == com.pft.financetracker.domain.model.CounterpartyKind.PERSON
+        }.sortedBy { kotlin.math.abs(it.timestamp - split.date) }
+    }
+
+    /** A friend's transfer settles their share of a manual split: it stops counting as income. */
+    fun settleWithTransaction(splitId: Long, shareId: Long, newSettledPaise: Long, credit: Transaction) = viewModelScope.launch {
+        c.splitEngine.linkSettlement(splitId, shareId, newSettledPaise, credit, credit.amountPaise)
+    }
+
+    // ---- Statement / screenshot import ----
+    fun importFile(uri: Uri, password: String? = null) {
+        _statementState.value = StatementUiState.Reading
+        viewModelScope.launch {
+            _statementState.value = when (val r = c.statementFiles.read(uri, password)) {
+                is StatementFiles.Read.Ok -> preview(r)
+                is StatementFiles.Read.NeedsPassword -> StatementUiState.NeedsPassword(uri, r.fileName, r.wrong)
+                is StatementFiles.Read.Error -> StatementUiState.Error(r.message)
+            }
+        }
+    }
+
+    fun importImages(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        _statementState.value = StatementUiState.Reading
+        viewModelScope.launch {
+            _statementState.value = when (val r = withContext(Dispatchers.IO) { c.statementFiles.readImages(uris) }) {
+                is StatementFiles.Read.Ok -> preview(r)
+                is StatementFiles.Read.NeedsPassword -> StatementUiState.Error("Unexpected password request")
+                is StatementFiles.Read.Error -> StatementUiState.Error(r.message)
+            }
+        }
+    }
+
+    private suspend fun preview(r: StatementFiles.Read.Ok): StatementUiState {
+        if (r.statement.rows.isEmpty() && r.statement.problems.isEmpty()) return StatementUiState.Error(r.statement.note ?: "No transactions found in ${r.fileName}.")
+        return StatementUiState.Preview(withContext(Dispatchers.IO) { c.statementImporter.preview(r.statement, r.fileName) })
+    }
+
+    fun confirmImport() {
+        val s = _statementState.value as? StatementUiState.Preview ?: return
+        _statementState.value = StatementUiState.Reading
+        viewModelScope.launch {
+            val batch = withContext(Dispatchers.IO) { c.statementImporter.commit(s.preview) }
+            _statementState.value = StatementUiState.Saved(batch)
+            withContext(Dispatchers.IO) { runCatching { c.splitEngine.run() } }
+        }
+    }
+
+    fun undoImport(batchId: Long) = viewModelScope.launch {
+        withContext(Dispatchers.IO) { c.statementImporter.undo(batchId); runCatching { c.splitEngine.run(useAi = false) } }
+    }
+
+    fun resetStatementImport() { _statementState.value = StatementUiState.Idle }
     suspend fun splitItems(id: Long): List<BillItem> = c.splits.itemsFor(id)
 
     /** A credit matching an open split share can be recorded as a settlement instead of income. */
@@ -285,6 +393,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         c.budgets.clearAll()
         c.smsLog.clearAll()
         c.splits.clearAll()
+        c.db.importDao().clear()
         c.settings.clearAll()
         _aiState.value = AiUiState.Idle
         _importState.value = ImportUiState.Idle

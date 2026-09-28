@@ -1,0 +1,109 @@
+package com.pft.financetracker.data.importer
+
+import com.pft.financetracker.data.local.ImportBatchEntity
+import com.pft.financetracker.data.local.ImportDao
+import com.pft.financetracker.data.local.ReviewItemEntity
+import com.pft.financetracker.data.local.TransactionDao
+import com.pft.financetracker.data.local.toDomain
+import com.pft.financetracker.data.local.toEntity
+import com.pft.financetracker.data.repository.TransactionRepository
+import com.pft.financetracker.domain.importer.ParsedStatement
+import com.pft.financetracker.domain.importer.StatementRow
+import com.pft.financetracker.domain.model.Transaction
+import com.pft.financetracker.domain.split.PayerClassifier
+import java.security.MessageDigest
+
+/**
+ * Stores what a statement or screenshot import found. Rows the app already has (from SMS, or from importing the
+ * same file before) are recognised and skipped, and the missing details they carry (a reference number, who the
+ * other side is) fill the stored row in. Rows that could not be read with confidence go to the review list.
+ */
+class StatementImporter(
+    private val txDao: TransactionDao,
+    private val repo: TransactionRepository,
+    private val importDao: ImportDao,
+) {
+    data class Preview(
+        val statement: ParsedStatement,
+        val fileName: String,
+        val newRows: List<StatementRow>,
+        /** A row and the stored transaction it matched. */
+        val duplicates: List<Pair<StatementRow, Transaction>>,
+    )
+
+    suspend fun preview(statement: ParsedStatement, fileName: String): Preview {
+        val newRows = mutableListOf<StatementRow>()
+        val dupes = mutableListOf<Pair<StatementRow, Transaction>>()
+        val consumed = mutableSetOf<Long>()
+        for (r in statement.rows) {
+            val match = findExisting(r, consumed)
+            if (match != null) { dupes += r to match; consumed += match.id } else newRows += r
+        }
+        return Preview(statement, fileName, newRows, dupes)
+    }
+
+    private suspend fun findExisting(r: StatementRow, consumed: Set<Long>): Transaction? {
+        // The same file (or an overlapping one) imported before.
+        txDao.getByHash(hash(r))?.let { return it.toDomain() }
+        r.ref?.let { ref -> txDao.findAnyByRef(ref)?.toDomain()?.takeIf { it.amountPaise == r.amountPaise || it.originalAmountPaise == r.amountPaise }?.let { if (it.id !in consumed) return it } }
+        // Same amount and direction within a day either side (statements book some payments a day late). Names
+        // must agree: ten Rs 1,000 paybacks on one day are ten different people.
+        val cands = txDao.findSameAmount(r.amountPaise, r.type.name, r.date - 86_400_000L, r.date + 2 * 86_400_000L - 1)
+            .map { it.toDomain() }.filter { it.id !in consumed && it.source != Transaction.Source.SPLIT }
+        cands.firstOrNull { PayerClassifier.sameParty(it.merchant, r.counterparty) }?.let { return it }
+        val generic = cands.filter { it.merchant.startsWith("Payment") || it.merchant.startsWith("Credit") || it.merchant.length < 3 }
+        return generic.singleOrNull()?.takeIf { cands.size == 1 }
+    }
+
+    suspend fun commit(p: Preview): ImportBatchEntity {
+        val batchId = importDao.insert(
+            ImportBatchEntity(
+                fileName = p.fileName, format = p.statement.format.name, rowsFound = p.statement.rows.size + p.statement.problems.size,
+                added = 0, duplicates = p.duplicates.size, needsReview = 0, balanceMismatches = p.statement.balanceMismatches,
+                firstDate = p.statement.firstDate, lastDate = p.statement.lastDate,
+            )
+        )
+        var added = 0
+        for (r in p.newRows) {
+            val t = Transaction(
+                amountPaise = r.amountPaise, type = r.type, merchant = r.counterparty, category = r.category,
+                // Statements give the day, not the time: noon keeps it on that day, and the row order keeps same-day
+                // payments in sequence (a dinner before its paybacks).
+                timestamp = r.time ?: (r.date + 12 * 3_600_000L + r.order * 1_000L),
+                bankName = null, accountRef = null, source = Transaction.Source.STATEMENT, flow = r.flow,
+                smsHash = hash(r), refNumber = r.ref, confidence = if (r.balanceOk == true) 95 else 85,
+                counterpartyKind = r.kind, importBatchId = batchId,
+            )
+            if (repo.insert(t) > 0) added++
+        }
+        // Fill in what the statement knows and the stored row lacks.
+        for ((r, existing) in p.duplicates) {
+            val filled = existing.copy(refNumber = existing.refNumber ?: r.ref, counterpartyKind = existing.counterpartyKind ?: r.kind)
+            if (filled != existing) txDao.update(filled.toEntity())
+        }
+        var review = 0
+        for (prob in p.statement.problems) {
+            val ok = repo.enqueueReview(
+                ReviewItemEntity(
+                    sender = "Statement: ${p.fileName}", body = prob.raw, receivedAt = prob.date ?: System.currentTimeMillis(),
+                    smsHash = "stmtrev:" + sha(prob.raw + "|" + prob.date), guessedAmountPaise = prob.amountPaise,
+                    guessedType = prob.type?.name, reason = "statement_${prob.reason}",
+                )
+            )
+            if (ok) review++
+        }
+        val batch = importDao.get(batchId)!!.copy(added = added, needsReview = review)
+        importDao.update(batch)
+        return batch
+    }
+
+    /** Remove every transaction an import added. Rows it only matched (already in the app) are left alone. */
+    suspend fun undo(batchId: Long) {
+        txDao.getByBatch(batchId).forEach { txDao.delete(it) }
+        importDao.delete(batchId)
+    }
+
+    private fun hash(r: StatementRow) = "stmt:" + sha("${r.date}|${r.amountPaise}|${r.type}|${r.narration.trim().lowercase()}|${r.balancePaise}")
+
+    private fun sha(s: String): String = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }.take(32)
+}

@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "transactions",
-    indices = [Index(value = ["smsHash"], unique = true), Index(value = ["timestamp"]), Index(value = ["refNumber"])]
+    indices = [Index(value = ["smsHash"], unique = true), Index(value = ["timestamp"]), Index(value = ["refNumber"]), Index(value = ["importBatchId"])]
 )
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -35,6 +35,10 @@ data class TransactionEntity(
     val originalAmountPaise: Long? = null,
     /** True once a person corrected this row. Automatic re-parsing and duplicate merging never overwrite it. */
     @ColumnInfo(defaultValue = "0") val userEdited: Boolean = false,
+    /** PERSON / ORGANISATION / UNKNOWN, decided from the SMS or statement text at import. Null for older rows. */
+    val counterpartyKind: String? = null,
+    /** The statement/screenshot import that added this row ([ImportBatchEntity]); null otherwise. */
+    val importBatchId: Long? = null,
 )
 
 /**
@@ -92,6 +96,15 @@ data class SplitEntity(
     val linkedTransactionId: Long?,
     val note: String?,
     val createdAt: Long = System.currentTimeMillis(),
+    /** MANUAL, AUTO_LOCAL or AUTO_AI. */
+    @ColumnInfo(defaultValue = "MANUAL") val source: String = "MANUAL",
+    /** APPLIED or SUGGESTED. */
+    @ColumnInfo(defaultValue = "APPLIED") val status: String = "APPLIED",
+    val confidence: Int? = null,
+    /** Newline-separated plain-language reasons, for automatic splits. */
+    val reasons: String? = null,
+    /** PAYBACK or ADVANCE. */
+    @ColumnInfo(defaultValue = "PAYBACK") val kind: String = "PAYBACK",
 )
 
 @Entity(
@@ -140,4 +153,52 @@ data class SplitItemEntity(
 data class RecentPersonEntity(
     @PrimaryKey val name: String,
     val lastUsedAt: Long,
+)
+
+/**
+ * Which transactions an automatic (or manually linked) split is made of: the payment I made, and the paybacks or
+ * advances friends sent me, with how much of each belongs to this split. [prevFlow] and [prevAmountPaise] remember
+ * the row as it was, so undo restores it exactly.
+ */
+@Entity(
+    tableName = "split_links",
+    foreignKeys = [ForeignKey(entity = SplitEntity::class, parentColumns = ["id"], childColumns = ["splitId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index(value = ["splitId"]), Index(value = ["transactionId"])]
+)
+data class SplitLinkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val splitId: Long,
+    val transactionId: Long,
+    /** PAYMENT, PAYBACK or ADVANCE. */
+    val role: String,
+    val allocatedPaise: Long,
+    val prevFlow: String?,
+    val prevAmountPaise: Long?,
+)
+
+/** "This is not a split": remembered forever so the same payment is never suggested or auto-split again. */
+@Entity(tableName = "split_decisions", indices = [Index(value = ["paymentTransactionId"], unique = true)])
+data class SplitDecisionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val paymentTransactionId: Long,
+    val decision: String,
+    val decidedAt: Long = System.currentTimeMillis(),
+)
+
+/** One statement or screenshot import, for the import history and "undo this import". */
+@Entity(tableName = "import_batches")
+data class ImportBatchEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val fileName: String,
+    /** CSV, XLSX, XLS_HTML, PDF, PDF_SCANNED, IMAGE, APP_SCREENSHOT */
+    val format: String,
+    val importedAt: Long = System.currentTimeMillis(),
+    val rowsFound: Int,
+    val added: Int,
+    val duplicates: Int,
+    val needsReview: Int,
+    /** Rows whose running balance did not add up (sent to review instead of guessed). */
+    val balanceMismatches: Int,
+    val firstDate: Long?,
+    val lastDate: Long?,
 )

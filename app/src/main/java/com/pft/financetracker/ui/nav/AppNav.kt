@@ -54,6 +54,7 @@ import com.pft.financetracker.ui.screens.budgets.BudgetsScreen
 import com.pft.financetracker.ui.screens.dashboard.DashboardScreen
 import com.pft.financetracker.ui.screens.drilldown.DrillDownScreen
 import com.pft.financetracker.ui.screens.edit.EditTransactionScreen
+import com.pft.financetracker.ui.screens.importer.ImportScreen
 import com.pft.financetracker.ui.screens.insights.InsightsScreen
 import com.pft.financetracker.ui.screens.onboarding.OnboardingScreen
 import com.pft.financetracker.ui.screens.review.ReviewScreen
@@ -80,6 +81,7 @@ object Routes {
     const val DRILL = "drill/{bucket}?category={category}"
     fun drill(bucket: InsightsEngine.Bucket, category: Category? = null) = "drill/${bucket.name}?category=${category?.name ?: ""}"
     const val NEW_SPLIT = "split/new"
+    const val IMPORT = "import"
     const val SPLIT_DETAIL = "split/{id}"
     fun splitDetail(id: Long) = "split/$id"
 }
@@ -181,6 +183,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                     onOpenBudgets = { nav.navigate(Routes.BUDGETS) },
                     onOpenSmsLog = { nav.navigate(Routes.smsLog(it)) },
                     onDrill = { bucket, cat -> nav.navigate(Routes.drill(bucket, cat)) },
+                    onOpenSplit = { nav.navigate(Routes.splitDetail(it)) },
                 )
             }
             composable(Routes.TRANSACTIONS) {
@@ -190,6 +193,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                     onEdit = { nav.navigate(Routes.edit(id = it)) },
                     onOpenReview = { nav.navigate(Routes.REVIEW) },
                     onOpenSmsLog = { nav.navigate(Routes.smsLog()) },
+                    onOpenImport = { nav.navigate(Routes.IMPORT) },
                 )
             }
             composable(Routes.SPLIT) {
@@ -203,7 +207,12 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             }
             composable(Routes.INSIGHTS) { InsightsScreen(vm, onOpenBudgets = { nav.navigate(Routes.BUDGETS) }) }
             composable(Routes.BUDGETS) { BudgetsScreen(vm, onBack = { nav.popBackStack() }) }
-            composable(Routes.SETTINGS) { SettingsScreen(vm, onOpenSmsLog = { nav.navigate(Routes.smsLog()) }) }
+            composable(Routes.SETTINGS) { SettingsScreen(vm, onOpenSmsLog = { nav.navigate(Routes.smsLog()) }, onOpenImport = { nav.navigate(Routes.IMPORT) }) }
+            composable(Routes.IMPORT) {
+                ImportScreen(vm, onBack = { nav.popBackStack() }, onOpenSplits = {
+                    nav.navigate(Routes.SPLIT) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true }
+                })
+            }
             composable(Routes.REVIEW) {
                 ReviewScreen(vm, onEnter = { nav.navigate(Routes.edit(reviewId = it)) }, onBack = { nav.popBackStack() })
             }
@@ -227,7 +236,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             ) { entry ->
                 val id = entry.arguments?.getLong("id")?.takeIf { it >= 0 }
                 val reviewId = entry.arguments?.getLong("reviewId")?.takeIf { it >= 0 }
-                EditTransactionScreen(vm, id, reviewId) { nav.popBackStack() }
+                EditTransactionScreen(vm, id, reviewId, onOpenSplit = { nav.navigate(Routes.splitDetail(it)) }) { nav.popBackStack() }
             }
         }
         }

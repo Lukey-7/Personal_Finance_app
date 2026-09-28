@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -96,6 +97,31 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                 }
             }
 
+            if (split.isAuto) FinCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.padding(4.dp))
+                    Text(
+                        when {
+                            split.isSuggestion -> "Suggested: waiting for your yes"
+                            split.source == com.pft.financetracker.domain.split.SplitSource.AUTO_AI -> "Found automatically (checked with AI)"
+                            else -> "Found automatically"
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                }
+                if (split.kind == com.pft.financetracker.domain.split.SplitKind.ADVANCE) Text("Friends sent money before you paid (collected in advance).", style = MaterialTheme.typography.bodySmall)
+                split.reasons.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
+                split.confidence?.let { Text("Confidence $it%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (split.isSuggestion) {
+                    com.pft.financetracker.ui.components.PrimaryPill("Yes, split it", { vm.acceptSplit(split.id) })
+                    TextButton(onClick = { vm.rejectSplit(split.id); onBack() }, modifier = Modifier.fillMaxWidth()) { Text("Not a split") }
+                } else {
+                    Text("Your spend counts only your share; your friends' transfers are marked as settlements, not income.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = { vm.rejectSplit(split.id); onBack() }, modifier = Modifier.fillMaxWidth()) { Text("Undo: this wasn't a split") }
+                }
+            }
+
             Text("Who pays what", style = MaterialTheme.typography.titleMedium)
             FinCard {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -115,7 +141,7 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                                 )
                             }
                             Text(money(sh.amountPaise, true), fontWeight = FontWeight.SemiBold)
-                            if (!isPayer && sh.remainingPaise > 0) {
+                            if (!isPayer && sh.remainingPaise > 0 && !split.isAuto) {
                                 Spacer(Modifier.padding(4.dp))
                                 OutlinedButton(onClick = { settling = sh; settleInput = paiseToInput(sh.remainingPaise) }) { Text("Settle") }
                             }
@@ -156,7 +182,22 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
             title = { Text("Record payment from ${split?.people?.getOrNull(sh.personIndex)?.name}") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Outstanding: ${money(sh.remainingPaise, true)}. Enter what they paid you (partial is fine).")
+                    // Their transfer is already in the app: pick it, and it stops counting as income.
+                    val s = split
+                    val matches = if (s != null) vm.settleCandidates(s, sh.remainingPaise).take(4) else emptyList()
+                    if (matches.isNotEmpty()) {
+                        Text("Pick the payment they sent:", style = MaterialTheme.typography.bodyMedium)
+                        matches.forEach { t ->
+                            TextButton(onClick = {
+                                vm.settleWithTransaction(s!!.id, sh.id, (sh.settledPaise + t.amountPaise).coerceAtMost(sh.amountPaise), t); settling = null
+                            }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                                Text("${money(t.amountPaise, true)} from ${t.merchant} · ${dateOnly(t.timestamp)}")
+                            }
+                        }
+                        Text("Or enter an amount (cash, or paid elsewhere):", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Text("Outstanding: ${money(sh.remainingPaise, true)}. Enter what they paid you (partial is fine).")
+                    }
                     OutlinedTextField(settleInput, { settleInput = it }, label = { Text("Amount (₹)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
                 }
             },
@@ -173,7 +214,7 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
     if (confirmDelete) AlertDialog(
         onDismissRequest = { confirmDelete = false },
         title = { Text("Delete this split?") },
-        text = { Text("The split and its balances are removed. Any transaction it created or adjusted is left as it is.") },
+        text = { Text(if (split?.isAuto == true) "Your numbers go back to how the bank reported them, and this payment won't be split automatically again." else "The split and its balances are removed. Any transaction it created or adjusted is left as it is; transfers you linked to it count as income again.") },
         confirmButton = { TextButton(onClick = { vm.deleteSplit(id); confirmDelete = false; onBack() }) { Text("Delete") } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
     )

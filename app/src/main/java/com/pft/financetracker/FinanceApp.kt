@@ -8,7 +8,11 @@ import com.pft.financetracker.data.repository.BudgetRepository
 import com.pft.financetracker.data.repository.SmsLogRepository
 import com.pft.financetracker.data.repository.SplitRepository
 import com.pft.financetracker.data.repository.TransactionRepository
+import com.pft.financetracker.data.importer.StatementFiles
+import com.pft.financetracker.data.importer.StatementImporter
 import com.pft.financetracker.data.sms.SmsImporter
+import com.pft.financetracker.data.split.SplitEngine
+import com.pft.financetracker.domain.ai.OpenAiSplitProvider
 import com.pft.financetracker.domain.parser.SmsParser
 
 /** Simple manual dependency container. No DI framework, no reflection, no third-party SDKs. */
@@ -21,6 +25,15 @@ class AppContainer(context: Context) {
     val splits: SplitRepository = SplitRepository(db.splitDao())
     val parser: SmsParser = SmsParser()
     val importer: SmsImporter = SmsImporter(context, parser, transactions, smsLog, settings)
+    val splitEngine: SplitEngine = SplitEngine(
+        db.transactionDao(), db.splitDao(),
+        ai = OpenAiSplitProvider({ settings.getApiKey() }),
+        aiEnabled = { settings.splitAi.value && settings.hasApiKey.value },
+        myName = { settings.myName.value },
+        cache = settings.aiAnswerCache,
+    )
+    val statementFiles: StatementFiles = StatementFiles(context)
+    val statementImporter: StatementImporter = StatementImporter(db.transactionDao(), transactions, db.importDao())
 }
 
 class FinanceApp : Application() {

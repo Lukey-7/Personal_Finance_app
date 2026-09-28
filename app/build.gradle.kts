@@ -149,6 +149,8 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
     // Bills printed in Hindi (Devanagari). Bundled like the Latin model: offline, about 4 MB more per ABI.
     implementation(libs.mlkit.text.recognition.devanagari)
+    // PDF statements: text with positions, password-protected files, and page rendering for scanned PDFs (Apache 2.0).
+    implementation(libs.pdfbox.android)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)
