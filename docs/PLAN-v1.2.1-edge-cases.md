@@ -236,15 +236,16 @@ The width model assumes every amount box includes a ₹ glyph. In an app that sh
 - [x] A month header in a screenshot ("September 2026") was read as 20 September and given to undated rows below it
 
 ## Device pass (D, on `fintest-split` only, after the unit work)
-- [ ] Seed via root sqlite as in `docs/DEVICE-TEST-v1.2.md`: a busy fortnight with the P0 split cases, then run split refresh and check the numbers on the Home and Split screens
-- [ ] Import a CSV with identical rows, placeholder refs and an October screenshot; check counts and dates on screen
-- [ ] Accept / edit / reject flows from item 7 by hand
+- [x] Installed the branch's debug build over the v1.2 device-test data (DB v5 -> v6 upgrade with real rows): no crash, Home unchanged after the startup split refresh (net spend Rs 16,470, income Rs 96,330, Rs 18,600 paid back)
+- [x] CSV with two identical Rs 20 rows, a cashback credit and a row with an unreadable date: preview "3 new, 1 to review"; "3 added" on import (both Rs 20 rows stored); re-import "0 new, 3 already in the app"; undo returned Home to Rs 16,470 / Rs 96,330 exactly
+- [ ] Not done on the device: an October-dated screenshot through real OCR, and the accept / edit / reject flows by hand. Covered by unit and Robolectric tests only
+- Noticed, not fixed (outside this plan): "CASHBACK RECEIVED" is categorised as Cash / ATM (the categorizer's "cash" keyword), and the Home banner calls a statement review item "SMS needs review"
 
 ## Finish
-- [ ] `code-review` skill at max effort over the whole branch diff
-- [ ] `security-review` of the file-import code
-- [ ] Fix what's real; report what was skipped and why
-- [ ] Commit with explicit paths, no attribution trailer. No push, tag or release without asking
+- [x] `code-review` skill at max effort over the whole branch diff: 15 findings reported, all fixed with a failing test first (commit 3485004)
+- [x] `security-review` of the file-import code: no new vulnerability; XXE (confirmed on the JVM before the fix) is closed
+- [x] Fix what's real; report what was skipped and why
+- [x] Commit with explicit paths, no attribution trailer. Nothing pushed, tagged or released
 
 ---
 
