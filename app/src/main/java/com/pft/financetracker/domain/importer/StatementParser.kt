@@ -36,8 +36,13 @@ data class StatementRow(
     val category: Category,
     val flow: Flow,
     val kind: CounterpartyKind,
-    /** Position in chronological order, used to keep same-day rows in order. */
+    /** Position among the same day's rows in chronological order, used to keep same-day rows in order. */
     val order: Int,
+    /**
+     * 0 for the first row with this date, amount, direction, narration and balance; 1, 2... for identical rows after it
+     * (two Rs 20 teas on one day in a card statement). Keeps each one a separate transaction.
+     */
+    val occurrence: Int = 0,
 )
 
 /** A row that looked like a transaction but could not be read with confidence: it goes to the review list. */
@@ -85,6 +90,8 @@ object ColumnDetector {
     fun roleOf(cell: String): Role? {
         val n = norm(cell)
         if (n.isEmpty() || n.length > 40) return null
+        // "Credit Card No" / "Card Number" hold a masked card number, not money.
+        if (Regex("""\bcard\b""").containsMatchIn(n)) return null
         var best: Role? = null; var bestLen = 0
         for ((role, words) in synonyms) for (w in words) {
             val hit = n == w || n.startsWith("$w ") || n.endsWith(" $w") || (w.length >= 5 && n.contains(w))
@@ -95,17 +102,33 @@ object ColumnDetector {
 
     fun find(table: Table): Mapping? {
         var best: Mapping? = null
-        for ((i, row) in table.withIndex().take(80)) {
-            val cols = mutableMapOf<Role, Int>()
-            row.forEachIndexed { j, cell -> roleOf(cell)?.let { r -> if (r !in cols) cols[r] = j } }
-            // "Dr / Cr" twice (Kotak: one after Amount, one after Balance): the first one is the transaction's.
+        // Some banks put a long account summary above the table: look well past it.
+        for ((i, row) in table.withIndex().take(300)) {
+            val cols = roles(row)
             if (cols.size >= 3) {
                 val m = Mapping(i, fixDate(cols))
                 if (m.usable && (best == null || m.cols.size > best.cols.size)) best = m
                 if (m.usable) break
             }
         }
-        return best ?: inferFromContent(table)
+        return best?.let { twoLineHeader(table, it) } ?: inferFromContent(table)
+    }
+
+    private fun roles(row: List<String>): MutableMap<Role, Int> {
+        val cols = mutableMapOf<Role, Int>()
+        // "Dr / Cr" twice (Kotak: one after Amount, one after Balance): the first one is the transaction's.
+        row.forEachIndexed { j, cell -> roleOf(cell)?.let { r -> if (r !in cols) cols[r] = j } }
+        return cols
+    }
+
+    /** "Withdrawal" over "Amt.", "Closing" over "Balance": a header split over two rows reads as one. */
+    private fun twoLineHeader(table: Table, m: Mapping): Mapping {
+        val top = table[m.headerRow]
+        val next = table.getOrNull(m.headerRow + 1) ?: return m
+        if (next.none { it.isNotBlank() } || next.any { Dates.parse(it) != null || Amounts.parse(it) != null }) return m
+        val merged = (0 until maxOf(top.size, next.size)).map { j -> "${top.getOrElse(j) { "" }} ${next.getOrElse(j) { "" }}".trim() }
+        val two = Mapping(m.headerRow + 1, fixDate(roles(merged)))
+        return if (two.usable && two.cols.size > m.cols.size) two else m
     }
 
     private fun fixDate(cols: MutableMap<Role, Int>): Map<Role, Int> {
@@ -120,7 +143,14 @@ object ColumnDetector {
         val width = sample.maxOf { it.size }
         fun share(j: Int, pred: (String) -> Boolean) = sample.count { r -> r.getOrNull(j)?.let(pred) == true }.toDouble() / sample.size
         val dateCol = (0 until width).maxByOrNull { share(it) { c -> Dates.parse(c) != null } } ?: return null
-        val amountCols = (0 until width).filter { it != dateCol && share(it) { c -> Amounts.parse(c) != null } > 0.3 }
+        // A column of amounts, even a mostly empty one (one salary credit among thirty spends). Reference numbers
+        // (long whole numbers) are not amounts.
+        val refLike = Regex("""^\d{9,}$""")
+        val amountCols = (0 until width).filter { j ->
+            if (j == dateCol) return@filter false
+            val cells = sample.mapNotNull { it.getOrNull(j)?.trim()?.takeIf { c -> c.isNotEmpty() } }
+            cells.isNotEmpty() && cells.count { Amounts.parse(it) != null && !refLike.matches(it) } >= 0.9 * cells.size && share(j) { c -> Amounts.parse(c) != null } > 0.05
+        }
         val descCol = (0 until width).filter { it != dateCol && it !in amountCols }.maxByOrNull { j -> sample.sumOf { it.getOrNull(j)?.length ?: 0 } } ?: return null
         val cols = mutableMapOf(Role.DATE to dateCol, Role.DESC to descCol)
         when (amountCols.size) {
@@ -136,6 +166,7 @@ object ColumnDetector {
 /** Dates as banks print them, plus Excel serials. Indian order (day first) when ambiguous. */
 object Dates {
     private val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSSX", "yyyy-MM-dd'T'HH:mm:ssX",
         "dd/MM/yyyy HH:mm:ss", "dd/MM/yyyy HH:mm", "dd-MM-yyyy HH:mm:ss", "dd-MM-yyyy HH:mm", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd'T'HH:mm:ss",
         "dd MMM yyyy, hh:mm a", "dd MMM yyyy hh:mm a", "dd MMM yyyy HH:mm", "dd-MMM-yyyy HH:mm:ss",
         "dd/MM/yyyy", "dd/MM/yy", "dd-MM-yyyy", "dd-MM-yy", "dd.MM.yyyy", "dd.MM.yy", "yyyy-MM-dd", "yyyy/MM/dd",
@@ -146,7 +177,8 @@ object Dates {
 
     /** Epoch millis (local time), or null. */
     fun parse(raw: String, now: Long = System.currentTimeMillis()): Long? {
-        val s = raw.trim().replace(Regex("""\s+"""), " ")
+        // "Sept" is how Indian banks and en-IN write September; the English formatter only knows "Sep".
+        val s = raw.trim().replace(Regex("""\s+"""), " ").replace(Regex("""(?i)\bsept\b"""), "Sep")
         if (s.isEmpty() || s.length > 32) return null
         excelSerial(s)?.let { return it }
         if (!looksDate.containsMatchIn(s)) return null
@@ -165,8 +197,9 @@ object Dates {
 
     private fun excelSerial(s: String): Long? {
         val v = s.removePrefix("xlserial:").toDoubleOrNull() ?: return null
-        if (!s.startsWith("xlserial:") && (v < 30_000 || v > 60_000 || s.contains('.') && s.substringAfter('.').length > 6)) return null
         if (v < 30_000 || v > 60_000) return null
+        // Unmarked, only a whole day number or one with a time fraction is a serial: "45000.00" is money.
+        if (!s.startsWith("xlserial:") && s.contains('.') && s.substringAfter('.').length <= 2) return null
         // Excel day 25569 = 1970-01-01. Serials carry no time zone: read them as local wall-clock time.
         val utc = Math.round((v - 25_569) * 86_400_000.0)
         return utc - TimeZone.getDefault().getOffset(utc)
@@ -183,18 +216,24 @@ object Dates {
 object Amounts {
     data class Signed(val paise: Long, val dr: Boolean?)
 
-    private val rx = Regex("""^\(?-?\s*(?:₹|rs\.?|inr)?\s*-?\s*(\d{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)\s*\)?\s*(dr|cr|d|c|db)?\.?$""", RegexOption.IGNORE_CASE)
+    // Groups: 1 "Dr"/"Cr" before, 2 "(", 3 and 4 a minus before or after the currency, 5 the number, 6 a trailing
+    // minus, 7 "Dr"/"Cr" after (optionally bracketed).
+    private val rx = Regex(
+        """^(?:(dr|cr)\.?\s*)?(\()?\s*(-)?\s*(?:₹|rs\.?|inr)?\s*(-)?\s*(\d{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)\s*(-)?\s*\)?\s*\(?\s*(dr|cr|db|d|c)?\.?\s*\)?$""",
+        RegexOption.IGNORE_CASE,
+    )
 
     fun parseSigned(raw: String): Signed? {
         val s = raw.trim().replace(' ', ' ')
         if (s.isEmpty() || s == "-" || s == "--") return null
         val m = rx.find(s) ?: return null
-        val paise = Math.round((m.groupValues[1].replace(",", "").toDoubleOrNull() ?: return null) * 100)
-        val suffix = m.groupValues[2].lowercase()
-        val negative = s.startsWith("-") || s.startsWith("(") || s.contains("- ")
+        val g = m.groupValues
+        val paise = Math.round((g[5].replace(",", "").toDoubleOrNull() ?: return null) * 100)
+        val mark = (g[7].ifEmpty { g[1] }).lowercase()
+        val negative = g[2].isNotEmpty() || g[3].isNotEmpty() || g[4].isNotEmpty() || g[6].isNotEmpty()
         val dr = when {
-            suffix.startsWith("d") -> true
-            suffix.startsWith("c") -> false
+            mark.startsWith("d") -> true
+            mark.startsWith("c") -> false
             negative -> true
             else -> null
         }
@@ -248,10 +287,14 @@ object NarrationParser {
  */
 object StatementInterpreter {
     private val footer = Regex("""\b(opening balance|closing balance|total|grand total|statement summary|brought forward|carried forward|b/f|c/f|end of statement|page \d+)\b""", RegexOption.IGNORE_CASE)
+    /** A line that is only a footer ("Page 2 of 5", "Closing Balance | 9,500.00 Cr"), not a narration that mentions one ("TOTAL ENERGIES"). */
+    private val footerOnly = Regex("""^\s*(opening balance|closing balance|grand total|total|statement summary|brought forward|carried forward|b/f|c/f|end of statement|page \d+(?: of \d+)?)\b[^a-z]*(?:\b(?:cr|dr)\b[^a-z]*)?$""", RegexOption.IGNORE_CASE)
+    private val summaryStart = Regex("""\b(statement summary|end of statement)\b""", RegexOption.IGNORE_CASE)
+    private val openingRx = Regex("""opening balance|brought forward|b/f""", RegexOption.IGNORE_CASE)
 
     fun interpret(table: Table, format: ImportFormat): ParsedStatement {
         val map = ColumnDetector.find(table) ?: return ParsedStatement(format, emptyList(), emptyList(), "No transaction table found. Is this a bank statement?")
-        data class Raw(val date: Long, val narration: String, val ref: String?, val debit: Long?, val credit: Long?, val amount: Amounts.Signed?, val drcr: String?, val balance: Amounts.Signed?, val text: String)
+        data class Raw(val date: Long?, val narration: String, val ref: String?, val debit: Long?, val credit: Long?, val amount: Amounts.Signed?, val drcr: String?, val balance: Amounts.Signed?, val text: String)
         val raws = mutableListOf<Raw>()
         val problems = mutableListOf<RowProblem>()
         var opening: Long? = null
@@ -262,25 +305,31 @@ object StatementInterpreter {
             if (row.count { ColumnDetector.isHeaderCell(it) } >= 3) continue // header repeated on a new page
             val date = Dates.parse(cell(ColumnDetector.Role.DATE)) ?: Dates.parse(cell(ColumnDetector.Role.VALUE_DATE))
             val desc = cell(ColumnDetector.Role.DESC)
+            val hasMoney = listOf(ColumnDetector.Role.DEBIT, ColumnDetector.Role.CREDIT, ColumnDetector.Role.AMOUNT).any { Amounts.parse(cell(it)) != null }
             if (date == null) {
-                if (footer.containsMatchIn(text)) {
-                    if (Regex("""opening balance|brought forward|b/f""", RegexOption.IGNORE_CASE).containsMatchIn(text) && opening == null)
+                // The account summary after the table ("Opening Balance  Dr Count  Cr Count  Debits ...") is not transactions.
+                if (summaryStart.containsMatchIn(text)) break
+                if (footerOnly.matches(text) || (hasMoney && footer.containsMatchIn(text))) {
+                    if (openingRx.containsMatchIn(text) && opening == null)
                         opening = Amounts.parseSigned(cell(ColumnDetector.Role.BALANCE))?.let { if (it.dr == true) -it.paise else it.paise }
                     continue
                 }
-                // A narration that wrapped onto the next line.
-                val last = raws.lastOrNull()
-                if (last != null && desc.isNotBlank() && listOf(ColumnDetector.Role.DEBIT, ColumnDetector.Role.CREDIT, ColumnDetector.Role.AMOUNT).all { cell(it).let { c -> c.isBlank() || Amounts.parse(c) == null } }) {
-                    raws[raws.size - 1] = last.copy(narration = "${last.narration} $desc".trim(), text = "${last.text} $desc")
+                if (!hasMoney) {
+                    // A narration that wrapped onto the next line.
+                    val last = raws.lastOrNull()
+                    if (last != null && desc.isNotBlank()) raws[raws.size - 1] = last.copy(narration = "${last.narration} $desc".trim(), text = "${last.text} $desc")
+                    continue
                 }
-                continue
+                // Bare numbers with no narration: a summary or subtotal line, not a transaction.
+                if (desc.isBlank()) continue
+                // Money and a narration on a line whose date can't be read: never guess, never drop it. It goes to review below.
             }
-            if (footer.containsMatchIn(desc) && Regex("""opening balance|brought forward|b/f""", RegexOption.IGNORE_CASE).containsMatchIn(desc)) {
+            if (footer.containsMatchIn(desc) && openingRx.containsMatchIn(desc)) {
                 opening = Amounts.parseSigned(cell(ColumnDetector.Role.BALANCE))?.let { if (it.dr == true) -it.paise else it.paise }
                 continue
             }
             raws += Raw(
-                date, desc.ifBlank { text }, cell(ColumnDetector.Role.REF).ifBlank { null },
+                date, desc.ifBlank { text }, usableRef(cell(ColumnDetector.Role.REF)),
                 Amounts.parse(cell(ColumnDetector.Role.DEBIT))?.takeIf { it > 0 }, Amounts.parse(cell(ColumnDetector.Role.CREDIT))?.takeIf { it > 0 },
                 Amounts.parseSigned(cell(ColumnDetector.Role.AMOUNT)), cell(ColumnDetector.Role.DRCR).ifBlank { null },
                 Amounts.parseSigned(cell(ColumnDetector.Role.BALANCE)), text,
@@ -305,8 +354,10 @@ object StatementInterpreter {
         // Statements run oldest-first or newest-first; the running balance says which.
         fun fits(prev: Long, m: Mid, dr: Boolean) = abs(prev + (if (dr) -m.paise else m.paise) - m.bal!!) <= 1
         fun score(list: List<Mid>): Int = list.zipWithNext().count { (a, b) -> a.bal != null && b.bal != null && b.dr != null && fits(a.bal, b, b.dr) }
-        val chronological = if (mids.size >= 2 && mids.first().raw.date > mids.last().raw.date) mids.reversed()
-            else if (mids.size >= 2 && mids.first().raw.date == mids.last().raw.date && score(mids.reversed()) > score(mids)) mids.reversed() else mids
+        val dated = mids.filter { it.raw.date != null }
+        val firstDate = dated.firstOrNull()?.raw?.date; val lastDate = dated.lastOrNull()?.raw?.date
+        val chronological = if (dated.size >= 2 && firstDate!! > lastDate!!) mids.reversed()
+            else if (dated.size >= 2 && firstDate == lastDate && score(mids.reversed()) > score(mids)) mids.reversed() else mids
 
         // No balance to check against: statements without one (credit cards) mark the exception, almost always the
         // credits ("5,000.00 Cr"). An unmarked amount is then a spend; if only debits are marked, it is a credit.
@@ -328,12 +379,35 @@ object StatementInterpreter {
                 ok = dr != null && fits(prevBal, m, dr)
             }
             if (m.bal != null) prevBal = m.bal
-            if (dr == null) { problems += RowProblem(m.raw.text, "direction_unknown", m.raw.date, m.paise, null); continue }
-            val type = if (dr) TransactionType.DEBIT else TransactionType.CREDIT
-            if (ok == false) { problems += RowProblem(m.raw.text, "balance_mismatch", m.raw.date, m.paise, type) }
-            rows += toRow(m.raw.date, m.paise, type, m.raw.narration, m.raw.ref, m.bal, ok, order)
+            val type = dr?.let { if (it) TransactionType.DEBIT else TransactionType.CREDIT }
+            val day = m.raw.date
+            if (day == null) { problems += RowProblem(m.raw.text, "date_unknown", null, m.paise, type); continue }
+            if (type == null) { problems += RowProblem(m.raw.text, "direction_unknown", day, m.paise, null); continue }
+            if (ok == false) { problems += RowProblem(m.raw.text, "balance_mismatch", day, m.paise, type) }
+            rows += toRow(day, m.paise, type, m.raw.narration, m.raw.ref, m.bal, ok, order)
         }
-        return ParsedStatement(format, rows.filter { it.balanceOk != false }, problems)
+        return ParsedStatement(format, numbered(rows.filter { it.balanceOk != false }), problems)
+    }
+
+    /**
+     * Same-day order counted within the day (the importer turns it into seconds after noon, so a whole-file count would
+     * push big files' late rows into the next day), and identical rows numbered so each stays its own transaction.
+     */
+    fun numbered(rows: List<StatementRow>): List<StatementRow> {
+        val perDay = mutableMapOf<Long, Int>()
+        val seen = mutableMapOf<List<Any?>, Int>()
+        return rows.map { r ->
+            val key = listOf(r.date, r.amountPaise, r.type, r.narration.trim().lowercase(), r.balancePaise)
+            val n = seen[key] ?: 0; seen[key] = n + 1
+            val o = perDay[r.date] ?: 0; perDay[r.date] = o + 1
+            r.copy(order = o, occurrence = n)
+        }
+    }
+
+    /** A reference number worth matching on. Banks fill the column with "0", "-", "NA" or zeros when there is none. */
+    fun usableRef(raw: String?): String? {
+        val r = raw?.trim().orEmpty()
+        return r.takeIf { it.count { c -> c.isLetterOrDigit() } >= 6 && it.any { c -> c in '1'..'9' } }
     }
 
     /** Shared by statements and screenshots: counterparty, category, flow and person/organisation for one row. */

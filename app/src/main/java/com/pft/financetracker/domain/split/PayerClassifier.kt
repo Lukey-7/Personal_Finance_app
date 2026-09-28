@@ -31,7 +31,10 @@ object PayerClassifier {
         """\b(pvt|private|ltd|limited|llp|inc|corp|corporation|company|co\.|technologies|technology|tech|solutions|services|systems|""" +
             """enterprises|industries|infotech|software|labs|ventures|retail|foods|restaurant|hotel|hospitality|stores?|mart|traders|""" +
             """agency|associates|consultancy|bank|insurance|mutual fund|securities|finance|financial|capital|broking|clearing|""" +
-            """govt|government|municipal|electricity|university|college|school|hospital|pharma|loan)\b""",
+            """govt|government|municipal|electricity|university|college|school|hospital|pharma|pharmacy|loan|""" +
+            """medicals?|medicos?|chemists?|druggists?|clinic|diagnostics?|motors|automobiles?|autos|electronics|electricals|""" +
+            """jewell?ers|jewell?ery|sweets|bakers|bakery|caterers|travels|tours|garments|textiles|fashions?|boutique|salon|""" +
+            """kirana|provisions?|supermarket|hardware|opticals?|furnishings?|furniture|constructions?|builders|realty)\b""",
         RegexOption.IGNORE_CASE,
     )
     private val merchantMarkers = Regex("""\b(p2m|pos|ecom|mandate|autopay|billdesk|razorpay|cashfree|payu|ccavenue|paytm ?qr|bharatpe|pinelabs|instamojo|juspay)\b""", RegexOption.IGNORE_CASE)
@@ -87,6 +90,16 @@ object PayerClassifier {
      */
     fun partyTokens(name: String): Set<String> = name.lowercase(Locale.ROOT)
         .split(Regex("""[^a-z]+""")).filter { it.length >= 3 && it !in stop }.toSet()
+
+    /**
+     * "The same sender" for grouping transfers: the name's meaningful words, or, when it has none ("AK", a bare phone
+     * number), the name itself. A generic placeholder ("Credit", "UPI") is never one person: it falls back to the row.
+     */
+    fun partyKey(name: String, rowId: Long): String {
+        partyTokens(name).sorted().joinToString(" ").takeIf { it.isNotBlank() }?.let { return it }
+        val raw = name.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
+        return if (raw.isEmpty() || raw in setOf("credit", "debit", "payment", "upi", "imps", "neft", "transfer", "friend")) "#$rowId" else "=$raw"
+    }
 
     /** Two names plausibly describe the same person or business: they share a meaningful word. */
     fun sameParty(a: String, b: String): Boolean {

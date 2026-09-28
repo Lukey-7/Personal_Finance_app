@@ -11,6 +11,7 @@ import com.pft.financetracker.data.prefs.SettingsRepository
 import com.pft.financetracker.data.repository.SmsLogRepository
 import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.domain.categorize.Categorizer
+import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.parser.FlowClassifier
 import com.pft.financetracker.domain.parser.Hashing
@@ -184,7 +185,9 @@ class SmsImporter(
                         // Keep the richer descriptive fields, take this parse's direction/flow/category (we hold the
                         // full SMS body), but never the amount or note: a split may have shrunk the amount on purpose.
                         repo.richer(existing, candidate).copy(
-                            id = existing.id, smsHash = existing.smsHash, type = candidate.type, flow = candidate.flow, category = candidate.category,
+                            // A split owns a settled transfer's flow: re-reading its SMS must not make it income again.
+                            id = existing.id, smsHash = existing.smsHash, type = candidate.type,
+                            flow = if (existing.flow == Flow.SETTLEMENT) existing.flow else candidate.flow, category = candidate.category,
                             amountPaise = existing.amountPaise, originalAmountPaise = existing.originalAmountPaise, note = existing.note,
                             counterpartyKind = existing.counterpartyKind ?: candidate.counterpartyKind, importBatchId = existing.importBatchId,
                             source = existing.source,

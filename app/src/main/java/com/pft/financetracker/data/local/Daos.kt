@@ -168,6 +168,12 @@ interface SplitDao {
     @Query("UPDATE split_shares SET settledPaise = :settledPaise WHERE id = :shareId")
     suspend fun settle(shareId: Long, settledPaise: Long)
 
+    @Query("SELECT * FROM split_shares WHERE id = :id")
+    suspend fun share(id: Long): SplitShareEntity?
+
+    @Query("DELETE FROM split_links WHERE id = :id")
+    suspend fun deleteLink(id: Long)
+
     @Query("UPDATE splits SET linkedTransactionId = :txId WHERE id = :splitId")
     suspend fun link(splitId: Long, txId: Long?)
 
@@ -266,4 +272,18 @@ interface ImportDao {
 
     @Query("DELETE FROM import_batches")
     suspend fun clear()
+
+    @Insert suspend fun insertMatches(e: List<ImportMatchEntity>)
+
+    @Query("SELECT * FROM import_matches WHERE transactionId = :transactionId")
+    suspend fun matchesFor(transactionId: Long): List<ImportMatchEntity>
+
+    @Query("DELETE FROM import_matches WHERE id = :id")
+    suspend fun deleteMatch(id: Long)
+
+    @Query("DELETE FROM import_matches WHERE batchId = :batchId")
+    suspend fun deleteMatchesForBatch(batchId: Long)
+
+    @Query("DELETE FROM import_matches")
+    suspend fun clearMatches()
 }

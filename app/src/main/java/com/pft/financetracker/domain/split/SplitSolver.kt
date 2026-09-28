@@ -70,7 +70,8 @@ object SplitSolver {
     const val DAY = 86_400_000L
     const val DEFAULT_WINDOW_DAYS = 14
 
-    private const val MAX_PEOPLE = 60
+    /** Office parties and college fests reach 75+; beyond 100 a "share" is noise. */
+    private const val MAX_PEOPLE = 100
 
     fun solve(txns: List<SplitTx>, windowDays: Int = DEFAULT_WINDOW_DAYS): List<SplitProposal> {
         val window = windowDays * DAY
@@ -144,7 +145,7 @@ object SplitSolver {
         return best
     }
 
-    private fun key(t: SplitTx) = PayerClassifier.partyTokens(t.merchant).sorted().joinToString(" ").ifBlank { "#${t.id}" }
+    private fun key(t: SplitTx) = PayerClassifier.partyKey(t.merchant, t.id)
 
     // ---------------------------------------------------------------------------------------------------------
     // Assignment: each transfer to at most one payment (or split in full between several), in full.
@@ -185,8 +186,8 @@ object SplitSolver {
         // 2. One transfer covering shares of two or three payments ("Rs 1,200 = dinner Rs 1,000 + cab Rs 200"). Prefer
         //    payments other friends already paid back, so a coincidental sum with an unrelated payment loses.
         for (c in left.toList()) {
-            val fitsIn = open.filter { c.id in it.inWindow && it.slots > 0 && key(c) !in it.paidBy }
-            val combo = combos(fitsIn).filter { set -> near(c.amountPaise, set.sumOf { it.share.paise }, set.size) }
+            val fitsIn = open.filter { c.id in it.inWindow && it.slots > 0 && key(c) !in it.paidBy && it.share.paise < c.amountPaise }
+            val combo = combos(fitsIn, c.amountPaise)
                 .maxWithOrNull(compareBy<List<Open>> { set -> set.count { it.alloc.isNotEmpty() } }.thenBy { set -> set.sumOf { it.strength } }) ?: continue
             var rest = c.amountPaise
             combo.sortedBy { it.p.timestamp }.forEachIndexed { i, o ->
@@ -215,13 +216,30 @@ object SplitSolver {
             .associate { it.p.id to it.alloc.toList() }
     }
 
-    private fun combos(os: List<Open>): List<List<Open>> {
-        val out = mutableListOf<List<Open>>()
-        for (i in os.indices) for (j in i + 1 until os.size) {
-            out += listOf(os[i], os[j])
-            for (k in j + 1 until os.size) out += listOf(os[i], os[j], os[k])
+    /**
+     * Pairs and triples of [os] whose shares add up to [amount] (within Rs 1 a part), in the order i < j (< k) of [os],
+     * pairs before the triples that extend them. Shares are walked smallest first so hopeless sums stop early: a busy
+     * fortnight has hundreds of open payments, and listing every triple took seconds.
+     */
+    private fun combos(os: List<Open>, amount: Long): List<List<Open>> {
+        val order = os.indices.sortedBy { os[it].share.paise }
+        val found = mutableListOf<IntArray>()
+        for (a in order.indices) {
+            val pa = os[order[a]].share.paise
+            if (pa * 2 > amount + 200) break
+            for (b in a + 1 until order.size) {
+                val pab = pa + os[order[b]].share.paise
+                if (pab > amount + 300) break
+                if (near(amount, pab, 2)) found += intArrayOf(order[a], order[b]).sortedArray()
+                for (c in b + 1 until order.size) {
+                    val pabc = pab + os[order[c]].share.paise
+                    if (pabc > amount + 300) break
+                    if (near(amount, pabc, 3)) found += intArrayOf(order[a], order[b], order[c]).sortedArray()
+                }
+            }
         }
-        return out
+        val byPosition = compareBy<IntArray>({ it[0] }, { it[1] }, { it.getOrElse(2) { -1 } })
+        return found.sortedWith(byPosition).map { idx -> idx.map { os[it] } }
     }
 
     private fun near(amount: Long, target: Long, parts: Int) = abs(amount - target) <= 100L * parts

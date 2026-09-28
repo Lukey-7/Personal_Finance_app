@@ -202,7 +202,7 @@ class StatementImportTest {
         assertEquals(listOf(TransactionType.DEBIT, TransactionType.CREDIT), pp.map { it.type })
         assertEquals("Priya Nair", pp[1].counterparty)
         // The same rows in two overlapping screenshots are read once.
-        assertEquals(3, AppHistoryParser.parse(gpay + gpay.map { it.copy(y = it.y + 10_000f) }, now).size)
+        assertEquals(3, AppHistoryParser.parse(gpay + gpay.map { it.copy(y = it.y + 100_000f, page = 1) }, now).size)
     }
 
     // A minimal .xlsx: one sheet, inline strings.

@@ -130,10 +130,17 @@ class SplitAiRequest private constructor(
     /** Payments this request asked about (their ids in the app). */
     val payments: Set<Long> get() = paymentIds.values.toSet()
 
-    /** Parse the model's JSON answer into proposals. Anything malformed is skipped, never guessed. */
+    /**
+     * Parse the model's JSON answer into proposals. Anything malformed is skipped, never guessed. Null when the answer
+     * is not an answer at all (not JSON, cut off, no "groups" list): the caller then treats the AI as not asked.
+     * An empty "groups" list is an answer: "no group payments here".
+     */
     fun parse(answer: String): List<SplitProposal>? {
-        val root = runCatching { JSONObject(answer.trim().removePrefix("```json").removePrefix("```").removeSuffix("```")) }.getOrNull() ?: return null
-        val groups = root.optJSONArray("groups") ?: return emptyList()
+        // Models sometimes wrap the JSON in a code fence or a sentence: read the outermost {...}.
+        val start = answer.indexOf('{'); val end = answer.lastIndexOf('}')
+        if (start < 0 || end <= start) return null
+        val root = runCatching { JSONObject(answer.substring(start, end + 1)) }.getOrNull() ?: return null
+        val groups = root.optJSONArray("groups") ?: return null
         val out = mutableListOf<SplitProposal>()
         for (i in 0 until groups.length()) {
             val g = groups.optJSONObject(i) ?: continue
@@ -149,13 +156,16 @@ class SplitAiRequest private constructor(
             if (alloc.isEmpty()) continue
             val people = g.optInt("people", 0).takeIf { it >= 2 }
             val conf = g.optInt("confidence", 0).coerceIn(0, 100)
-            val reason = g.optString("reason").takeIf { it.isNotBlank() }?.let { r -> personLabels.entries.fold(r) { acc, (label, name) -> acc.replace(label, name) } }
+            // "Person AB" must not be read as "Person A" + "B": replace whole labels in one pass.
+            val reason = g.optString("reason").takeIf { it.isNotBlank() }?.let { r -> labelRx.replace(r) { m -> personLabels[m.value] ?: m.value } }
             out += SplitProposal(pid, kind, alloc, null, people, conf, listOfNotNull(reason), SplitSource.AUTO_AI)
         }
         return out
     }
 
     companion object {
+        private val labelRx = Regex("""\bPerson [A-Z]{1,2}\b""")
+
         /** Build the request for one cluster of related payments and incoming transfers. */
         fun build(payments: List<SplitTx>, incoming: List<SplitTx>): SplitAiRequest {
             val start = (payments + incoming).minOf { it.timestamp }
@@ -168,7 +178,7 @@ class SplitAiRequest private constructor(
             val labels = mutableMapOf<String, String>() // party key -> "Person A"
             val labelNames = mutableMapOf<String, String>() // "Person A" -> real name (for reasons shown locally)
             fun label(t: SplitTx): String {
-                val k = PayerClassifier.partyTokens(t.merchant).sorted().joinToString(" ").ifBlank { "#${t.id}" }
+                val k = PayerClassifier.partyKey(t.merchant, t.id)
                 return labels.getOrPut(k) {
                     val l = "Person ${personName(labels.size)}"
                     labelNames[l] = t.merchant; l

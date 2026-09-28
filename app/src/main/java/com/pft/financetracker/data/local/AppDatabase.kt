@@ -16,9 +16,9 @@ import java.security.SecureRandom
     entities = [
         TransactionEntity::class, ReviewItemEntity::class, BudgetEntity::class,
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
-        SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
+        SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class, ImportMatchEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -244,7 +244,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        /**
+         * v5 -> v6 (v1.2.1): which imports also contained a row, so undoing one import keeps rows another still has; and
+         * which manual-split share a friend's transfer settled, so deleting the transfer makes the share owed again.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS import_matches (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, batchId INTEGER NOT NULL, transactionId INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_import_matches_batchId ON import_matches (batchId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_import_matches_transactionId ON import_matches (transactionId)")
+                db.execSQL("ALTER TABLE split_links ADD COLUMN shareId INTEGER")
+            }
+        }
+
+        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
     }
 }
 

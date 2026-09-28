@@ -174,6 +174,8 @@ data class SplitLinkEntity(
     val allocatedPaise: Long,
     val prevFlow: String?,
     val prevAmountPaise: Long?,
+    /** For a transfer settling a manual split: the share it paid, so it can be owed again if the transfer goes. */
+    val shareId: Long? = null,
 )
 
 /** "This is not a split": remembered forever so the same payment is never suggested or auto-split again. */
@@ -183,6 +185,17 @@ data class SplitDecisionEntity(
     val paymentTransactionId: Long,
     val decision: String,
     val decidedAt: Long = System.currentTimeMillis(),
+)
+
+/**
+ * A row an import found already stored (added by an earlier import of an overlapping file). If that earlier import is
+ * undone, the row stays and moves to this one: the later file vouches for it too.
+ */
+@Entity(tableName = "import_matches", indices = [Index(value = ["batchId"]), Index(value = ["transactionId"])])
+data class ImportMatchEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val batchId: Long,
+    val transactionId: Long,
 )
 
 /** One statement or screenshot import, for the import history and "undo this import". */

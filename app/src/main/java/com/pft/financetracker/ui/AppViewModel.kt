@@ -395,6 +395,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         c.smsLog.clearAll()
         c.splits.clearAll()
         c.db.importDao().clear()
+        c.db.importDao().clearMatches()
         c.settings.clearAll()
         _aiState.value = AiUiState.Idle
         _importState.value = ImportUiState.Idle

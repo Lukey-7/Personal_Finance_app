@@ -49,17 +49,35 @@ object PositionedTable {
             return byBounds
         }
 
-        val out = mutableListOf<List<String>>()
-        out += header.map { it.text }
+        data class Row(val page: Int, val y: Float, val cells: MutableList<String>)
+        val body = mutableListOf<Row>()
         for ((i, cs) in chunked.withIndex()) {
             if (i <= headerIdx + (if (header !== chunked[headerIdx]) 1 else 0)) continue
             // A repeated header on a later page.
             if (cs.count { ColumnDetector.isHeaderCell(it.text) } >= 3) continue
             val cells = MutableList(header.size) { "" }
             for (c in cs) { val j = col(c); cells[j] = (cells[j] + " " + c.text).trim() }
-            out += cells
+            body += Row(lines[i].page, lines[i].y, cells)
         }
-        return out
+
+        // Rows drawn vertically centred put the first line of a long narration *above* the date line. A text-only line
+        // that sits closer to the next dated line than to the previous one belongs to the next transaction.
+        val roles = header.map { ColumnDetector.roleOf(it.text) }
+        val moneyRoles = setOf(ColumnDetector.Role.DEBIT, ColumnDetector.Role.CREDIT, ColumnDetector.Role.AMOUNT, ColumnDetector.Role.BALANCE)
+        fun dated(r: Row) = r.cells.indices.any { j -> (roles[j] == ColumnDetector.Role.DATE || roles[j] == ColumnDetector.Role.VALUE_DATE) && Dates.parse(r.cells[j]) != null }
+        fun textOnly(r: Row) = !dated(r) && r.cells.indices.none { j -> roles[j] in moneyRoles && r.cells[j].isNotBlank() } && r.cells.any { it.isNotBlank() }
+        // Bottom-up, so two such lines above one row keep their order when both move down.
+        for (k in body.indices.reversed()) {
+            val r = body[k]
+            if (!textOnly(r)) continue
+            val prev = (k - 1 downTo 0).firstOrNull { dated(body[it]) }?.let { body[it] }?.takeIf { it.page == r.page }
+            val next = (k + 1 until body.size).firstOrNull { !textOnly(body[it]) }?.let { body[it] }?.takeIf { dated(it) && it.page == r.page }
+            if (next != null && (prev == null || next.y - r.y < r.y - prev.y)) {
+                for (j in next.cells.indices) next.cells[j] = (r.cells[j] + " " + next.cells[j]).trim()
+                body.removeAt(k)
+            }
+        }
+        return listOf(header.map { it.text }) + body.map { it.cells }
     }
 
     private fun lines(words: List<Word>): List<Line> {
@@ -103,18 +121,24 @@ object AppHistoryParser {
     private val dateLike = Regex("""\b(today|yesterday|\d{1,2}\s+(?:$months)\b[^\n]*|(?:$months)\s+\d{1,2}\b[^\n]*|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}[^\n]*)""", RegexOption.IGNORE_CASE)
     private val monthHeader = Regex("""^(?:$months)\s*\d{0,4}$""", RegexOption.IGNORE_CASE)
 
-    /** One OCR line; [w] is its box width (0 when unknown), used to tell a misread ₹ from a real digit. */
-    data class Line(val text: String, val x: Float, val y: Float, val h: Float, val w: Float = 0f)
+    /**
+     * One OCR line; [w] is its box width (0 when unknown), used to tell a misread ₹ from a real digit. [page] is which
+     * screenshot it came from (OCR also offsets [y] by page, so pages never share a row).
+     */
+    data class Line(val text: String, val x: Float, val y: Float, val h: Float, val w: Float = 0f, val page: Int = 0)
 
     fun parse(lines: List<Line>, now: Long = System.currentTimeMillis()): List<StatementRow> {
         val sorted = lines.filter { it.text.isNotBlank() }.sortedBy { it.y }
         if (sorted.isEmpty()) return emptyList()
         val amounts = resolveAmounts(sorted)
         val rows = mutableListOf<StatementRow>()
+        val pages = mutableListOf<Int>()
         var sectionDate: Long? = null
         val used = mutableSetOf<Int>()
         for ((i, l) in sorted.withIndex()) {
-            if (monthHeader.matches(l.text.trim()) || (dateLike.matches(l.text.trim()) && amountRx.find(l.text) == null && sorted.none { o -> o !== l && abs(o.y - l.y) < l.h * 0.6 })) {
+            // "September 2026" names a month, not a day: rows under it need their own date.
+            if (monthHeader.matches(l.text.trim())) { sectionDate = null; continue }
+            if (dateLike.matches(l.text.trim()) && amountRx.find(l.text) == null && sorted.none { o -> o !== l && abs(o.y - l.y) < l.h * 0.6 }) {
                 parseWhen(l.text, now)?.let { sectionDate = it }
                 continue
             }
@@ -125,7 +149,7 @@ object AppHistoryParser {
             // The row: lines at the same height, plus the one or two lines just below (date, status).
             val band = sorted.withIndex().filter { (j, o) -> j !in used && (abs(o.y - l.y) <= maxOf(l.h, o.h) * 0.7f || (o.y > l.y && o.y - l.y <= l.h * 2.6f)) }
             val text = band.joinToString(" \n ") { it.value.text }
-            if (skipWords.containsMatchIn(text)) { band.forEach { used += it.index }; continue }
+            if (band.any { statusLine(it.value.text) }) { band.forEach { used += it.index }; continue }
             val nameLine = band.filter { (j, o) -> o !== l && j !in amounts && amountRx.find(o.text) == null && dateLike.find(o.text) == null }.map { it.value }
                 .map { prefix.replace(it.text.trim(), "").trim() }.firstOrNull { it.isNotBlank() && !noise.matches(it) && it.count { c -> c.isLetter() } >= 2 }
                 ?: prefix.replace(l.text.replace(am.matched, "").trim(), "").trim().takeIf { it.count { c -> c.isLetter() } >= 2 }
@@ -140,10 +164,20 @@ object AppHistoryParser {
             val at = whenText?.let { parseWhen(it, now) } ?: sectionDate ?: continue
             band.forEach { used += it.index }
             rows += StatementInterpreter.toRow(at, paise, type, text.replace("\n", " "), null, null, null, rows.size, knownName = nameLine)
+            pages += l.page
         }
-        // Overlapping screenshots show some rows twice.
-        return rows.distinctBy { listOf(it.counterparty.lowercase(Locale.ROOT), it.amountPaise, it.type, it.time ?: it.date) }
-            .sortedWith(compareBy({ it.date }, { it.time ?: 0L })).mapIndexed { i, r -> r.copy(order = i) }
+        // Overlapping screenshots show some rows twice. Within one screenshot two identical rows are two payments (two
+        // Rs 20 teas on one day), so each row is kept as many times as the screenshot that shows it most often.
+        val kept = rows.indices.groupBy { i -> rows[i].let { listOf(it.counterparty.lowercase(Locale.ROOT), it.amountPaise, it.type, it.time ?: it.date) } }.values
+            .flatMap { same -> same.groupBy { pages[it] }.values.maxByOrNull { it.size }!!.map { rows[it] } }
+        return kept.sortedWith(compareBy({ it.date }, { it.time ?: 0L })).mapIndexed { i, r -> r.copy(order = i) }
+    }
+
+    /** A status line ("Failed", "Payment failed", "Refund processing"), not a name that happens to contain the word. */
+    private fun statusLine(t: String): Boolean {
+        if (!skipWords.containsMatchIn(t)) return false
+        val rest = t.replace(skipWords, " ").replace(Regex("""\b(payment|transaction|money|transfer|refund|upi|is|was|has|been|your|the|of|to|by|bank|request)\b""", RegexOption.IGNORE_CASE), " ")
+        return rest.count { it.isLetter() } < 3
     }
 
     private data class Amt(val sign: String, val paise: Long, val matched: String)
@@ -172,20 +206,30 @@ object AppHistoryParser {
         fun options(c: Cand): List<Pair<String, Double>> {
             val out = mutableListOf(c.digits to 1 + units(c.digits)) // "₹" + digits: ₹ dropped, or read as a letter
             if (c.junk == null && c.digits.length >= 2 && c.digits[0] in "72") c.digits.drop(1).trimStart(',').let { out += it to 1 + units(it) } // ₹ read as 7 or 2
+            // Indian apps group as 1,23,45,678. "712,000" can't be that, so its 7 was the ₹: only the other reading stays.
+            if (out.size > 1 && !indianGrouping(out[0].first) && indianGrouping(out[1].first)) out.removeAt(0)
             return out
         }
         val signUnits = 1.75 // "+" and the space after it
         fun err(c: Cand, n: Double, g: Double) = kotlin.math.abs(c.line.w / g - (if (c.sign.isNotEmpty()) signUnits else 0.0) - n)
         val measured = cands.filter { it.line.w > 0 }
-        val g = if (measured.size >= 2) (8..400).map { it / 2.0 }.minByOrNull { g -> measured.sumOf { c -> options(c).minOf { err(c, it.second, g) } } } else null
+        val g = when {
+            measured.size >= 2 -> (8..400).map { it / 2.0 }.minByOrNull { g -> measured.sumOf { c -> options(c).minOf { err(c, it.second, g) } } }
+            // One amount can't fit a glyph width on its own; a digit is about 0.55 of the line height in these apps.
+            measured.size == 1 && measured[0].line.h > 0 -> measured[0].line.h * 0.55
+            else -> null
+        }
 
         val out = mutableMapOf<Int, Amt>()
         for (c in cands) {
             val opts = options(c)
+            val rupees = c.digits.substringBefore('.')
             val digits = when {
+                opts.size == 1 -> opts[0].first
                 g != null && c.line.w > 0 -> opts.minByOrNull { err(c, it.second, g) }!!.first
-                // No widths: Indian apps write thousands with a comma, so a comma-less 4-digit "7300" is ₹300.
-                opts.size > 1 && c.digits.length >= 4 && !c.digits.contains(',') && c.digits[0] == '7' -> opts[1].first
+                // No widths: Indian apps write thousands with a comma, so a comma-less 4-digit "7300" is ₹300. Paise
+                // don't count: "750.00" is three digits of rupees.
+                rupees.length >= 4 && !rupees.contains(',') && c.digits[0] == '7' -> opts[1].first
                 else -> opts[0].first
             }
             val paise = digits.replace(",", "").toDoubleOrNull()?.let { Math.round(it * 100) } ?: continue
@@ -199,6 +243,12 @@ object AppHistoryParser {
             out[i] = Amt(am.groupValues[1].ifBlank { am.groupValues[3] }.let { if (it == "−") "-" else it }, paise, am.value)
         }
         return out
+    }
+
+    /** "1,23,456" or "999" (whole rupees; paise ignored). A number without commas is fine too. */
+    private fun indianGrouping(d: String): Boolean {
+        val r = d.substringBefore('.')
+        return !r.contains(',') || Regex("""^\d{1,2}(,\d{2})*,\d{3}$""").matches(r)
     }
 
     /** "Today, 8:30 pm", "Yesterday", "12 Sep, 8:30 PM", "Sep 12, 2026", "12 September 2026", "12/09/2026 20:30". */
@@ -221,7 +271,8 @@ object AppHistoryParser {
             s.startsWith("today", true) -> return withTime(cal)
             s.startsWith("yesterday", true) -> return withTime(cal.apply { add(Calendar.DAY_OF_YEAR, -1) })
         }
-        val datePart = s.substringBefore(time?.value ?: "\u0000").trim().trimEnd(',', ' ', 'a', 't').trim()
+        // "12 Oct at 8:30 pm" -> "12 Oct" (trimming the letters a and t would turn "Oct" into "Oc").
+        val datePart = s.substringBefore(time?.value ?: "\u0000").replace(Regex("""(?:[\s,]|\bat\b)+$""", RegexOption.IGNORE_CASE), "").trim()
         Dates.parse(datePart, now)?.let { d -> return withTime(Calendar.getInstance().apply { timeInMillis = d }) }
         // No year ("12 Sep"): this year, or last year if that would be in the future.
         val m = Regex("""(\d{1,2})\s+([A-Za-z]{3,9})|([A-Za-z]{3,9})\s+(\d{1,2})""").find(datePart) ?: return null

@@ -76,7 +76,7 @@ object OcrEngine {
                 }
                 val appLines = lines.mapNotNull { line ->
                     val b = line.boundingBox ?: return@mapNotNull null
-                    com.pft.financetracker.domain.importer.AppHistoryParser.Line(line.text, b.left.toFloat(), b.centerY().toFloat() + page * 100_000f, b.height().toFloat(), b.width().toFloat())
+                    com.pft.financetracker.domain.importer.AppHistoryParser.Line(line.text, b.left.toFloat(), b.centerY().toFloat() + page * 100_000f, b.height().toFloat(), b.width().toFloat(), page)
                 }
                 words to appLines
             } finally {

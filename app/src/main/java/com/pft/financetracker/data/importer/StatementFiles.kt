@@ -9,6 +9,9 @@ import com.pft.financetracker.domain.importer.CsvReader
 import com.pft.financetracker.domain.importer.FormatSniffer
 import com.pft.financetracker.domain.importer.HtmlTableReader
 import com.pft.financetracker.domain.importer.ImportFormat
+import com.pft.financetracker.domain.importer.ImportRejected
+import com.pft.financetracker.domain.importer.ImportTooLarge
+import com.pft.financetracker.domain.importer.PdfLimits
 import com.pft.financetracker.domain.importer.ParsedStatement
 import com.pft.financetracker.domain.importer.PositionedTable
 import com.pft.financetracker.domain.importer.StatementInterpreter
@@ -16,6 +19,7 @@ import com.pft.financetracker.domain.importer.Word
 import com.pft.financetracker.domain.importer.XlsxReader
 import com.pft.financetracker.ui.ocr.OcrEngine
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
 import com.tom_roush.pdfbox.rendering.PDFRenderer
@@ -58,6 +62,10 @@ class StatementFiles(private val context: Context) {
             }
         } catch (e: OutOfMemoryError) {
             Read.Error("The file is too large to read on this phone.")
+        } catch (e: ImportTooLarge) {
+            Read.Error(e.message ?: "The file is too large to read on this phone.")
+        } catch (e: ImportRejected) {
+            Read.Error(e.message ?: "This file could not be read.")
         } catch (e: Exception) {
             Read.Error("Could not read this file (${e.javaClass.simpleName}).")
         }
@@ -65,10 +73,12 @@ class StatementFiles(private val context: Context) {
 
     private suspend fun readPdf(bytes: ByteArray, name: String, password: String?): Read {
         PDFBoxResourceLoader.init(context.applicationContext)
+        // An empty box is no password (tapping "Open" with nothing typed must not say "wrong password").
+        val pw = password?.takeIf { it.isNotEmpty() }
         val doc = try {
-            if (password != null) PDDocument.load(bytes, password) else PDDocument.load(bytes)
+            PDDocument.load(bytes, pw ?: "", null, null, MemoryUsageSetting.setupMainMemoryOnly(PdfLimits.MAX_PDF_MEMORY))
         } catch (e: InvalidPasswordException) {
-            return Read.NeedsPassword(name, wrong = password != null)
+            return Read.NeedsPassword(name, wrong = pw != null)
         }
         doc.use { d ->
             if (d.isEncrypted) d.setAllSecurityToBeRemoved(true)
@@ -79,8 +89,10 @@ class StatementFiles(private val context: Context) {
             }
             val renderer = PDFRenderer(d)
             val ocrWords = mutableListOf<Word>()
-            for (page in 0 until minOf(d.numberOfPages, 30)) {
-                val bmp: Bitmap = renderer.renderImageWithDPI(page, 200f)
+            for (page in 0 until minOf(d.numberOfPages, PdfLimits.MAX_OCR_PAGES)) {
+                // A giant page (a 200-inch MediaBox) would need a bitmap far bigger than the phone's memory.
+                val box = d.getPage(page).mediaBox
+                val bmp: Bitmap = renderer.renderImageWithDPI(page, PdfLimits.renderDpi(box.width, box.height))
                 try { ocrWords += OcrEngine.recognizeWords(bmp, page).first } finally { bmp.recycle() }
             }
             return Read.Ok(StatementInterpreter.interpret(PositionedTable.toTable(ocrWords), ImportFormat.PDF_SCANNED), name)
@@ -110,7 +122,7 @@ class StatementFiles(private val context: Context) {
         }
         stripper.sortByPosition = true
         stripper.startPage = 1
-        stripper.endPage = minOf(d.numberOfPages, 200)
+        stripper.endPage = minOf(d.numberOfPages, PdfLimits.MAX_TEXT_PAGES)
         stripper.getText(d)
         return out
     }

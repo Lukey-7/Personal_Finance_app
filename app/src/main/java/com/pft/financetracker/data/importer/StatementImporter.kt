@@ -2,6 +2,7 @@ package com.pft.financetracker.data.importer
 
 import com.pft.financetracker.data.local.ImportBatchEntity
 import com.pft.financetracker.data.local.ImportDao
+import com.pft.financetracker.data.local.ImportMatchEntity
 import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.data.local.TransactionDao
 import com.pft.financetracker.data.local.toDomain
@@ -45,7 +46,13 @@ class StatementImporter(
     private suspend fun findExisting(r: StatementRow, consumed: Set<Long>): Transaction? {
         // The same file (or an overlapping one) imported before.
         txDao.getByHash(hash(r))?.let { return it.toDomain() }
-        r.ref?.let { ref -> txDao.findAnyByRef(ref)?.toDomain()?.takeIf { it.amountPaise == r.amountPaise || it.originalAmountPaise == r.amountPaise }?.let { if (it.id !in consumed) return it } }
+        // The same reference number, amount and (within a week) date. The date guard matters: some banks reuse
+        // cheque-style numbers, and a ref alone once matched a payment months away.
+        r.ref?.let { ref ->
+            txDao.findAnyByRef(ref)?.toDomain()
+                ?.takeIf { (it.amountPaise == r.amountPaise || it.originalAmountPaise == r.amountPaise) && kotlin.math.abs(it.timestamp - r.date) <= 7 * 86_400_000L }
+                ?.let { if (it.id !in consumed) return it }
+        }
         // Same amount and direction within a day either side (statements book some payments a day late). Names
         // must agree: ten Rs 1,000 paybacks on one day are ten different people.
         val cands = txDao.findSameAmount(r.amountPaise, r.type.name, r.date - 86_400_000L, r.date + 2 * 86_400_000L - 1)
@@ -76,11 +83,16 @@ class StatementImporter(
             )
             if (repo.insert(t) > 0) added++
         }
-        // Fill in what the statement knows and the stored row lacks.
-        for ((r, existing) in p.duplicates) {
+        // Fill in what the statement knows and the stored row lacks. Read the row again: the preview may have been on
+        // screen while an SMS or a split changed it, and writing the preview's copy back would undo that.
+        val matched = mutableListOf<ImportMatchEntity>()
+        for ((r, seen) in p.duplicates) {
+            val existing = txDao.getById(seen.id)?.toDomain() ?: continue
             val filled = existing.copy(refNumber = existing.refNumber ?: r.ref, counterpartyKind = existing.counterpartyKind ?: r.kind)
             if (filled != existing) txDao.update(filled.toEntity())
+            if (existing.importBatchId != null && existing.importBatchId != batchId) matched += ImportMatchEntity(batchId = batchId, transactionId = existing.id)
         }
+        if (matched.isNotEmpty()) importDao.insertMatches(matched)
         var review = 0
         for (prob in p.statement.problems) {
             val ok = repo.enqueueReview(
@@ -97,13 +109,25 @@ class StatementImporter(
         return batch
     }
 
-    /** Remove every transaction an import added. Rows it only matched (already in the app) are left alone. */
+    /**
+     * Remove every transaction an import added. Rows it only matched (already in the app) are left alone, and a row a
+     * later import also contained stays and moves to that import.
+     */
     suspend fun undo(batchId: Long) {
-        txDao.getByBatch(batchId).forEach { txDao.delete(it) }
+        for (t in txDao.getByBatch(batchId)) {
+            val other = importDao.matchesFor(t.id).firstOrNull { it.batchId != batchId && importDao.get(it.batchId) != null }
+            if (other != null) {
+                txDao.update(t.copy(importBatchId = other.batchId))
+                importDao.deleteMatch(other.id)
+            } else txDao.delete(t)
+        }
+        importDao.deleteMatchesForBatch(batchId)
         importDao.delete(batchId)
     }
 
-    private fun hash(r: StatementRow) = "stmt:" + sha("${r.date}|${r.amountPaise}|${r.type}|${r.narration.trim().lowercase()}|${r.balancePaise}")
+    /** Identical rows in one file (two Rs 20 teas) are told apart by their occurrence; the first keeps the old hash. */
+    private fun hash(r: StatementRow) = "stmt:" + sha("${r.date}|${r.amountPaise}|${r.type}|${r.narration.trim().lowercase()}|${r.balancePaise}" +
+        if (r.occurrence > 0) "|#${r.occurrence}" else "")
 
     private fun sha(s: String): String = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }.take(32)
 }
