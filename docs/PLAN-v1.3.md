@@ -58,9 +58,9 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T0.4 Dependency audit script (`scripts/audit-deps.sh`): scans the resolved artifacts for telemetry packages and the release APK for URLs. Run it on the baseline APK
 
 ### M1. Refund and reversal matching (feature 5)
-- [ ] T1.1 `RefundMatcher` (domain, pure): pairs by ref number → same merchant + amount ≤ debit within 60 days → reversal rule (D6). Tests: full refund, partial refund, failed-UPI reversal, two equal debits with one refund, an INCOME credit that should be a REFUND
-- [ ] T1.2 Persist links, run after SMS, statement import and rescan; undo; never touch user-edited rows
-- [ ] T1.3 UI: "Refunded ₹X" / "Reversed" badges, hide-reversals toggle on Transactions, drill-down shows the pair
+- [x] T1.1 `RefundMatcher` (domain, pure): pairs by ref number → same merchant + amount ≤ debit within 60 days → reversal rule (D6). Tests: full refund, partial refund, failed-UPI reversal, two equal debits with one refund, an INCOME credit that should be a REFUND
+- [x] T1.2 Persist links, run after SMS, statement import and rescan; undo; never touch user-edited rows
+- [x] T1.3 UI: "Refunded ₹X" / "Reversed" badges, hide-reversals toggle on Transactions, drill-down shows the pair
 
 ### M2. Parser resilience (feature 2)
 - [ ] T2.1 TRAI headers: strip `-T/-S/-P/-G` suffixes in `BankExtractor`; add corpus cases for each bank with suffixes
