@@ -63,11 +63,11 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T1.3 UI: "Refunded ₹X" / "Reversed" badges, hide-reversals toggle on Transactions, drill-down shows the pair
 
 ### M2. Parser resilience (feature 2)
-- [ ] T2.1 TRAI headers: strip `-T/-S/-P/-G` suffixes in `BankExtractor`; add corpus cases for each bank with suffixes
-- [ ] T2.2 `TemplateLearner` (D11): mask, learn, match; tests covering learn-then-parse, different sender doesn't match, changed wording doesn't match, amount never taken from a masked account number
-- [ ] T2.3 Hook into Review confirm + `SmsParser` (template tried before the generic layers only for that sender)
-- [ ] T2.4 "Possible misses" view in the SMS log: ignored bank-sender messages that contain an amount and a money verb, with one tap to send to Review
-- [ ] T2.5 Settings → Learned templates (list, delete)
+- [x] T2.1 TRAI headers: strip `-T/-S/-P/-G` suffixes in `BankExtractor`; add corpus cases for each bank with suffixes
+- [x] T2.2 `TemplateLearner` (D11): mask, learn, match; tests covering learn-then-parse, different sender doesn't match, changed wording doesn't match, amount never taken from a masked account number
+- [x] T2.3 Hook into Review confirm + `SmsParser` (template tried before the generic layers only for that sender)
+- [x] T2.4 "Possible misses" view in the SMS log: ignored bank-sender messages that contain an amount and a money verb, with one tap to send to Review
+- [x] T2.5 Settings → Learned templates (list, delete)
 
 ### M3. Subscriptions and UPI AutoPay (feature 1)
 - [ ] T3.1 `RecurringDetector` (domain): clusters by merchant and amount band, infers period (weekly, monthly, quarterly, yearly) and next date; boosts on AutoPay / mandate / SI / e-mandate wording. Replaces the old ad-hoc check in `InsightsEngine.suggestions` (the Insight now reads from the detector). Tests: Netflix monthly, yearly Prime, weekly, price hike, irregular grocery (must NOT match), mandate keyword with only one charge
