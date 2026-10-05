@@ -316,6 +316,46 @@ data class TaxTagEntity(
     val section: String?,
 )
 
+/** Something owned (or, with [liability], owed) typed in by hand for net worth (v1.3). */
+@Entity(tableName = "assets")
+data class AssetEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val kind: String,
+    val valuePaise: Long,
+    val liability: Boolean,
+    val accountRef: String?,
+    val updatedAt: Long = System.currentTimeMillis(),
+)
+
+/** The newest balance a bank SMS reported for an account ("Avl Bal ..."), by its last digits. */
+@Entity(tableName = "account_balances")
+data class AccountBalanceEntity(
+    @PrimaryKey val accountRef: String,
+    val bankName: String?,
+    val balancePaise: Long,
+    val at: Long,
+)
+
+/** A mutual-fund holding from the latest CAS statement; a new CAS replaces them all. */
+@Entity(tableName = "holdings")
+data class HoldingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val folio: String,
+    val scheme: String,
+    val valuePaise: Long,
+    val asOfDay: Long,
+)
+
+/** Net worth at the end of each month it was seen, for the history line. [month] is "yyyy-MM". */
+@Entity(tableName = "networth_snapshots")
+data class NetWorthSnapshotEntity(
+    @PrimaryKey val month: String,
+    val totalPaise: Long,
+    val ownPaise: Long,
+    val owePaise: Long,
+)
+
 @Entity(tableName = "import_batches")
 data class ImportBatchEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

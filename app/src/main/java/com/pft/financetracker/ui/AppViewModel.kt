@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.pft.financetracker.appContainer
 import com.pft.financetracker.data.bills.toDomain
 import com.pft.financetracker.data.cards.toDomain
+import com.pft.financetracker.data.networth.toDomain
 import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.data.local.SmsLogEntity
 import com.pft.financetracker.data.repository.TransactionRepository
@@ -67,6 +68,15 @@ sealed class StatementUiState {
     data class Preview(val preview: StatementImporter.Preview) : StatementUiState()
     data class Saved(val batch: ImportBatchEntity) : StatementUiState()
     data class Error(val message: String) : StatementUiState()
+}
+
+/** Reading a mutual-fund CAS PDF: (password) -> done. */
+sealed class CasUiState {
+    data object Idle : CasUiState()
+    data object Reading : CasUiState()
+    data class NeedsPassword(val uri: Uri, val wrong: Boolean) : CasUiState()
+    data class Done(val count: Int) : CasUiState()
+    data class Error(val message: String) : CasUiState()
 }
 
 /** Which period the dashboard shows. Kept in the view model so it survives tab switches. */
@@ -395,6 +405,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun tagTax(txId: Long, s: com.pft.financetracker.domain.tax.TaxSection?) = viewModelScope.launch(Dispatchers.IO) { c.tax.tag(txId, s) }
     fun clearTaxTag(txId: Long) = viewModelScope.launch(Dispatchers.IO) { c.tax.clearTag(txId) }
     suspend fun taxCsv(fy: com.pft.financetracker.domain.tax.FinancialYear): String = withContext(Dispatchers.IO) { c.tax.csv(fy) }
+
+    val assets: StateFlow<List<com.pft.financetracker.domain.networth.Asset>> = c.db.netWorthDao().observeAssets()
+        .map { l -> l.map { it.toDomain() } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val accountBalances = c.db.netWorthDao().observeBalances().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val holdings = c.db.netWorthDao().observeHoldings().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val netWorthHistory = c.db.netWorthDao().observeSnapshots().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val netWorth: StateFlow<com.pft.financetracker.domain.networth.NetWorthSummary> =
+        combine(c.db.netWorthDao().observeAssets(), c.db.netWorthDao().observeBalances(), c.db.netWorthDao().observeHoldings(), c.db.billDao().observeAll()) { a, b, h, bills ->
+            c.netWorth.summaryOf(a, b, h, bills.map { it.toDomain() }, java.time.LocalDate.now())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.networth.NetWorthSummary(0, 0, emptyMap()))
+    fun saveAsset(a: com.pft.financetracker.domain.networth.Asset) = viewModelScope.launch(Dispatchers.IO) { c.netWorth.saveAsset(a); c.netWorth.snapshot() }
+    fun deleteAsset(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.netWorth.deleteAsset(id); c.netWorth.snapshot() }
+
+    private val _casState = MutableStateFlow<CasUiState>(CasUiState.Idle)
+    val casState: StateFlow<CasUiState> = _casState
+    fun resetCas() { _casState.value = CasUiState.Idle }
+    fun importCas(uri: Uri, password: String?) = viewModelScope.launch {
+        _casState.value = CasUiState.Reading
+        _casState.value = when (val r = c.statementFiles.readPdfText(uri, password)) {
+            is StatementFiles.TextRead.NeedsPassword -> CasUiState.NeedsPassword(uri, r.wrong)
+            is StatementFiles.TextRead.Error -> CasUiState.Error(r.message)
+            is StatementFiles.TextRead.Ok -> {
+                val h = withContext(Dispatchers.Default) { com.pft.financetracker.domain.networth.CasParser.parse(r.text) }
+                if (h.isEmpty()) CasUiState.Error("No fund holdings found. Use a CAMS or KFintech Consolidated Account Statement (detailed).")
+                else { withContext(Dispatchers.IO) { c.netWorth.replaceHoldings(h); c.netWorth.snapshot() }; CasUiState.Done(h.size) }
+            }
+        }
+    }
 
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 

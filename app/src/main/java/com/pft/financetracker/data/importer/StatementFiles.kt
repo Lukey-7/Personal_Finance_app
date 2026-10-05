@@ -63,6 +63,36 @@ class StatementFiles(private val context: Context) {
         }
     }
 
+    sealed class TextRead {
+        data class Ok(val text: String) : TextRead()
+        data class NeedsPassword(val wrong: Boolean) : TextRead()
+        data class Error(val message: String) : TextRead()
+    }
+
+    /**
+     * The plain text of a PDF, for documents read line by line (a mutual-fund CAS). The password, when asked for, is
+     * used in memory to open the file and never stored. Nothing is kept.
+     */
+    suspend fun readPdfText(uri: Uri, password: String? = null): TextRead = withContext(Dispatchers.IO) {
+        val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+            ?: return@withContext TextRead.Error("Could not open the file.")
+        if (bytes.size > 40 * 1024 * 1024) return@withContext TextRead.Error("The file is too large (over 40 MB).")
+        PDFBoxResourceLoader.init(context.applicationContext)
+        try {
+            val doc = try {
+                if (password != null) PDDocument.load(bytes, password) else PDDocument.load(bytes)
+            } catch (e: InvalidPasswordException) {
+                return@withContext TextRead.NeedsPassword(wrong = password != null)
+            }
+            doc.use { d ->
+                if (d.isEncrypted) d.setAllSecurityToBeRemoved(true)
+                TextRead.Ok(PDFTextStripper().apply { sortByPosition = true }.getText(d))
+            }
+        } catch (e: Exception) {
+            TextRead.Error("Could not read this PDF (${e.javaClass.simpleName}).")
+        }
+    }
+
     private suspend fun readPdf(bytes: ByteArray, name: String, password: String?): Read {
         PDFBoxResourceLoader.init(context.applicationContext)
         val doc = try {

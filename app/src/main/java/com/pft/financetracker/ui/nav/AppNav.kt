@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.CompositionLocalProvider
@@ -95,6 +96,7 @@ object Routes {
     const val CARDS = "cards"
     const val GOALS = "goals"
     const val TAX = "tax"
+    const val NET_WORTH = "networth"
 }
 
 /** Outline glyph normally; the filled one marks the selected tab, a second cue besides colour. */
@@ -223,6 +225,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                 val cards by vm.cardSummaries.collectAsState()
                 val goals by vm.goalProgress.collectAsState()
                 val tax by vm.taxSummary.collectAsState()
+                val worth by vm.netWorth.collectAsState()
                 com.pft.financetracker.ui.screens.tools.ToolsScreen(
                     listOf(
                         com.pft.financetracker.ui.screens.tools.Tool(
@@ -254,9 +257,15 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                             if (tax.isEmpty()) "80C, 80D, NPS, rent and donations" else "${com.pft.financetracker.ui.components.money(tax.sumOf { it.claimablePaise })} found across ${tax.size} section${if (tax.size == 1) "" else "s"}",
                             Icons.Outlined.AccountBalance,
                         ) { nav.navigate(Routes.TAX) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Net worth",
+                            if (worth.ownPaise == 0L && worth.owePaise == 0L) "Accounts, funds, FDs and loans" else com.pft.financetracker.ui.components.money(worth.totalPaise),
+                            Icons.Outlined.ShowChart,
+                        ) { nav.navigate(Routes.NET_WORTH) },
                     ),
                 ) { nav.popBackStack() }
             }
+            composable(Routes.NET_WORTH) { com.pft.financetracker.ui.screens.networth.NetWorthScreen(vm) { nav.popBackStack() } }
             composable(Routes.TAX) { com.pft.financetracker.ui.screens.tax.TaxScreen(vm) { nav.popBackStack() } }
             composable(Routes.GOALS) { com.pft.financetracker.ui.screens.goals.GoalsScreen(vm) { nav.popBackStack() } }
             composable(Routes.CARDS) { com.pft.financetracker.ui.screens.cards.CardsScreen(vm) { nav.popBackStack() } }

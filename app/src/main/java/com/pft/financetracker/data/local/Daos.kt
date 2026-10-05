@@ -382,6 +382,39 @@ interface TaxDao {
 }
 
 @Dao
+interface NetWorthDao {
+    @Query("SELECT * FROM assets ORDER BY liability, name")
+    fun observeAssets(): Flow<List<AssetEntity>>
+    @Query("SELECT * FROM assets ORDER BY liability, name")
+    suspend fun getAssets(): List<AssetEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertAsset(e: AssetEntity): Long
+    @Query("DELETE FROM assets WHERE id = :id")
+    suspend fun deleteAsset(id: Long)
+
+    @Query("SELECT * FROM account_balances")
+    fun observeBalances(): Flow<List<AccountBalanceEntity>>
+    @Query("SELECT * FROM account_balances")
+    suspend fun getBalances(): List<AccountBalanceEntity>
+    @Query("SELECT * FROM account_balances WHERE accountRef = :ref")
+    suspend fun getBalance(ref: String): AccountBalanceEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertBalance(e: AccountBalanceEntity)
+
+    @Query("SELECT * FROM holdings ORDER BY valuePaise DESC")
+    fun observeHoldings(): Flow<List<HoldingEntity>>
+    @Query("SELECT * FROM holdings ORDER BY valuePaise DESC")
+    suspend fun getHoldings(): List<HoldingEntity>
+    @Query("DELETE FROM holdings")
+    suspend fun clearHoldings()
+    @Insert suspend fun insertHoldings(e: List<HoldingEntity>)
+
+    @Query("SELECT * FROM networth_snapshots ORDER BY month")
+    fun observeSnapshots(): Flow<List<NetWorthSnapshotEntity>>
+    @Query("SELECT * FROM networth_snapshots ORDER BY month")
+    suspend fun getSnapshots(): List<NetWorthSnapshotEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertSnapshot(e: NetWorthSnapshotEntity)
+}
+
+@Dao
 interface ImportDao {
     @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>

@@ -19,6 +19,7 @@ import java.security.SecureRandom
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
         RefundLinkEntity::class, ParserTemplateEntity::class, RecurringDecisionEntity::class, BillEntity::class, BillMarkEntity::class,
         CardEntity::class, GoalEntity::class, GoalContributionEntity::class, TaxTagEntity::class,
+        AssetEntity::class, AccountBalanceEntity::class, HoldingEntity::class, NetWorthSnapshotEntity::class,
     ],
     version = 6,
     exportSchema = true
@@ -37,6 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cardDao(): CardDao
     abstract fun goalDao(): GoalDao
     abstract fun taxDao(): TaxDao
+    abstract fun netWorthDao(): NetWorthDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -295,6 +297,11 @@ abstract class AppDatabase : RoomDatabase() {
             "CREATE INDEX IF NOT EXISTS index_goal_contributions_goalId ON goal_contributions (goalId)",
             """CREATE TABLE IF NOT EXISTS tax_tags (transactionId INTEGER NOT NULL, section TEXT, PRIMARY KEY(transactionId),
                 FOREIGN KEY(transactionId) REFERENCES transactions(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
+            """CREATE TABLE IF NOT EXISTS assets (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,
+                valuePaise INTEGER NOT NULL, liability INTEGER NOT NULL, accountRef TEXT, updatedAt INTEGER NOT NULL)""",
+            "CREATE TABLE IF NOT EXISTS account_balances (accountRef TEXT NOT NULL, bankName TEXT, balancePaise INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(accountRef))",
+            "CREATE TABLE IF NOT EXISTS holdings (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, folio TEXT NOT NULL, scheme TEXT NOT NULL, valuePaise INTEGER NOT NULL, asOfDay INTEGER NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS networth_snapshots (month TEXT NOT NULL, totalPaise INTEGER NOT NULL, ownPaise INTEGER NOT NULL, owePaise INTEGER NOT NULL, PRIMARY KEY(month))",
         )
 
         val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
