@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pft.financetracker.appContainer
 import com.pft.financetracker.data.bills.toDomain
+import com.pft.financetracker.data.cards.toDomain
 import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.data.local.SmsLogEntity
 import com.pft.financetracker.data.repository.TransactionRepository
@@ -356,6 +357,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteBill(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.bills.delete(id) }
     fun markBillPaid(id: Long, due: java.time.LocalDate) = viewModelScope.launch(Dispatchers.IO) { c.bills.markPaid(id, due) }
     fun unmarkBillPaid(id: Long, due: java.time.LocalDate) = viewModelScope.launch(Dispatchers.IO) { c.bills.unmarkPaid(id, due) }
+
+    /** Each card's current billing cycle, recomputed when transactions or cards change. */
+    val cardSummaries: StateFlow<List<com.pft.financetracker.domain.cards.CardSummary>> =
+        combine(transactions, c.db.cardDao().observeAll()) { txns, cards ->
+            withContext(Dispatchers.Default) { c.cards.summariesOf(cards.map { it.toDomain() }, txns, java.time.LocalDate.now()) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    suspend fun cardSuggestions(): List<String> = withContext(Dispatchers.IO) {
+        c.cards.suggestions(extra = c.bills.all().mapNotNull { it.cardLast4 })
+    }
+    fun saveCard(card: com.pft.financetracker.domain.cards.Card) = viewModelScope.launch(Dispatchers.IO) { c.cards.save(card) }
+    fun deleteCard(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.cards.delete(id) }
 
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 

@@ -271,6 +271,18 @@ data class BillMarkEntity(
     val dueDay: Long,
 )
 
+/** A credit card set up for cycle tracking (v1.3): matched to transactions by its last four digits. */
+@Entity(tableName = "cards", indices = [Index(value = ["last4"], unique = true)])
+data class CardEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val last4: String,
+    val name: String,
+    val statementDay: Int,
+    val dueDay: Int,
+    /** Reward rate in basis points: 1.5% = 150. */
+    val rewardBp: Int,
+)
+
 @Entity(tableName = "import_batches")
 data class ImportBatchEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

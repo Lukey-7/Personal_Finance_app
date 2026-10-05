@@ -18,6 +18,7 @@ import java.security.SecureRandom
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
         RefundLinkEntity::class, ParserTemplateEntity::class, RecurringDecisionEntity::class, BillEntity::class, BillMarkEntity::class,
+        CardEntity::class,
     ],
     version = 6,
     exportSchema = true
@@ -33,6 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun templateDao(): TemplateDao
     abstract fun recurringDao(): RecurringDao
     abstract fun billDao(): BillDao
+    abstract fun cardDao(): CardDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -280,6 +282,10 @@ abstract class AppDatabase : RoomDatabase() {
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, billId INTEGER NOT NULL, dueDay INTEGER NOT NULL,
                 FOREIGN KEY(billId) REFERENCES bills(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
             "CREATE UNIQUE INDEX IF NOT EXISTS index_bill_marks_billId_dueDay ON bill_marks (billId, dueDay)",
+            """CREATE TABLE IF NOT EXISTS cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, last4 TEXT NOT NULL, name TEXT NOT NULL, statementDay INTEGER NOT NULL,
+                dueDay INTEGER NOT NULL, rewardBp INTEGER NOT NULL)""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_cards_last4 ON cards (last4)",
         )
 
         val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)

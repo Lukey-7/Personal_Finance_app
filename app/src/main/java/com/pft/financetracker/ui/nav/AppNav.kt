@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.CompositionLocalProvider
@@ -89,6 +90,7 @@ object Routes {
     const val TOOLS = "tools"
     const val RECURRING = "recurring"
     const val BILLS = "bills"
+    const val CARDS = "cards"
 }
 
 /** Outline glyph normally; the filled one marks the selected tab, a second cue besides colour. */
@@ -214,6 +216,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             composable(Routes.TOOLS) {
                 val book by vm.recurringBook.collectAsState()
                 val bills by vm.billStates.collectAsState()
+                val cards by vm.cardSummaries.collectAsState()
                 com.pft.financetracker.ui.screens.tools.ToolsScreen(
                     listOf(
                         com.pft.financetracker.ui.screens.tools.Tool(
@@ -230,9 +233,15 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                             },
                             Icons.Outlined.ReceiptLong,
                         ) { nav.navigate(Routes.BILLS) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Credit cards",
+                            if (cards.isEmpty()) "Billing cycles and rewards" else "${com.pft.financetracker.ui.components.money(cards.sumOf { it.spendPaise })} this cycle on ${cards.size} card${if (cards.size == 1) "" else "s"}",
+                            Icons.Outlined.CreditCard,
+                        ) { nav.navigate(Routes.CARDS) },
                     ),
                 ) { nav.popBackStack() }
             }
+            composable(Routes.CARDS) { com.pft.financetracker.ui.screens.cards.CardsScreen(vm) { nav.popBackStack() } }
             composable(Routes.BILLS) {
                 com.pft.financetracker.ui.screens.bills.BillsScreen(vm, onOpenTransaction = { nav.navigate(Routes.edit(it)) }) { nav.popBackStack() }
             }

@@ -332,6 +332,20 @@ interface BillDao {
 }
 
 @Dao
+interface CardDao {
+    @Query("SELECT * FROM cards ORDER BY name")
+    fun observeAll(): Flow<List<CardEntity>>
+
+    @Query("SELECT * FROM cards ORDER BY name")
+    suspend fun getAll(): List<CardEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(e: CardEntity): Long
+
+    @Query("DELETE FROM cards WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
 interface ImportDao {
     @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>
