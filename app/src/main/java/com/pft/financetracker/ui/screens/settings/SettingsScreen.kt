@@ -1,6 +1,9 @@
 package com.pft.financetracker.ui.screens.settings
 
 import android.Manifest
+import android.net.Uri
+import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.outlined.Delete
@@ -107,6 +110,11 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
     val remindersOn by vm.remindersEnabled.collectAsState()
     val templates by vm.learnedTemplates.collectAsState()
     val widgetHide by vm.widgetHideAmounts.collectAsState()
+    val lastBackup by vm.lastBackupAt.collectAsState()
+    var backupAsk by remember { mutableStateOf<Uri?>(null) }
+    var restoreAsk by remember { mutableStateOf<Uri?>(null) }
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> backupAsk = uri }
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> restoreAsk = uri }
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         vm.setRemindersEnabled(granted)
         if (!granted) scope.launch { snackbar.showSnackbar("Notifications are blocked. Allow them in Android settings to get reminders.") }
@@ -135,6 +143,21 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
             }
             snackbar.showSnackbar(if (ok) "Exported CSV" else "Export failed")
         }
+    }
+
+    backupAsk?.let { uri ->
+        com.pft.financetracker.ui.screens.settings.BackupPassphraseDialog(
+            restoring = false,
+            onConfirm = { pw -> backupAsk = null; scope.launch { snackbar.showSnackbar(vm.writeBackup(uri, pw) ?: "Backup saved") } },
+            onDismiss = { backupAsk = null },
+        )
+    }
+    restoreAsk?.let { uri ->
+        com.pft.financetracker.ui.screens.settings.BackupPassphraseDialog(
+            restoring = true,
+            onConfirm = { pw -> restoreAsk = null; scope.launch { snackbar.showSnackbar(vm.restoreBackup(uri, pw) ?: "Restored. Everything now matches the backup.") } },
+            onDismiss = { restoreAsk = null },
+        )
     }
 
     Scaffold(
@@ -281,6 +304,17 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                     Spacer(Modifier.width(12.dp))
                     Switch(checked = remindersOn, onCheckedChange = null)
                 }
+            }
+
+            Section("Backup", Icons.Outlined.Backup) {
+                Text(
+                    "One file with all your data, locked with a passphrase only you know (AES-256). Save it anywhere you like: another folder, a USB drive, your own cloud. " +
+                        "FinTrack never uploads it, and without the passphrase nobody can open it, not even you.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(if (lastBackup == 0L) "No backup yet." else "Last backup: ${com.pft.financetracker.ui.components.fullDate(lastBackup)}", style = MaterialTheme.typography.bodyMedium)
+                ActionRow("Back up now", Icons.Outlined.Backup, { backupLauncher.launch("FinTrack-${java.time.LocalDate.now()}.ftbackup") })
+                ActionRow("Restore from a backup", Icons.Outlined.Restore, { restoreLauncher.launch(arrayOf("*/*")) })
             }
 
             Section("Home-screen widget", Icons.Outlined.Widgets) {

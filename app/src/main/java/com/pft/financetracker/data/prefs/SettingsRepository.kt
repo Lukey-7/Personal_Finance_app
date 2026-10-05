@@ -64,6 +64,11 @@ class SettingsRepository(context: Context) {
     val widgetHideAmounts: StateFlow<Boolean> = _widgetHideAmounts
     fun setWidgetHideAmounts(v: Boolean) { plain.edit().putBoolean(KEY_WIDGET_HIDE, v).apply(); _widgetHideAmounts.value = v }
 
+    /** When the person last saved an encrypted backup; 0 = never. Drives the monthly "time for a backup" reminder. */
+    private val _lastBackupAt = MutableStateFlow(plain.getLong(KEY_LAST_BACKUP, 0L))
+    val lastBackupAt: StateFlow<Long> = _lastBackupAt
+    fun setLastBackupAt(t: Long) { plain.edit().putLong(KEY_LAST_BACKUP, t).apply(); _lastBackupAt.value = t }
+
     /** Reminders already posted, as "thing@dueDay#lead" keys (no amounts or names), so none is sent twice. */
     fun sentReminders(): Set<String> = plain.getStringSet(KEY_REMINDERS_SENT, emptySet())?.toSet() ?: emptySet()
     fun setSentReminders(keys: Set<String>) { plain.edit().putStringSet(KEY_REMINDERS_SENT, keys).apply() }
@@ -131,6 +136,7 @@ class SettingsRepository(context: Context) {
         _splitAi.value = true
         _remindersEnabled.value = false
         _widgetHideAmounts.value = true
+        _lastBackupAt.value = 0L
         aiAnswerCache.clear()
     }
 
@@ -145,6 +151,7 @@ class SettingsRepository(context: Context) {
         const val KEY_REMINDERS = "reminders_enabled"
         const val KEY_REMINDERS_SENT = "reminders_sent"
         const val KEY_WIDGET_HIDE = "widget_hide_amounts"
+        const val KEY_LAST_BACKUP = "last_backup_at"
         const val KEY_API_SEEDED = "api_key_seeded"
         const val KEY_API_USER_MANAGED = "api_key_user_managed"
     }

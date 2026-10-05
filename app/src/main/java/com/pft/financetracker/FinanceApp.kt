@@ -36,6 +36,7 @@ class AppContainer(context: Context) {
     val goals: com.pft.financetracker.data.goals.GoalService = com.pft.financetracker.data.goals.GoalService(db.goalDao())
     val tax: com.pft.financetracker.data.tax.TaxService = com.pft.financetracker.data.tax.TaxService(db.transactionDao(), db.taxDao())
     val netWorth: com.pft.financetracker.data.networth.NetWorthService = com.pft.financetracker.data.networth.NetWorthService(db.netWorthDao(), bills)
+    val backup: com.pft.financetracker.data.backup.BackupService = com.pft.financetracker.data.backup.BackupService(db)
     val importer: SmsImporter = SmsImporter(
         context, parser, transactions, smsLog, settings,
         onCardStatement = { s, bank -> bills.fromStatement(s, bank) },
@@ -79,6 +80,12 @@ class FinanceApp : Application() {
         Reminders.ensureChannel(this)
         container.reminderSources += ReminderSource { now -> container.recurring.book(now).reminders() }
         container.reminderSources += ReminderSource { now -> container.bills.reminders(now) }
+        // Only for people who already keep backups: a nudge when the last one is a month old.
+        container.reminderSources += ReminderSource { now ->
+            val last = container.settings.lastBackupAt.value
+            if (last == 0L || now - last < 30L * 86_400_000L) emptyList()
+            else listOf(com.pft.financetracker.domain.reminders.Reminder("backup", "Time for a backup", "Your last FinTrack backup is over a month old.", now, listOf(0)))
+        }
         publishShortcuts()
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { runCatching { container.templates.load() } }
         Reminders.schedule(this)

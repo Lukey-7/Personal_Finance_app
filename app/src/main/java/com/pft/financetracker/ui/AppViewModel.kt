@@ -434,6 +434,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    val lastBackupAt: StateFlow<Long> = c.settings.lastBackupAt
+    /** Seals every table with [passphrase] and writes it to the file the person picked. Returns an error message, or null. */
+    suspend fun writeBackup(uri: Uri, passphrase: CharArray): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val bytes = c.backup.export(passphrase)
+            getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("Could not write the file.")
+            c.settings.setLastBackupAt(System.currentTimeMillis())
+        }.exceptionOrNull()?.let { it.message ?: "Backup failed." }.also { passphrase.fill(' ') }
+    }
+    /** Replaces all data with the backup's. Returns an error message, or null when done. */
+    suspend fun restoreBackup(uri: Uri, passphrase: CharArray): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not open the file.")
+            c.backup.restore(bytes, passphrase)
+            c.templates.load()
+            c.afterChange(useAi = false)
+        }.exceptionOrNull()?.let { it.message ?: "Restore failed." }.also { passphrase.fill(' ') }
+    }
+
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */
