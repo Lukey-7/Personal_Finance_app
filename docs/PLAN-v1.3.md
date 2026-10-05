@@ -112,11 +112,11 @@ The order follows dependencies: shared plumbing first, then features that create
 - [~] T10.3 README security table updated (in M12 docs pass)
 
 ### M11. On-device AI and Ask FinTrack (feature 7)
-- [ ] T11.1 `AiProvider` interface over the existing OpenAI client + new `GeminiNanoProvider`; availability check; the provider picker in Settings
-- [ ] T11.2 Audit `genai-prompt` (D7) and record the result in the README "phones home?" section, or drop it
-- [ ] T11.3 `AskEngine` (rule-based, works everywhere): parses question shapes into queries over the summaries; tests for each shape
-- [ ] T11.4 Ask screen: rule answer first; on capable phones, Nano rephrases and handles open questions from an aggregated, local-only context
-- [ ] T11.5 Monthly summary uses Nano when available, otherwise OpenAI if a key is set, otherwise a rule-built summary
+- [x] T11.1 (re-scoped: OpenAI only, see ledger) `AiProvider` interface over the existing OpenAI client + new `GeminiNanoProvider`; availability check; the provider picker in Settings
+- [x] T11.2 (genai-prompt fails audit + needs Kotlin 2.3: left out) Audit `genai-prompt` (D7) and record the result in the README "phones home?" section, or drop it
+- [x] T11.3 `AskEngine` (rule-based, works everywhere): parses question shapes into queries over the summaries; tests for each shape
+- [x] T11.4 (rule answers only) Ask screen: rule answer first; on capable phones, Nano rephrases and handles open questions from an aggregated, local-only context
+- [x] T11.5 (rules on phone, OpenAI optional) Monthly summary uses Nano when available, otherwise OpenAI if a key is set, otherwise a rule-built summary
 
 ### M12. Release prep
 - [ ] T12.1 Full `testDebugUnitTest`, release build, APK URL scan (invariant 1)
