@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pft.financetracker.appContainer
+import com.pft.financetracker.data.bills.toDomain
 import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.data.local.SmsLogEntity
 import com.pft.financetracker.data.repository.TransactionRepository
@@ -342,6 +343,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.recurring.RecurringBook.EMPTY)
     fun decideRecurring(key: String, status: com.pft.financetracker.domain.recurring.RecurringStatus?) =
         viewModelScope.launch(Dispatchers.IO) { c.recurring.decide(key, status) }
+
+    /** Every bill with its status today, recomputed when transactions, bills or paid marks change. */
+    val billStates: StateFlow<List<Pair<com.pft.financetracker.domain.bills.Bill, com.pft.financetracker.domain.bills.BillState>>> =
+        combine(transactions, c.db.billDao().observeAll(), c.db.billDao().observeMarks()) { txns, bills, marks ->
+            withContext(Dispatchers.Default) {
+                val byBill = marks.groupBy({ it.billId }, { java.time.LocalDate.ofEpochDay(it.dueDay) })
+                c.bills.statesOf(bills.map { it.toDomain() }, txns, byBill, java.time.LocalDate.now())
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun saveBill(b: com.pft.financetracker.domain.bills.Bill) = viewModelScope.launch(Dispatchers.IO) { c.bills.save(b) }
+    fun deleteBill(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.bills.delete(id) }
+    fun markBillPaid(id: Long, due: java.time.LocalDate) = viewModelScope.launch(Dispatchers.IO) { c.bills.markPaid(id, due) }
+    fun unmarkBillPaid(id: Long, due: java.time.LocalDate) = viewModelScope.launch(Dispatchers.IO) { c.bills.unmarkPaid(id, due) }
 
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 

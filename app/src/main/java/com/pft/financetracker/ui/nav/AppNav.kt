@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.EventRepeat
+import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.CompositionLocalProvider
@@ -87,6 +88,7 @@ object Routes {
     fun splitDetail(id: Long) = "split/$id"
     const val TOOLS = "tools"
     const val RECURRING = "recurring"
+    const val BILLS = "bills"
 }
 
 /** Outline glyph normally; the filled one marks the selected tab, a second cue besides colour. */
@@ -211,6 +213,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             composable(Routes.INSIGHTS) { InsightsScreen(vm, onOpenBudgets = { nav.navigate(Routes.BUDGETS) }, onOpenTools = { nav.navigate(Routes.TOOLS) }) }
             composable(Routes.TOOLS) {
                 val book by vm.recurringBook.collectAsState()
+                val bills by vm.billStates.collectAsState()
                 com.pft.financetracker.ui.screens.tools.ToolsScreen(
                     listOf(
                         com.pft.financetracker.ui.screens.tools.Tool(
@@ -218,8 +221,20 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                             if (book.shown.isEmpty()) "None found yet" else "${com.pft.financetracker.ui.components.money(book.monthlyPaise)} a month · ${book.shown.count { it.counted }} active",
                             Icons.Outlined.EventRepeat,
                         ) { nav.navigate(Routes.RECURRING) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Bills & EMIs",
+                            run {
+                                val overdue = bills.count { it.second is com.pft.financetracker.domain.bills.BillState.Overdue }
+                                val soon = bills.count { (it.second as? com.pft.financetracker.domain.bills.BillState.Upcoming)?.daysLeft?.let { d -> d <= 7 } == true }
+                                when { bills.isEmpty() -> "Add rent, phone or a loan"; overdue > 0 -> "$overdue overdue · $soon due this week"; else -> "$soon due this week" }
+                            },
+                            Icons.Outlined.ReceiptLong,
+                        ) { nav.navigate(Routes.BILLS) },
                     ),
                 ) { nav.popBackStack() }
+            }
+            composable(Routes.BILLS) {
+                com.pft.financetracker.ui.screens.bills.BillsScreen(vm, onOpenTransaction = { nav.navigate(Routes.edit(it)) }) { nav.popBackStack() }
             }
             composable(Routes.RECURRING) {
                 com.pft.financetracker.ui.screens.recurring.RecurringScreen(vm, onOpenTransaction = { nav.navigate(Routes.edit(it)) }) { nav.popBackStack() }
