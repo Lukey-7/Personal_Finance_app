@@ -76,10 +76,10 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T3.4 Renewal reminders through T0.3 (D5)
 
 ### M4. Bills, EMIs and loans (feature 3)
-- [ ] T4.1 `Bill` model: name, amount (fixed or "varies"), due rule (day of month / every N months), optional loan (principal, rate, tenure → EMI schedule). `Amortization` tests against a known loan table
-- [ ] T4.2 Auto-mark paid: a matching debit within ±5 days of the due date (by merchant keyword or amount); tests
-- [ ] T4.3 Card bills from statement SMS ("total amount due … due by …") create or update the bill automatically
-- [ ] T4.4 Bills screen (upcoming, overdue, paid this month) + reminders 3 days and 1 day before
+- [x] T4.1 `Bill` model: name, amount (fixed or "varies"), due rule (day of month / every N months), optional loan (principal, rate, tenure → EMI schedule). `Amortization` tests against a known loan table
+- [x] T4.2 Auto-mark paid: a matching debit within ±5 days of the due date (by merchant keyword or amount); tests
+- [x] T4.3 Card bills from statement SMS ("total amount due … due by …") create or update the bill automatically
+- [x] T4.4 Bills screen (upcoming, overdue, paid this month) + reminders 3 days and 1 day before
 
 ### M5. Credit-card cycles and rewards (feature 8)
 - [ ] T5.1 `Card` config (last 4 digits, statement day, due day, reward % optional) (D9); auto-suggest cards from SMS account refs
