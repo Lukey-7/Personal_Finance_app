@@ -346,6 +346,28 @@ interface CardDao {
 }
 
 @Dao
+interface GoalDao {
+    @Query("SELECT * FROM goals ORDER BY id")
+    fun observeAll(): Flow<List<GoalEntity>>
+
+    @Query("SELECT * FROM goals ORDER BY id")
+    suspend fun getAll(): List<GoalEntity>
+
+    @Query("SELECT * FROM goal_contributions ORDER BY at")
+    fun observeContributions(): Flow<List<GoalContributionEntity>>
+
+    @Query("SELECT * FROM goal_contributions ORDER BY at")
+    suspend fun allContributions(): List<GoalContributionEntity>
+
+    @Insert suspend fun insert(e: GoalEntity): Long
+    @Update suspend fun update(e: GoalEntity)
+    @Insert suspend fun contribute(e: GoalContributionEntity): Long
+
+    @Query("DELETE FROM goals WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
 interface ImportDao {
     @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>

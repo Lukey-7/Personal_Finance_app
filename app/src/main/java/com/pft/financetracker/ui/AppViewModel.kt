@@ -371,6 +371,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun saveCard(card: com.pft.financetracker.domain.cards.Card) = viewModelScope.launch(Dispatchers.IO) { c.cards.save(card) }
     fun deleteCard(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.cards.delete(id) }
 
+    val goalProgress: StateFlow<List<com.pft.financetracker.domain.goals.GoalProgress>> =
+        combine(c.db.goalDao().observeAll(), c.db.goalDao().observeContributions()) { goals, contributions ->
+            c.goals.progressOf(goals, contributions, java.time.LocalDate.now())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Income minus net spend last month: the natural amount to move into a goal. */
+    val lastMonthSavingsPaise: StateFlow<Long> = transactions.map { InsightsEngine.summarize(it, Periods.month(-1), c.settings.countCashAsSpend.value).savingsPaise }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+    fun saveGoal(g: com.pft.financetracker.domain.goals.Goal) = viewModelScope.launch(Dispatchers.IO) { c.goals.save(g) }
+    fun deleteGoal(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.goals.delete(id) }
+    fun contributeToGoal(id: Long, paise: Long) = viewModelScope.launch(Dispatchers.IO) { c.goals.contribute(id, paise) }
+
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */

@@ -18,7 +18,7 @@ import java.security.SecureRandom
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
         RefundLinkEntity::class, ParserTemplateEntity::class, RecurringDecisionEntity::class, BillEntity::class, BillMarkEntity::class,
-        CardEntity::class,
+        CardEntity::class, GoalEntity::class, GoalContributionEntity::class,
     ],
     version = 6,
     exportSchema = true
@@ -35,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun recurringDao(): RecurringDao
     abstract fun billDao(): BillDao
     abstract fun cardDao(): CardDao
+    abstract fun goalDao(): GoalDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -286,6 +287,11 @@ abstract class AppDatabase : RoomDatabase() {
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, last4 TEXT NOT NULL, name TEXT NOT NULL, statementDay INTEGER NOT NULL,
                 dueDay INTEGER NOT NULL, rewardBp INTEGER NOT NULL)""",
             "CREATE UNIQUE INDEX IF NOT EXISTS index_cards_last4 ON cards (last4)",
+            "CREATE TABLE IF NOT EXISTS goals (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, targetPaise INTEGER NOT NULL, targetDay INTEGER, startDay INTEGER NOT NULL)",
+            """CREATE TABLE IF NOT EXISTS goal_contributions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, goalId INTEGER NOT NULL, amountPaise INTEGER NOT NULL, at INTEGER NOT NULL,
+                FOREIGN KEY(goalId) REFERENCES goals(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
+            "CREATE INDEX IF NOT EXISTS index_goal_contributions_goalId ON goal_contributions (goalId)",
         )
 
         val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)

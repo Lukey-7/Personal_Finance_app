@@ -283,6 +283,29 @@ data class CardEntity(
     val rewardBp: Int,
 )
 
+/** A savings goal (v1.3). Dates are epoch days; [targetDay] null means "no deadline". */
+@Entity(tableName = "goals")
+data class GoalEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val targetPaise: Long,
+    val targetDay: Long?,
+    val startDay: Long,
+)
+
+/** Money put toward (positive) or taken from (negative) a goal. */
+@Entity(
+    tableName = "goal_contributions",
+    foreignKeys = [ForeignKey(entity = GoalEntity::class, parentColumns = ["id"], childColumns = ["goalId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index(value = ["goalId"])],
+)
+data class GoalContributionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val goalId: Long,
+    val amountPaise: Long,
+    val at: Long = System.currentTimeMillis(),
+)
+
 @Entity(tableName = "import_batches")
 data class ImportBatchEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
