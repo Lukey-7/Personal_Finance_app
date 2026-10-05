@@ -41,4 +41,10 @@ class MonthlySummaryTest {
         val noIncome = MonthlySummary.write(InsightsEngine.summarize(txns.filter { it.flow != Flow.INCOME }, oct), InsightsEngine.summarize(emptyList(), sep), emptyList(), RecurringBook.EMPTY)
         assertFalse(noIncome, noIncome.contains("saved"))
     }
+
+    @Test fun aMonthWithNothingSpentYetIsNotCalledAHundredPercentDrop() {
+        val early = MonthlySummary.write(InsightsEngine.summarize(emptyList(), oct), InsightsEngine.summarize(txns, sep), emptyList(), RecurringBook.EMPTY)
+        assertFalse(early, early.contains("100%"))
+        assertTrue(early, early.contains("Nothing spent yet in Oct 2026"))
+    }
 }

@@ -15,7 +15,8 @@ object MonthlySummary {
         val lines = mutableListOf<String>()
         val spend = cur.netSpendPaise
         val before = prev.netSpendPaise
-        lines += "You spent **₹${fmt(spend)}** in ${cur.period.label}" + when {
+        lines += if (spend <= 0) "Nothing spent yet in ${cur.period.label}" + (if (before > 0) " (${prev.period.label}: ₹${fmt(before)})." else ".")
+        else "You spent **₹${fmt(spend)}** in ${cur.period.label}" + when {
             before <= 0 -> "."
             spend >= before -> ", ${pct(spend - before, before)}% more than ${prev.period.label} (₹${fmt(before)})."
             else -> ", ${pct(before - spend, before)}% less than ${prev.period.label} (₹${fmt(before)})."
