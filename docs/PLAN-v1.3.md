@@ -88,9 +88,9 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T5.4 Cards screen; the card bill links to M4
 
 ### M6. Home-screen widget and quick add (feature 4)
-- [ ] T6.1 Glance widget: month-to-date spend, budget left, next bill; refreshed after each import and daily
-- [ ] T6.2 "+ Cash / + Expense" button on the widget and as an app shortcut → a small quick-add sheet (amount, category chips, note), saved as MANUAL
-- [ ] T6.3 Widget content respects privacy: an "Hide amounts on widget" setting (default **on** for a public release; shows "••••")
+- [x] T6.1 Glance widget: month-to-date spend, budget left, next bill; refreshed after each import and daily
+- [x] T6.2 "+ Cash / + Expense" button on the widget and as an app shortcut → a small quick-add sheet (amount, category chips, note), saved as MANUAL
+- [x] T6.3 Widget content respects privacy: an "Hide amounts on widget" setting (default **on** for a public release; shows "••••")
 
 ### M7. Goals (feature 10)
 - [ ] T7.1 Goal: name, target, date, contributions (manual, or "put this month's savings in"); `monthlyNeeded` calc + tests
