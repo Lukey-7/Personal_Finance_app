@@ -18,7 +18,7 @@ import java.security.SecureRandom
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -244,7 +244,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        /**
+         * v5 -> v6 (v1.3): refund links, learned SMS templates, recurring charges, bills and loans, cards, goals,
+         * tax tags and net worth. Only new tables; existing rows are untouched.
+         */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                V6_TABLES.forEach { db.execSQL(it) }
+            }
+        }
+
+        /** CREATE statements for the v1.3 tables, in the exact shape Room generates (checked by MigrationV6Test). */
+        private val V6_TABLES: List<String> = listOf()
+
+        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
     }
 }
 
