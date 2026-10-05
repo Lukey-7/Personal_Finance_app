@@ -93,8 +93,8 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T6.3 Widget content respects privacy: an "Hide amounts on widget" setting (default **on** for a public release; shows "••••")
 
 ### M7. Goals (feature 10)
-- [ ] T7.1 Goal: name, target, date, contributions (manual, or "put this month's savings in"); `monthlyNeeded` calc + tests
-- [ ] T7.2 Goals screen + dashboard card
+- [x] T7.1 Goal: name, target, date, contributions (manual, or "put this month's savings in"); `monthlyNeeded` calc + tests
+- [x] T7.2 Goals screen + dashboard card
 
 ### M8. Tax helper (feature 11)
 - [ ] T8.1 `TaxTagger` rules (D10) with tests; manual tag/untag on any transaction
