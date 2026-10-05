@@ -455,7 +455,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Answers a question about the person's own numbers, on the phone. */
     suspend fun ask(question: String): com.pft.financetracker.domain.ask.AskAnswer = withContext(Dispatchers.Default) {
-        val nw = netWorth.value
+        // Read fresh: the netWorth flow only runs while its screen is open.
+        val nw = c.netWorth.summary()
         com.pft.financetracker.domain.ask.AskEngine.answer(
             question,
             com.pft.financetracker.domain.ask.AskContext(
