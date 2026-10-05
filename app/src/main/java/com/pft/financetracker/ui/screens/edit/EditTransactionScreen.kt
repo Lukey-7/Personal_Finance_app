@@ -192,6 +192,16 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
                     }
                 }
             }
+            // Tax section: the rule's guess, or the person's own tag, changeable here for any payment out.
+            existing?.takeIf { it.type == TransactionType.DEBIT }?.let { t ->
+                val tags by vm.taxTags.collectAsState()
+                var picking by remember { mutableStateOf(false) }
+                val section = if (tags.containsKey(t.id)) tags[t.id] else com.pft.financetracker.domain.tax.TaxTagger.suggest(t)
+                androidx.compose.material3.TextButton(onClick = { picking = true }) {
+                    Text("Tax: " + (section?.let { "${it.code} · ${it.label}" } ?: "not a deduction") + if (tags.containsKey(t.id)) " (yours)" else "")
+                }
+                if (picking) com.pft.financetracker.ui.screens.tax.TaxTagDialog(t.merchant, onPick = { vm.tagTax(t.id, it); picking = false }, onRule = { vm.clearTaxTag(t.id); picking = false }, onDismiss = { picking = false })
+            }
             reviewBody?.let {
                 SoftPanel {
                     CapsLabel("Original message")

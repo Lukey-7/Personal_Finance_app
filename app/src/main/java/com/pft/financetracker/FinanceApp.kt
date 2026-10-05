@@ -34,6 +34,7 @@ class AppContainer(context: Context) {
     val bills: com.pft.financetracker.data.bills.BillService = com.pft.financetracker.data.bills.BillService(db.transactionDao(), db.billDao())
     val cards: com.pft.financetracker.data.cards.CardService = com.pft.financetracker.data.cards.CardService(db.transactionDao(), db.cardDao())
     val goals: com.pft.financetracker.data.goals.GoalService = com.pft.financetracker.data.goals.GoalService(db.goalDao())
+    val tax: com.pft.financetracker.data.tax.TaxService = com.pft.financetracker.data.tax.TaxService(db.transactionDao(), db.taxDao())
     val importer: SmsImporter = SmsImporter(context, parser, transactions, smsLog, settings, onCardStatement = { s, bank -> bills.fromStatement(s, bank) })
     val splitEngine: SplitEngine = SplitEngine(
         db.transactionDao(), db.splitDao(),

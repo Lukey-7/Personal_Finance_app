@@ -382,6 +382,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteGoal(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.goals.delete(id) }
     fun contributeToGoal(id: Long, paise: Long) = viewModelScope.launch(Dispatchers.IO) { c.goals.contribute(id, paise) }
 
+    private val _taxYear = MutableStateFlow(com.pft.financetracker.domain.tax.FinancialYear.of(java.time.LocalDate.now()))
+    val taxYear: StateFlow<com.pft.financetracker.domain.tax.FinancialYear> = _taxYear
+    fun setTaxYear(fy: com.pft.financetracker.domain.tax.FinancialYear) { _taxYear.value = fy }
+    /** The person's own tax tags by transaction id; a null value means "not a deduction". */
+    val taxTags: StateFlow<Map<Long, com.pft.financetracker.domain.tax.TaxSection?>> = c.db.taxDao().observeAll()
+        .map { l -> l.associate { it.transactionId to com.pft.financetracker.domain.tax.TaxSection.fromName(it.section) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    val taxSummary: StateFlow<List<com.pft.financetracker.domain.tax.SectionTotal>> =
+        combine(transactions, c.db.taxDao().observeAll(), _taxYear) { txns, tags, fy -> withContext(Dispatchers.Default) { c.tax.summaryOf(txns, tags, fy) } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun tagTax(txId: Long, s: com.pft.financetracker.domain.tax.TaxSection?) = viewModelScope.launch(Dispatchers.IO) { c.tax.tag(txId, s) }
+    fun clearTaxTag(txId: Long) = viewModelScope.launch(Dispatchers.IO) { c.tax.clearTag(txId) }
+    suspend fun taxCsv(fy: com.pft.financetracker.domain.tax.FinancialYear): String = withContext(Dispatchers.IO) { c.tax.csv(fy) }
+
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */

@@ -18,7 +18,7 @@ import java.security.SecureRandom
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
         RefundLinkEntity::class, ParserTemplateEntity::class, RecurringDecisionEntity::class, BillEntity::class, BillMarkEntity::class,
-        CardEntity::class, GoalEntity::class, GoalContributionEntity::class,
+        CardEntity::class, GoalEntity::class, GoalContributionEntity::class, TaxTagEntity::class,
     ],
     version = 6,
     exportSchema = true
@@ -36,6 +36,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun billDao(): BillDao
     abstract fun cardDao(): CardDao
     abstract fun goalDao(): GoalDao
+    abstract fun taxDao(): TaxDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -292,6 +293,8 @@ abstract class AppDatabase : RoomDatabase() {
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, goalId INTEGER NOT NULL, amountPaise INTEGER NOT NULL, at INTEGER NOT NULL,
                 FOREIGN KEY(goalId) REFERENCES goals(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
             "CREATE INDEX IF NOT EXISTS index_goal_contributions_goalId ON goal_contributions (goalId)",
+            """CREATE TABLE IF NOT EXISTS tax_tags (transactionId INTEGER NOT NULL, section TEXT, PRIMARY KEY(transactionId),
+                FOREIGN KEY(transactionId) REFERENCES transactions(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
         )
 
         val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)

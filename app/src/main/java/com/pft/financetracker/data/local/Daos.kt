@@ -368,6 +368,20 @@ interface GoalDao {
 }
 
 @Dao
+interface TaxDao {
+    @Query("SELECT * FROM tax_tags")
+    fun observeAll(): Flow<List<TaxTagEntity>>
+
+    @Query("SELECT * FROM tax_tags")
+    suspend fun getAll(): List<TaxTagEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(e: TaxTagEntity)
+
+    @Query("DELETE FROM tax_tags WHERE transactionId = :txId")
+    suspend fun delete(txId: Long)
+}
+
+@Dao
 interface ImportDao {
     @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>

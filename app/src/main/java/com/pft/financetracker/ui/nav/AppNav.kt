@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.CompositionLocalProvider
@@ -93,6 +94,7 @@ object Routes {
     const val BILLS = "bills"
     const val CARDS = "cards"
     const val GOALS = "goals"
+    const val TAX = "tax"
 }
 
 /** Outline glyph normally; the filled one marks the selected tab, a second cue besides colour. */
@@ -220,6 +222,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                 val bills by vm.billStates.collectAsState()
                 val cards by vm.cardSummaries.collectAsState()
                 val goals by vm.goalProgress.collectAsState()
+                val tax by vm.taxSummary.collectAsState()
                 com.pft.financetracker.ui.screens.tools.ToolsScreen(
                     listOf(
                         com.pft.financetracker.ui.screens.tools.Tool(
@@ -246,9 +249,15 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                             if (goals.isEmpty()) "Save toward something" else goals.joinToString(" · ") { "${it.goal.name} ${it.percent}%" },
                             Icons.Outlined.Flag,
                         ) { nav.navigate(Routes.GOALS) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Tax helper",
+                            if (tax.isEmpty()) "80C, 80D, NPS, rent and donations" else "${com.pft.financetracker.ui.components.money(tax.sumOf { it.claimablePaise })} found across ${tax.size} section${if (tax.size == 1) "" else "s"}",
+                            Icons.Outlined.AccountBalance,
+                        ) { nav.navigate(Routes.TAX) },
                     ),
                 ) { nav.popBackStack() }
             }
+            composable(Routes.TAX) { com.pft.financetracker.ui.screens.tax.TaxScreen(vm) { nav.popBackStack() } }
             composable(Routes.GOALS) { com.pft.financetracker.ui.screens.goals.GoalsScreen(vm) { nav.popBackStack() } }
             composable(Routes.CARDS) { com.pft.financetracker.ui.screens.cards.CardsScreen(vm) { nav.popBackStack() } }
             composable(Routes.BILLS) {

@@ -47,6 +47,19 @@ object CsvExporter {
         return sb.toString()
     }
 
+    /** One row per payment counted toward a deduction, grouped by section, for the person's tax records. */
+    fun taxToCsv(totals: List<com.pft.financetracker.domain.tax.SectionTotal>, byId: Map<Long, Transaction>, fyLabel: String): String {
+        val sb = StringBuilder("Financial year,Section,What,Date,Payee,Amount (INR)\n")
+        val day = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
+        for (t in totals) for (id in t.transactionIds) {
+            val tx = byId[id] ?: continue
+            sb.append(esc(fyLabel)).append(',').append(esc(t.section.code)).append(',').append(esc(t.section.label)).append(',')
+                .append(day.format(Date(tx.timestamp))).append(',').append(esc(tx.merchant)).append(',')
+                .append(rupees(tx.amountPaise)).append('\n')
+        }
+        return sb.toString()
+    }
+
     /** RFC-4180 quoting; also neutralises spreadsheet formula injection (=, +, -, @ prefixes). */
     private fun esc(v: String): String {
         var s = v

@@ -306,6 +306,16 @@ data class GoalContributionEntity(
     val at: Long = System.currentTimeMillis(),
 )
 
+/** A person's own tax tag on a payment (v1.3). [section] null means "not a deduction", overriding the rules. */
+@Entity(
+    tableName = "tax_tags",
+    foreignKeys = [ForeignKey(entity = TransactionEntity::class, parentColumns = ["id"], childColumns = ["transactionId"], onDelete = ForeignKey.CASCADE)],
+)
+data class TaxTagEntity(
+    @PrimaryKey val transactionId: Long,
+    val section: String?,
+)
+
 @Entity(tableName = "import_batches")
 data class ImportBatchEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
