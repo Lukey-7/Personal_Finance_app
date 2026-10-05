@@ -1,6 +1,8 @@
 package com.pft.financetracker.ui.screens.settings
 
 import android.Manifest
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
@@ -102,6 +104,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
     val myName by vm.myName.collectAsState()
     val splitAi by vm.splitAi.collectAsState()
     val remindersOn by vm.remindersEnabled.collectAsState()
+    val templates by vm.learnedTemplates.collectAsState()
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         vm.setRemindersEnabled(granted)
         if (!granted) scope.launch { snackbar.showSnackbar("Notifications are blocked. Allow them in Android settings to get reminders.") }
@@ -171,6 +174,20 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         ActionRow("Rescan the last 12 months", Icons.Outlined.ManageHistory, { vm.scanInbox(full = true) })
                     }
                     ActionRow("SMS log: every message scanned and what happened to it", Icons.Outlined.History, onOpenSmsLog)
+                    // Shapes learned from Review. Only the bank's fixed wording is kept: amounts, names and numbers are masked.
+                    if (templates.isNotEmpty()) {
+                        Text("Learned from Review (${templates.size})", style = MaterialTheme.typography.labelLarge)
+                        Text("When you confirm a message, FinTrack remembers that sender's wording and reads the next one by itself.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        templates.forEach { t ->
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("${t.senderCore} · ${if (t.type == "CREDIT") "money in" else "money out"}", style = MaterialTheme.typography.bodyMedium)
+                                    Text(t.skeleton, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                }
+                                IconButton(onClick = { vm.deleteTemplate(t.id) }) { Icon(Icons.Outlined.Delete, "Forget this shape") }
+                            }
+                        }
+                    }
                 }
             }
 

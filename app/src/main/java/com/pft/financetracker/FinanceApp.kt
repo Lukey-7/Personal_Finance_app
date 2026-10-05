@@ -2,6 +2,7 @@ package com.pft.financetracker
 
 import android.app.Application
 import android.content.Context
+import kotlinx.coroutines.launch
 import com.pft.financetracker.data.local.AppDatabase
 import com.pft.financetracker.data.prefs.SettingsRepository
 import com.pft.financetracker.data.repository.BudgetRepository
@@ -26,7 +27,9 @@ class AppContainer(context: Context) {
     val budgets: BudgetRepository = BudgetRepository(db.budgetDao())
     val smsLog: SmsLogRepository = SmsLogRepository(db.smsLogDao())
     val splits: SplitRepository = SplitRepository(db.splitDao())
-    val parser: SmsParser = SmsParser()
+    /** Message shapes the person taught by confirming Review items; the parser tries them first for their sender. */
+    val templates: com.pft.financetracker.data.sms.TemplateStore = com.pft.financetracker.data.sms.TemplateStore(db.templateDao())
+    val parser: SmsParser = SmsParser(templates = { templates.current })
     val importer: SmsImporter = SmsImporter(context, parser, transactions, smsLog, settings)
     val splitEngine: SplitEngine = SplitEngine(
         db.transactionDao(), db.splitDao(),
@@ -61,6 +64,7 @@ class FinanceApp : Application() {
         container = AppContainer(this)
         seedBuiltInApiKey()
         Reminders.ensureChannel(this)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { runCatching { container.templates.load() } }
         Reminders.schedule(this)
     }
 

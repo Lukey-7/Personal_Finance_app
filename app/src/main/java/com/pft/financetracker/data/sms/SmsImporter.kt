@@ -224,7 +224,8 @@ class SmsImporter(
                 if (ok) Outcome.REVIEW else Outcome.DUPLICATE
             }
             is ParseResult.Ignored -> {
-                log.log(entry(Outcomes.IGNORED, r.reason))
+                // An amount is kept only for skipped messages that still look like a payment ("possible misses").
+                log.log(entry(Outcomes.IGNORED, r.reason, amountPaise = com.pft.financetracker.domain.parser.MissDetector.possibleMiss(sms.body, r.reason)))
                 Outcome.IGNORED
             }
         }

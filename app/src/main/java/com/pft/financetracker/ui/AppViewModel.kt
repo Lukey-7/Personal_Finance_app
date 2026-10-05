@@ -181,6 +181,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Save a transaction entered from a review item and remove the item from the queue. */
     fun resolveReview(reviewId: Long, t: Transaction, onDone: () -> Unit = {}) = viewModelScope.launch {
+        // The confirmed message teaches the parser this sender's wording, so the next one needs no review.
+        c.transactions.getReview(reviewId)?.let { r -> withContext(Dispatchers.IO) { runCatching { c.templates.learn(r.sender, r.body, t) } } }
         val id = c.transactions.insert(t.copy(userEdited = true))
         c.transactions.resolveReview(reviewId)
         t.smsHash?.let { c.smsLog.updateOutcome(it, "SAVED", t.merchant, id.takeIf { v -> v > 0 }) }
@@ -330,6 +332,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.refunds.RefundBadges.EMPTY)
     fun undoRefund(linkId: Long) = viewModelScope.launch(Dispatchers.IO) { c.refunds.undo(linkId) }
 
+    val learnedTemplates = c.db.templateDao().observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun deleteTemplate(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.templates.delete(id) }
+
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */
@@ -404,7 +409,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearAllData(onDone: () -> Unit = {}) = viewModelScope.launch {
         // Every table, including ones added in later versions, so nothing is left behind.
-        withContext(Dispatchers.IO) { c.db.clearAllTables() }
+        withContext(Dispatchers.IO) { c.db.clearAllTables(); c.templates.load() }
         c.settings.clearAll()
         _aiState.value = AiUiState.Idle
         _importState.value = ImportUiState.Idle

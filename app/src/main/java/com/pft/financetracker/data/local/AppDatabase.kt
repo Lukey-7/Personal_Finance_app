@@ -17,7 +17,7 @@ import java.security.SecureRandom
         TransactionEntity::class, ReviewItemEntity::class, BudgetEntity::class,
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
-        RefundLinkEntity::class,
+        RefundLinkEntity::class, ParserTemplateEntity::class,
     ],
     version = 6,
     exportSchema = true
@@ -30,6 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun splitDao(): SplitDao
     abstract fun importDao(): ImportDao
     abstract fun refundDao(): RefundDao
+    abstract fun templateDao(): TemplateDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -265,6 +266,9 @@ abstract class AppDatabase : RoomDatabase() {
                 FOREIGN KEY(debitTxId) REFERENCES transactions(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
             "CREATE UNIQUE INDEX IF NOT EXISTS index_refund_links_refundTxId ON refund_links (refundTxId)",
             "CREATE INDEX IF NOT EXISTS index_refund_links_debitTxId ON refund_links (debitTxId)",
+            """CREATE TABLE IF NOT EXISTS parser_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, senderCore TEXT NOT NULL, skeleton TEXT NOT NULL, type TEXT NOT NULL, createdAt INTEGER NOT NULL)""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_parser_templates_senderCore_skeleton ON parser_templates (senderCore, skeleton)",
         )
 
         val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)

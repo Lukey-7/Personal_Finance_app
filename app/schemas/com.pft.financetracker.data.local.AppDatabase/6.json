@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "e6cdd80a1fd3508482186ff216bc5326",
+    "identityHash": "ad8f6708f4ca1e87a0ae328b63daedb2",
     "entities": [
       {
         "tableName": "transactions",
@@ -1047,12 +1047,67 @@
             ]
           }
         ]
+      },
+      {
+        "tableName": "parser_templates",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `senderCore` TEXT NOT NULL, `skeleton` TEXT NOT NULL, `type` TEXT NOT NULL, `createdAt` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "senderCore",
+            "columnName": "senderCore",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "skeleton",
+            "columnName": "skeleton",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_parser_templates_senderCore_skeleton",
+            "unique": true,
+            "columnNames": [
+              "senderCore",
+              "skeleton"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_parser_templates_senderCore_skeleton` ON `${TABLE_NAME}` (`senderCore`, `skeleton`)"
+          }
+        ],
+        "foreignKeys": []
       }
     ],
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e6cdd80a1fd3508482186ff216bc5326')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ad8f6708f4ca1e87a0ae328b63daedb2')"
     ]
   }
 }

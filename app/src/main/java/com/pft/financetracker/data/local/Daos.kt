@@ -272,6 +272,20 @@ interface RefundDao {
 }
 
 @Dao
+interface TemplateDao {
+    @Query("SELECT * FROM parser_templates ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<ParserTemplateEntity>>
+
+    @Query("SELECT * FROM parser_templates ORDER BY createdAt DESC")
+    suspend fun getAll(): List<ParserTemplateEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insert(e: ParserTemplateEntity): Long
+
+    @Query("DELETE FROM parser_templates WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
 interface ImportDao {
     @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>

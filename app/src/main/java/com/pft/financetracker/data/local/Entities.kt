@@ -213,6 +213,20 @@ data class RefundLinkEntity(
     val createdAt: Long = System.currentTimeMillis(),
 )
 
+/**
+ * A message shape learned from Review (v1.3): the sender's core ID and its wording with amounts, merchant, numbers
+ * and months masked. Holds no amounts, names or account digits. Seen and deleted in Settings.
+ */
+@Entity(tableName = "parser_templates", indices = [Index(value = ["senderCore", "skeleton"], unique = true)])
+data class ParserTemplateEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val senderCore: String,
+    val skeleton: String,
+    /** DEBIT or CREDIT. */
+    val type: String,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
 @Entity(tableName = "import_batches")
 data class ImportBatchEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
