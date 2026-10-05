@@ -92,4 +92,15 @@ class RecurringDetectorTest {
         assertEquals(setOf("Netflix", "Spotify"), r.map { it.merchant }.toSet())
         assertNotNull(r.first().key)
     }
+
+    @Test fun theSameServiceByUpiAndByCardIsOneSubscription() {
+        val r = detect(charge("netflix.upi@icici", 64_900, 75), charge("NETFLIX.COM", 64_900, 45), charge("Netflix Entertainment Services India Pvt Ltd", 64_900, 15))
+        assertEquals(1, r.size)
+        assertEquals(3, r.single().transactionIds.size)
+    }
+
+    @Test fun differentProductsOfOneCompanyStaySeparate() {
+        assertEquals(RecurringDetector.merchantKey("spotify@ybl"), RecurringDetector.merchantKey("SPOTIFY"))
+        assertTrue(RecurringDetector.merchantKey("Amazon Prime") != RecurringDetector.merchantKey("Amazon Pay"))
+    }
 }

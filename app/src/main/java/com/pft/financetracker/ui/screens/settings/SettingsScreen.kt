@@ -1,6 +1,9 @@
 package com.pft.financetracker.ui.screens.settings
 
 import android.Manifest
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Memory
 import android.net.Uri
 import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.material.icons.outlined.Backup
@@ -110,7 +113,11 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
     val remindersOn by vm.remindersEnabled.collectAsState()
     val templates by vm.learnedTemplates.collectAsState()
     val widgetHide by vm.widgetHideAmounts.collectAsState()
+    val useNano by vm.useNano.collectAsState()
+    val nanoStatus by vm.nanoStatus.collectAsState()
+    LaunchedEffect(Unit) { vm.refreshNano() }
     val lastBackup by vm.lastBackupAt.collectAsState()
+    val backupBusy by vm.backupBusy.collectAsState()
     var backupAsk by remember { mutableStateOf<Uri?>(null) }
     var restoreAsk by remember { mutableStateOf<Uri?>(null) }
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> backupAsk = uri }
@@ -313,8 +320,13 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(if (lastBackup == 0L) "No backup yet." else "Last backup: ${com.pft.financetracker.ui.components.fullDate(lastBackup)}", style = MaterialTheme.typography.bodyMedium)
-                ActionRow("Back up now", Icons.Outlined.Backup, { backupLauncher.launch("FinTrack-${java.time.LocalDate.now()}.ftbackup") })
-                ActionRow("Restore from a backup", Icons.Outlined.Restore, { restoreLauncher.launch(arrayOf("*/*")) })
+                backupBusy?.let { msg ->
+                    Text(msg, style = MaterialTheme.typography.bodyMedium)
+                    androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                } ?: run {
+                    ActionRow("Back up now", Icons.Outlined.Backup, { backupLauncher.launch("FinTrack-${java.time.LocalDate.now()}.ftbackup") })
+                    ActionRow("Restore from a backup", Icons.Outlined.Restore, { restoreLauncher.launch(arrayOf("*/*")) })
+                }
             }
 
             Section("Home-screen widget", Icons.Outlined.Widgets) {
@@ -353,6 +365,27 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                     Switch(checked = splitAi && hasKey, onCheckedChange = null, enabled = hasKey)
                 }
                 ActionRow("Check again now", Icons.Outlined.Sync, { vm.refreshSplits() })
+            }
+
+            Section("On-device AI (Gemini Nano)", Icons.Outlined.Memory) {
+                Text(
+                    when (nanoStatus) {
+                        com.pft.financetracker.data.ai.NanoAi.Status.READY -> "Ready on this phone. Ask hands it questions its rules don't understand, with your totals only; nothing leaves the phone."
+                        com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADABLE -> "This phone supports it. Android downloads the model once (about 1-2 GB, over Wi-Fi is best)."
+                        com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADING -> "Android is downloading the model…"
+                        com.pft.financetracker.data.ai.NanoAi.Status.UNSUPPORTED -> "Not available on this phone (it needs Android AICore: Pixel 9 or later, Galaxy S24 or later and some others). Ask still answers with its rules."
+                        null -> "Checking…"
+                    },
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (nanoStatus == com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADABLE) ActionRow("Download the model", Icons.Outlined.Download, { vm.downloadNano() })
+                if (nanoStatus == com.pft.financetracker.data.ai.NanoAi.Status.READY) Row(
+                    Modifier.fillMaxWidth().toggleable(value = useNano, role = Role.Switch, onValueChange = { vm.setUseNano(it) }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text("Use it in Ask", Modifier.weight(1f))
+                    Switch(checked = useNano, onCheckedChange = null)
+                }
             }
 
             Section("AI monthly summary (optional)", Icons.Outlined.AutoAwesome) {

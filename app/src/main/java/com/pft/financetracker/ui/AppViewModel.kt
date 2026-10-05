@@ -358,11 +358,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) { c.recurring.decide(key, status) }
 
     /** Every bill with its status today, recomputed when transactions, bills or paid marks change. */
+    /** Today, moving on just after midnight, so due dates and cycles update without new data. */
+    private val today = com.pft.financetracker.domain.reminders.DayClock.today()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, java.time.LocalDate.now())
+
     val billStates: StateFlow<List<Pair<com.pft.financetracker.domain.bills.Bill, com.pft.financetracker.domain.bills.BillState>>> =
-        combine(transactions, c.db.billDao().observeAll(), c.db.billDao().observeMarks()) { txns, bills, marks ->
+        combine(transactions, c.db.billDao().observeAll(), c.db.billDao().observeMarks(), today) { txns, bills, marks, day ->
             withContext(Dispatchers.Default) {
                 val byBill = marks.groupBy({ it.billId }, { java.time.LocalDate.ofEpochDay(it.dueDay) })
-                c.bills.statesOf(bills.map { it.toDomain() }, txns, byBill, java.time.LocalDate.now())
+                c.bills.statesOf(bills.map { it.toDomain() }, txns, byBill, day)
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     fun saveBill(b: com.pft.financetracker.domain.bills.Bill) = viewModelScope.launch(Dispatchers.IO) { c.bills.save(b) }
@@ -372,8 +376,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Each card's current billing cycle, recomputed when transactions or cards change. */
     val cardSummaries: StateFlow<List<com.pft.financetracker.domain.cards.CardSummary>> =
-        combine(transactions, c.db.cardDao().observeAll()) { txns, cards ->
-            withContext(Dispatchers.Default) { c.cards.summariesOf(cards.map { it.toDomain() }, txns, java.time.LocalDate.now()) }
+        combine(transactions, c.db.cardDao().observeAll(), today) { txns, cards, day ->
+            withContext(Dispatchers.Default) { c.cards.summariesOf(cards.map { it.toDomain() }, txns, day) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     suspend fun cardSuggestions(): List<String> = withContext(Dispatchers.IO) {
         c.cards.suggestions(extra = c.bills.all().mapNotNull { it.cardLast4 })
@@ -382,8 +386,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun deleteCard(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.cards.delete(id) }
 
     val goalProgress: StateFlow<List<com.pft.financetracker.domain.goals.GoalProgress>> =
-        combine(c.db.goalDao().observeAll(), c.db.goalDao().observeContributions()) { goals, contributions ->
-            c.goals.progressOf(goals, contributions, java.time.LocalDate.now())
+        combine(c.db.goalDao().observeAll(), c.db.goalDao().observeContributions(), today) { goals, contributions, day ->
+            c.goals.progressOf(goals, contributions, day)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     /** Income minus net spend last month: the natural amount to move into a goal. */
     val lastMonthSavingsPaise: StateFlow<Long> = transactions.map { InsightsEngine.summarize(it, Periods.month(-1), c.settings.countCashAsSpend.value).savingsPaise }
@@ -435,35 +439,55 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     val lastBackupAt: StateFlow<Long> = c.settings.lastBackupAt
+    private val _backupBusy = MutableStateFlow<String?>(null)
+    /** "Locking your backup…" / "Opening the backup…" while it runs; null otherwise. */
+    val backupBusy: StateFlow<String?> = _backupBusy
     /** Seals every table with [passphrase] and writes it to the file the person picked. Returns an error message, or null. */
     suspend fun writeBackup(uri: Uri, passphrase: CharArray): String? = withContext(Dispatchers.IO) {
+        _backupBusy.value = "Locking your backup…"
         runCatching {
             val bytes = c.backup.export(passphrase)
             getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("Could not write the file.")
             c.settings.setLastBackupAt(System.currentTimeMillis())
-        }.exceptionOrNull()?.let { it.message ?: "Backup failed." }.also { passphrase.fill(' ') }
+        }.exceptionOrNull()?.let { it.message ?: "Backup failed." }.also { passphrase.fill(' '); _backupBusy.value = null }
     }
     /** Replaces all data with the backup's. Returns an error message, or null when done. */
     suspend fun restoreBackup(uri: Uri, passphrase: CharArray): String? = withContext(Dispatchers.IO) {
+        _backupBusy.value = "Opening the backup…"
         runCatching {
             val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not open the file.")
             c.backup.restore(bytes, passphrase)
             c.templates.load()
             c.afterChange(useAi = false)
-        }.exceptionOrNull()?.let { it.message ?: "Restore failed." }.also { passphrase.fill(' ') }
+        }.exceptionOrNull()?.let { it.message ?: "Restore failed." }.also { passphrase.fill(' '); _backupBusy.value = null }
     }
 
-    /** Answers a question about the person's own numbers, on the phone. */
+    /**
+     * Answers a question about the person's own numbers, on the phone: the rules first (exact figures), then, for a
+     * question they do not understand, Gemini Nano with the phone's totals, where the phone has it.
+     */
     suspend fun ask(question: String): com.pft.financetracker.domain.ask.AskAnswer = withContext(Dispatchers.Default) {
         // Read fresh: the netWorth flow only runs while its screen is open.
         val nw = c.netWorth.summary()
-        com.pft.financetracker.domain.ask.AskEngine.answer(
-            question,
-            com.pft.financetracker.domain.ask.AskContext(
-                txns = transactions.value, budgets = budgets.value, recurring = c.recurring.book(), bills = c.bills.states(),
-                netWorthPaise = if (nw.ownPaise == 0L && nw.owePaise == 0L) null else nw.totalPaise, includeCash = countCashAsSpend.value,
-            ),
+        val ctx = com.pft.financetracker.domain.ask.AskContext(
+            txns = transactions.value, budgets = budgets.value, recurring = c.recurring.book(), bills = c.bills.states(),
+            netWorthPaise = if (nw.ownPaise == 0L && nw.owePaise == 0L) null else nw.totalPaise, includeCash = countCashAsSpend.value,
         )
+        val rules = com.pft.financetracker.domain.ask.AskEngine.answer(question, ctx)
+        if (rules.understood || !c.settings.useNano.value) return@withContext rules
+        c.nano.answer(question, com.pft.financetracker.domain.ask.NanoPrompt.facts(ctx))
+            ?.let { com.pft.financetracker.domain.ask.AskAnswer(it, understood = true, byAi = true) } ?: rules
+    }
+
+    val useNano: StateFlow<Boolean> = c.settings.useNano
+    fun setUseNano(v: Boolean) = c.settings.setUseNano(v)
+    private val _nanoStatus = MutableStateFlow<com.pft.financetracker.data.ai.NanoAi.Status?>(null)
+    val nanoStatus: StateFlow<com.pft.financetracker.data.ai.NanoAi.Status?> = _nanoStatus
+    fun refreshNano() = viewModelScope.launch { _nanoStatus.value = c.nano.status() }
+    fun downloadNano() = viewModelScope.launch {
+        _nanoStatus.value = com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADING
+        c.nano.download()
+        _nanoStatus.value = c.nano.status()
     }
     /** This month in a few written lines, worked out on the phone (no key, no network). */
     suspend fun monthInWords(): String = withContext(Dispatchers.Default) {

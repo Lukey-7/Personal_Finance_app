@@ -30,8 +30,11 @@ data class AskContext(
     val zone: ZoneId = ZoneId.systemDefault(),
 )
 
-/** An answer in plain words, and the transactions behind it (for "show me"). */
-data class AskAnswer(val text: String, val transactionIds: List<Long> = emptyList())
+/**
+ * An answer in plain words, and the transactions behind it (for "show me"). [understood] is false when the rules did
+ * not recognise the question, so an on-device model may try; [byAi] marks an answer the model wrote.
+ */
+data class AskAnswer(val text: String, val transactionIds: List<Long> = emptyList(), val understood: Boolean = true, val byAi: Boolean = false)
 
 /**
  * Answers everyday questions about your money with rules that run on the phone: spend on a category or at a
@@ -80,7 +83,7 @@ object AskEngine {
             }
             has("spend", "spent", "spending", "how much", "expenses", "cost") ->
                 AskAnswer("You spent ₹${fmt(s.netSpendPaise)} ${period.label}.", spends(c, period).map { it.id })
-            else -> AskAnswer("I can answer questions about your own numbers. Try: " + examples.take(4).joinToString(" · ") { "\"$it\"" })
+            else -> AskAnswer("I can answer questions about your own numbers. Try: " + examples.take(4).joinToString(" · ") { "\"$it\"" }, understood = false)
         }
     }
 

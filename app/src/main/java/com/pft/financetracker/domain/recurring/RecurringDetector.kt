@@ -57,11 +57,14 @@ data class RecurringItem(
 object RecurringDetector {
     private const val DAY = 86_400_000L
     private val noise = setOf("upi", "ach", "nach", "si", "autopay", "auto", "mandate", "emandate", "e", "payment", "com", "www", "in",
-        "pvt", "ltd", "private", "limited", "india", "the", "dr", "debit", "via", "to")
+        "pvt", "ltd", "private", "limited", "india", "the", "dr", "debit", "via", "to",
+        // Company-name filler, so "Netflix Entertainment Services India Pvt Ltd" and "NETFLIX.COM" are one service.
+        "services", "service", "entertainment", "technologies", "technology", "digital", "media", "online", "payments", "co")
     private val autopayWords = Regex("""\b(?:auto\s?pay|e-?mandate|mandate|nach|ach|standing instruction|si)\b""", RegexOption.IGNORE_CASE)
 
+    /** The same service under its UPI handle ("netflix.upi@icici"), card name ("NETFLIX.COM") or company name gets one key. */
     fun merchantKey(merchant: String): String =
-        merchant.lowercase(Locale.ROOT).replace(Regex("""[^a-z]+"""), " ").split(' ')
+        merchant.substringBefore('@').lowercase(Locale.ROOT).replace(Regex("""[^a-z]+"""), " ").split(' ')
             .filter { it.isNotBlank() && it !in noise }.joinToString("").take(16)
 
     fun detect(all: List<Transaction>, now: Long = System.currentTimeMillis()): List<RecurringItem> {

@@ -64,6 +64,11 @@ class SettingsRepository(context: Context) {
     val widgetHideAmounts: StateFlow<Boolean> = _widgetHideAmounts
     fun setWidgetHideAmounts(v: Boolean) { plain.edit().putBoolean(KEY_WIDGET_HIDE, v).apply(); _widgetHideAmounts.value = v }
 
+    /** Ask may hand questions its rules do not understand to Gemini Nano on the phone, where available. On by default. */
+    private val _useNano = MutableStateFlow(plain.getBoolean(KEY_USE_NANO, true))
+    val useNano: StateFlow<Boolean> = _useNano
+    fun setUseNano(v: Boolean) { plain.edit().putBoolean(KEY_USE_NANO, v).apply(); _useNano.value = v }
+
     /** When the person last saved an encrypted backup; 0 = never. Drives the monthly "time for a backup" reminder. */
     private val _lastBackupAt = MutableStateFlow(plain.getLong(KEY_LAST_BACKUP, 0L))
     val lastBackupAt: StateFlow<Long> = _lastBackupAt
@@ -137,6 +142,7 @@ class SettingsRepository(context: Context) {
         _remindersEnabled.value = false
         _widgetHideAmounts.value = true
         _lastBackupAt.value = 0L
+        _useNano.value = true
         aiAnswerCache.clear()
     }
 
@@ -152,6 +158,7 @@ class SettingsRepository(context: Context) {
         const val KEY_REMINDERS_SENT = "reminders_sent"
         const val KEY_WIDGET_HIDE = "widget_hide_amounts"
         const val KEY_LAST_BACKUP = "last_backup_at"
+        const val KEY_USE_NANO = "use_nano"
         const val KEY_API_SEEDED = "api_key_seeded"
         const val KEY_API_USER_MANAGED = "api_key_user_managed"
     }

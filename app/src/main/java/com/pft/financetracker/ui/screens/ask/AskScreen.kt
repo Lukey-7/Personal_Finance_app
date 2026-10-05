@@ -110,6 +110,7 @@ private fun TurnCard(t: Turn, byId: Map<Long, com.pft.financetracker.domain.mode
         Text(t.question, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.align(Alignment.End))
         SoftPanel {
             if (t.markdown) MarkdownText(t.answer.text) else Text(t.answer.text)
+            if (t.answer.byAi) Text("Gemini Nano, on this phone. AI can get things wrong: check figures in Activity.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val rows = t.answer.transactionIds.mapNotNull { byId[it] }
             if (rows.isNotEmpty()) TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide payments" else "Show ${rows.size} payment${if (rows.size == 1) "" else "s"}") }
             if (expanded) FinCard(padding = PaddingValues(vertical = 4.dp)) {

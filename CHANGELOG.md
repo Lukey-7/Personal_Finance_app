@@ -25,7 +25,9 @@ backups and on-phone answers. Still no account, no server and no analytics. Exis
 - **Net worth.** Bank balances from "Avl Bal" in SMS, mutual funds from a CAMS / KFintech CAS PDF (password used once,
   never stored), FDs, gold and debts you type in, and loans from Bills; a month-by-month history.
 - **Ask FinTrack.** Questions like "food last month", "Swiggy in September", "how much did I save?", "any bills
-  due?", answered by rules on the phone, plus "This month in words". Nothing is sent anywhere.
+  due?", answered by rules on the phone, plus "This month in words". On phones with Android AICore (Pixel 9 and
+  later, Galaxy S24 and later, some others), questions the rules do not understand go to **Gemini Nano on the
+  phone**, with your totals only; its answers are labelled. Settings shows whether the model is ready.
 
 ### New elsewhere
 - **Reminders** (Settings, off by default): a notification 3 and 1 days before a bill and 2 days before a
@@ -46,9 +48,15 @@ backups and on-phone answers. Still no account, no server and no analytics. Exis
 - **Possible misses** in the SMS log: skipped messages that still carry an amount and an account, one tap to Review.
 
 ### Privacy
-- New libraries: WorkManager (reminders) and Glance (widget). The APK audit (`scripts/audit_apk.py`) shows no new
-  telemetry classes and still exactly one endpoint, `api.openai.com`.
-- On-device Gemini Nano was evaluated and left out: its ML Kit library brings Google's logging transport.
+- New libraries: WorkManager (reminders), Glance (widget) and ML Kit GenAI Prompt (Gemini Nano). The README's
+  OCR section is replaced by **What ML Kit sends**: ML Kit (text recognition since v1.1, and now GenAI) carries
+  Google's anonymous usage logging, which is left on. Earlier README claims that it had none were wrong.
+- Toolchain: Kotlin 2.1.21 and KSP 2.1.21-2.0.2 (KSP1 mode for Room), needed by the GenAI library.
+
+### Fixed after review
+- The same subscription paid by UPI and by card (or under the company's full name) is one subscription.
+- Bills, cards and goals move on at midnight without waiting for new data.
+- Backup and restore show progress while the passphrase key is worked out.
 
 ## [1.2.0] - 2026-09-28
 

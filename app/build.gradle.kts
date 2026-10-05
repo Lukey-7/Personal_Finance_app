@@ -157,6 +157,9 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     // Home-screen widget. Draws from the local database only; no network.
     implementation(libs.androidx.glance.appwidget)
+    // Gemini Nano through Android AICore, for Ask questions the rules cannot answer. Runs on the phone; like ML Kit OCR
+    // it carries Google's ML Kit usage logging (README: "What ML Kit sends").
+    implementation(libs.mlkit.genai.prompt)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)
