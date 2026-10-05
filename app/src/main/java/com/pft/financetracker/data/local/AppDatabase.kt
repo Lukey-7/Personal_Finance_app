@@ -17,7 +17,7 @@ import java.security.SecureRandom
         TransactionEntity::class, ReviewItemEntity::class, BudgetEntity::class,
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
-        RefundLinkEntity::class, ParserTemplateEntity::class, RecurringDecisionEntity::class,
+        RefundLinkEntity::class, ParserTemplateEntity::class, RecurringDecisionEntity::class, BillEntity::class, BillMarkEntity::class,
     ],
     version = 6,
     exportSchema = true
@@ -32,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun refundDao(): RefundDao
     abstract fun templateDao(): TemplateDao
     abstract fun recurringDao(): RecurringDao
+    abstract fun billDao(): BillDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -271,6 +272,14 @@ abstract class AppDatabase : RoomDatabase() {
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, senderCore TEXT NOT NULL, skeleton TEXT NOT NULL, type TEXT NOT NULL, createdAt INTEGER NOT NULL)""",
             "CREATE UNIQUE INDEX IF NOT EXISTS index_parser_templates_senderCore_skeleton ON parser_templates (senderCore, skeleton)",
             "CREATE TABLE IF NOT EXISTS recurring_decisions (`key` TEXT NOT NULL, status TEXT NOT NULL, decidedAt INTEGER NOT NULL, PRIMARY KEY(`key`))",
+            """CREATE TABLE IF NOT EXISTS bills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, amountPaise INTEGER, dueDay INTEGER NOT NULL, keyword TEXT,
+                category TEXT NOT NULL, everyMonths INTEGER NOT NULL, startMonth INTEGER NOT NULL, fixedDueDay INTEGER, loanPrincipalPaise INTEGER,
+                loanRateBp INTEGER, loanTenureMonths INTEGER, loanFirstDueDay INTEGER, cardLast4 TEXT, createdAt INTEGER NOT NULL)""",
+            """CREATE TABLE IF NOT EXISTS bill_marks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, billId INTEGER NOT NULL, dueDay INTEGER NOT NULL,
+                FOREIGN KEY(billId) REFERENCES bills(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_bill_marks_billId_dueDay ON bill_marks (billId, dueDay)",
         )
 
         val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)

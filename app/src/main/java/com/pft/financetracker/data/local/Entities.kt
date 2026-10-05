@@ -236,6 +236,41 @@ data class RecurringDecisionEntity(
     val decidedAt: Long = System.currentTimeMillis(),
 )
 
+/**
+ * A bill, EMI or card bill (v1.3); see [com.pft.financetracker.domain.bills.Bill]. Dates are epoch days. The loan
+ * columns are all set for an EMI and all null otherwise.
+ */
+@Entity(tableName = "bills")
+data class BillEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val amountPaise: Long?,
+    val dueDay: Int,
+    val keyword: String?,
+    val category: String,
+    val everyMonths: Int,
+    val startMonth: Int,
+    val fixedDueDay: Long?,
+    val loanPrincipalPaise: Long?,
+    val loanRateBp: Int?,
+    val loanTenureMonths: Int?,
+    val loanFirstDueDay: Long?,
+    val cardLast4: String?,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/** A bill cycle the person marked paid by hand (paid in cash, from another account, ...). */
+@Entity(
+    tableName = "bill_marks",
+    foreignKeys = [ForeignKey(entity = BillEntity::class, parentColumns = ["id"], childColumns = ["billId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index(value = ["billId", "dueDay"], unique = true)],
+)
+data class BillMarkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val billId: Long,
+    val dueDay: Long,
+)
+
 @Entity(tableName = "import_batches")
 data class ImportBatchEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

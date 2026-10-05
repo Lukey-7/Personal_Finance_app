@@ -30,7 +30,8 @@ class AppContainer(context: Context) {
     /** Message shapes the person taught by confirming Review items; the parser tries them first for their sender. */
     val templates: com.pft.financetracker.data.sms.TemplateStore = com.pft.financetracker.data.sms.TemplateStore(db.templateDao())
     val parser: SmsParser = SmsParser(templates = { templates.current })
-    val importer: SmsImporter = SmsImporter(context, parser, transactions, smsLog, settings)
+    val bills: com.pft.financetracker.data.bills.BillService = com.pft.financetracker.data.bills.BillService(db.transactionDao(), db.billDao())
+    val importer: SmsImporter = SmsImporter(context, parser, transactions, smsLog, settings, onCardStatement = { s, bank -> bills.fromStatement(s, bank) })
     val splitEngine: SplitEngine = SplitEngine(
         db.transactionDao(), db.splitDao(),
         ai = OpenAiSplitProvider({ settings.getApiKey() }),
@@ -66,6 +67,7 @@ class FinanceApp : Application() {
         seedBuiltInApiKey()
         Reminders.ensureChannel(this)
         container.reminderSources += ReminderSource { now -> container.recurring.book(now).reminders() }
+        container.reminderSources += ReminderSource { now -> container.bills.reminders(now) }
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { runCatching { container.templates.load() } }
         Reminders.schedule(this)
     }

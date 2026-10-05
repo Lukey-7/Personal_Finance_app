@@ -300,6 +300,38 @@ interface RecurringDao {
 }
 
 @Dao
+interface BillDao {
+    @Query("SELECT * FROM bills ORDER BY name")
+    fun observeAll(): Flow<List<BillEntity>>
+
+    @Query("SELECT * FROM bills ORDER BY name")
+    suspend fun getAll(): List<BillEntity>
+
+    @Query("SELECT * FROM bills WHERE cardLast4 = :last4 LIMIT 1")
+    suspend fun byCard(last4: String): BillEntity?
+
+    @Insert suspend fun insert(e: BillEntity): Long
+    @Update suspend fun update(e: BillEntity)
+
+    @Query("DELETE FROM bills WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("SELECT * FROM bill_marks")
+    fun observeMarks(): Flow<List<BillMarkEntity>>
+
+    @Query("SELECT * FROM bill_marks")
+    suspend fun allMarks(): List<BillMarkEntity>
+
+    @Query("SELECT * FROM bill_marks WHERE billId = :billId")
+    suspend fun marksFor(billId: Long): List<BillMarkEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun mark(e: BillMarkEntity)
+
+    @Query("DELETE FROM bill_marks WHERE billId = :billId AND dueDay = :dueDay")
+    suspend fun unmark(billId: Long, dueDay: Long)
+}
+
+@Dao
 interface ImportDao {
     @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>
