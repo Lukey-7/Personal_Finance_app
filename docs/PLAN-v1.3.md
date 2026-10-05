@@ -1,6 +1,6 @@
 # v1.3 Plan: Everyday money, beyond the SMS
 
-**Status:** draft, waiting for go-ahead (5 Oct 2026). Nothing is built yet.
+**Status:** built on branch `v1.3-features` (5 Oct 2026), 370 unit tests green, emulator smoke-tested (`docs/DEVICE-TEST-v1.3.md`). On-device Gemini Nano left out (D7). Not released.
 **Source:** market research on 5 Oct 2026 (Axio, Fold, INDmoney, CRED, PennyWise, Bluecoins, YNAB, Monarch, Copilot, Cleo; Play Store, Trustpilot and comparison-blog reviews). The user picked features 1 to 11 from the ranked shortlist.
 **Executor:** `superpowers:executing-plans`, inline in one session with no subagents, plus one whole-branch review at the end. The progress ledger lives in `.superpowers/sdd/PLAN-v1.3/progress.md`.
 
@@ -109,7 +109,7 @@ The order follows dependencies: shared plumbing first, then features that create
 ### M10. Encrypted backup and restore (feature 9)
 - [x] T10.1 `BackupCodec`: every table (v1.3 schema) ↔ JSON, AES-GCM + PBKDF2 (D4); tests: round-trip equality, wrong passphrase fails cleanly, tampered file fails, a backup from schema 6 restores into a fresh DB
 - [x] T10.2 Settings → Backup now / Restore (typed confirmation "RESTORE"), plus an optional monthly reminder to back up
-- [~] T10.3 README security table updated (in M12 docs pass)
+- [x] T10.3 README security table updated (in M12 docs pass)
 
 ### M11. On-device AI and Ask FinTrack (feature 7)
 - [x] T11.1 (re-scoped: OpenAI only, see ledger) `AiProvider` interface over the existing OpenAI client + new `GeminiNanoProvider`; availability check; the provider picker in Settings
@@ -119,10 +119,10 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T11.5 (rules on phone, OpenAI optional) Monthly summary uses Nano when available, otherwise OpenAI if a key is set, otherwise a rule-built summary
 
 ### M12. Release prep
-- [ ] T12.1 Full `testDebugUnitTest`, release build, APK URL scan (invariant 1)
-- [ ] T12.2 Emulator smoke test of every new screen; write `docs/DEVICE-TEST-v1.3.md`
-- [ ] T12.3 Final whole-branch review (fresh reviewer), fix pass
-- [ ] T12.4 README features + CHANGELOG 1.3.0 + version bump. No tag or GitHub release until you say so
+- [x] T12.1 Full `testDebugUnitTest`, release build, APK URL scan (invariant 1)
+- [x] T12.2 Emulator smoke test of every new screen; write `docs/DEVICE-TEST-v1.3.md`
+- [x] T12.3 Final whole-branch review (fresh reviewer), fix pass
+- [x] T12.4 README features + CHANGELOG 1.3.0 + version bump. No tag or GitHub release until you say so
 
 ## 5. Testing
 
