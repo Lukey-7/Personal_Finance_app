@@ -3,6 +3,8 @@ package com.pft.financetracker.domain.insights
 import com.pft.financetracker.domain.model.Budget
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Flow
+import com.pft.financetracker.domain.recurring.Period as RecurringPeriod
+import com.pft.financetracker.domain.recurring.RecurringDetector
 import com.pft.financetracker.domain.model.Money
 import com.pft.financetracker.domain.model.Transaction
 import java.util.Calendar
@@ -109,6 +111,7 @@ data class BudgetStatus(val budget: Budget, val spentPaise: Long) {
 
 object InsightsEngine {
 
+
     /** Flows that count towards spend. Cash is included by default (Settings can exclude it later). */
     fun isSpend(t: Transaction, includeCash: Boolean = true) = t.flow == Flow.EXPENSE || (includeCash && t.flow == Flow.CASH)
 
@@ -214,20 +217,20 @@ object InsightsEngine {
         val ninetyDays = all.filter { isSpend(it) && !it.needsReview && it.timestamp > now - 90L * 24 * 3600 * 1000 }
         if (ninetyDays.isEmpty()) return out
 
-        // 1. Recurring subscriptions: same merchant, similar amount, >= 2 months.
-        ninetyDays.groupBy { normalizeMerchant(it.merchant) }.forEach { (_, list) ->
-            if (list.size < 2) return@forEach
-            val amounts = list.map { it.amountPaise.toDouble() }
-            val avg = amounts.average()
-            val similar = amounts.all { abs(it - avg) / avg < 0.15 }
-            val months = list.map { monthKey(it.timestamp) }.distinct().size
-            if (similar && months >= 2 && list.size <= 4 && avg >= 5_000) {
+        // 1. Subscriptions and other repeating charges (weekly to yearly), and any that just got pricier.
+        RecurringDetector.detect(all, now).filter { it.active && it.period != RecurringPeriod.UNKNOWN && it.amountPaise >= 5_000 }.forEach { r ->
+            r.priceRise?.let { p ->
                 out += Insight(
-                    "Recurring: ${list.first().merchant}",
-                    "≈₹${fmt(avg.toLong())} charged in $months of the last 3 months. Still using it? Cancelling saves ₹${fmt((avg * 12).toLong())}/yr.",
-                    Insight.Severity.WARN, list.first().category
+                    "${r.merchant} went up",
+                    "Now ₹${fmt(p.toPaise)} instead of ₹${fmt(p.fromPaise)} (${r.period.label.lowercase(Locale.ROOT)}). That is ₹${fmt(r.yearlyPaise - r.yearlyPaise * p.fromPaise / p.toPaise)} more a year.",
+                    Insight.Severity.WARN, r.category
                 )
             }
+            out += Insight(
+                "Recurring: ${r.merchant}",
+                "₹${fmt(r.amountPaise)} ${r.period.label.lowercase(Locale.ROOT)}, ₹${fmt(r.yearlyPaise)} a year. Still using it?",
+                Insight.Severity.WARN, r.category
+            )
         }
 
         // 2. High-frequency small spends.
@@ -284,11 +287,6 @@ object InsightsEngine {
 
     /** Merchant key for grouping. Strips noise and keeps enough characters to tell "Amazon Pay" from "Amazon Prime". */
     fun normalizeMerchant(m: String) = m.lowercase(Locale.ROOT).replace(Regex("""[^a-z0-9]"""), "").take(20)
-
-    private fun monthKey(t: Long): Int {
-        val c = Calendar.getInstance(); c.timeInMillis = t
-        return c.get(Calendar.YEAR) * 12 + c.get(Calendar.MONTH)
-    }
 
     private fun isWeekend(t: Long): Boolean {
         val c = Calendar.getInstance(); c.timeInMillis = t

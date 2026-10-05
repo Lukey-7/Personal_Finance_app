@@ -36,7 +36,8 @@ fun flowColor(t: Transaction) = when (t.flow) {
  * underneath, and the amount right-aligned with the secondary line below it.
  */
 @Composable
-fun TransactionRow(t: Transaction, showDate: Boolean = true, onClick: () -> Unit) {
+/** [tag] replaces the automatic flow tag, e.g. "Refunded" or "Reversed" for paired rows. */
+fun TransactionRow(t: Transaction, showDate: Boolean = true, tag: String? = null, onClick: () -> Unit) {
     val color = colorFor(Category.entries.indexOf(t.category))
     Row(
         Modifier
@@ -74,8 +75,8 @@ fun TransactionRow(t: Transaction, showDate: Boolean = true, onClick: () -> Unit
             )
             // A short flow tag only where the colour alone doesn't say it; the date only where the list
             // has no date headers of its own (Activity groups by day, so it would just repeat).
-            val tag = flowTag(t.flow) ?: (if (t.originalAmountPaise != null && t.type == TransactionType.DEBIT) "Your share" else null) ?: if (showDate) shortDate(t.timestamp) else null
-            if (tag != null) Text(tag, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            val shown = tag ?: flowTag(t.flow) ?: (if (t.originalAmountPaise != null && t.type == TransactionType.DEBIT) "Your share" else null) ?: if (showDate) shortDate(t.timestamp) else null
+            if (shown != null) Text(shown, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }

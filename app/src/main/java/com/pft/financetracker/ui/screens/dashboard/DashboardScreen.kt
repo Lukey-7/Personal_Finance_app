@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.ui.text.style.TextOverflow
 import com.pft.financetracker.ui.components.AddFab
 import com.pft.financetracker.ui.components.CardPadding
@@ -102,6 +103,7 @@ fun DashboardScreen(
     onOpenSmsLog: (Long?) -> Unit,
     onDrill: (Bucket, Category?) -> Unit,
     onOpenSplit: (Long) -> Unit = {},
+    onOpenTools: () -> Unit = {},
 ) {
     val txns by vm.transactions.collectAsState()
     val budgets by vm.budgets.collectAsState()
@@ -140,6 +142,7 @@ fun DashboardScreen(
                 title = { Text("FinTrack", style = MaterialTheme.typography.titleLarge) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 actions = {
+                    IconButton(onClick = onOpenTools) { Icon(Icons.Outlined.Apps, "Money tools") }
                     if (importState is ImportUiState.Running) CircularProgressIndicator(Modifier.padding(14.dp).size(22.dp), strokeWidth = 2.dp)
                     else IconButton(onClick = { if (vm.hasSmsPermission()) vm.scanInbox() }) { Icon(Icons.Outlined.Sync, "Scan SMS") }
                 }

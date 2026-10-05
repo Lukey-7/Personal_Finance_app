@@ -31,6 +31,16 @@ architecture.
 - **Import statements and screenshots.** PDF (including password-protected and scanned), Excel and CSV statements from any bank, and Google Pay / PhonePe / Paytm / Amazon Pay history screenshots. No bank templates; the running balance is checked on every row; payments already known from SMS are skipped; every import can be undone.
 - **Optional AI summary.** Add your own OpenAI API key to get a written monthly summary and saving tips, on demand only.
 - **Clean up duplicates.** Finds the same payment stored twice by an older version and shows exactly what it would remove before deleting anything.
+- **Money tools (v1.3).** Subscriptions with yearly cost and price-rise flags; bills and loan EMIs with automatic
+  "paid" detection; credit-card billing cycles and rewards; savings goals; a tax helper (80C, 80D, NPS, rent,
+  donations) with CSV; net worth from SMS balances, a mutual-fund CAS PDF and what you type in; and **Ask FinTrack**,
+  plain-language questions answered by rules on the phone.
+- **Refunds paired with purchases.** Failed payments that came straight back are hidden, refunds worded like income
+  are counted as refunds, and every pairing can be undone.
+- **Learns from Review.** Confirming a message teaches the parser that sender's wording for next time.
+- **Reminders and a widget.** Optional notifications before bills and renewals; a home-screen widget with amounts
+  hidden by default and one-tap expense / cash entry.
+- **Encrypted backup.** One passphrase-locked file (AES-256-GCM) saved wherever you choose; nothing is uploaded.
 - **Your data.** Export to CSV, or wipe everything.
 
 ## Security and privacy
@@ -40,62 +50,41 @@ architecture.
 | Database | Encrypted with SQLCipher. A random 256-bit key is created per install and kept in EncryptedSharedPreferences backed by the Android Keystore. `secure_delete` is on, so cleared rows are overwritten. |
 | API key | Stored only in EncryptedSharedPreferences using AES-256-GCM with a Keystore master key. Never logged or exported, and never in the source. Published release APKs carry no key; a personal build can have one built in (see `docs/RUNNING.md`), which can be changed or removed in Settings. |
 | SMS | Only messages from alphanumeric sender IDs such as `VM-HDFCBK` are read. Personal messages from phone numbers are skipped. Only parsed fields are stored. Raw text is kept only for messages waiting in the review queue, and is deleted when you resolve them. The SMS log stores sender, time, outcome, reason and amount, never the body. |
-| Bill photos | Read on the phone by ML Kit Text Recognition with the **bundled** Latin and Devanagari models (`com.google.mlkit:text-recognition`, `com.google.mlkit:text-recognition-devanagari`): no model download, works in airplane mode. The camera capture goes to a temp file in app-private cache and is deleted after recognition, whether or not it succeeded; gallery images are read through the system Photo Picker without a storage permission. No image is stored. It sends nothing — see [Does the OCR phone home?](#does-the-ocr-phone-home) for how that was checked. |
+| Bill photos | Read on the phone by ML Kit Text Recognition with the **bundled** Latin and Devanagari models (`com.google.mlkit:text-recognition`, `com.google.mlkit:text-recognition-devanagari`): no model download, works in airplane mode. The camera capture goes to a temp file in app-private cache and is deleted after recognition, whether or not it succeeded; gallery images are read through the system Photo Picker without a storage permission. No image is stored or sent. ML Kit's own anonymous usage logging to Google is on; see [What ML Kit sends](#what-ml-kit-sends). |
 | Statements and screenshots | Picked through the system file / photo picker (no storage permission), read on the phone and not kept. A PDF password is used in memory to open the file and never stored. Only the parsed fields of each transaction are saved, like SMS. |
-| Network | The only network calls in the codebase go to `https://api.openai.com`: when you tap **Generate summary**, and, if you have a key and "Use AI for unclear cases" is on, for split intelligence. Cleartext HTTP is disabled app-wide. |
+| Network | The only network calls in the codebase go to `https://api.openai.com`: when you tap **Generate summary**, and, if you have a key and "Use AI for unclear cases" is on, for split intelligence. Cleartext HTTP is disabled app-wide. Separately, Google ML Kit sends its own anonymous usage logs, and Android AICore downloads the Gemini Nano model on phones that use it ([What ML Kit sends](#what-ml-kit-sends)). |
 | Data sent to OpenAI | Summary: category totals, counts, budgets, and this and last month's totals. Settings has a **What is sent?** button that shows the exact payload. Split intelligence: for payments the on-phone rules cannot explain, the amounts, relative days and times, a payment type ("restaurant, food") and "Person A"-style labels for whoever sent money. Never merchant or people's names, SMS or statement text, bank names or account numbers. Answers are cached so the same week is never sent twice. |
-| Backups | `allowBackup=false` and data-extraction rules exclude everything from cloud backup and device-to-device transfer. |
+| Backups | `allowBackup=false` and data-extraction rules exclude everything from cloud backup and device-to-device transfer. Your own backup (Settings → Backup) is one file sealed with AES-256-GCM under a key derived from your passphrase (PBKDF2-HMAC-SHA256, 600,000 rounds, random salt); FinTrack writes it only where you pick and never uploads it. Without the passphrase it cannot be opened. |
+| Reminders and widget | Worked out on the phone by WorkManager twice a day; notifications keep amounts off the lock screen. The widget shows "₹••••" unless you turn on amounts. |
 | Screen | `FLAG_SECURE` blocks screenshots, screen recording and the recents preview. |
 | Release build | R8 minification is on, and all `android.util.Log` calls are stripped. |
 | Screenshots | `FLAG_SECURE` is set in release builds. Debug builds leave it off so the UI can be captured for documentation. |
-| Third parties | Only AndroidX and Google libraries, plus SQLCipher. No Firebase, analytics, crash reporting or ads. |
+| Third parties | Only AndroidX and Google libraries, plus SQLCipher. No Firebase SDK, analytics, crash reporting or ads. `scripts/audit_apk.py` checks each build: ML Kit's logging classes may not grow, and the only endpoint in FinTrack's own code is `api.openai.com`. |
 | CSV export | Written to a location you pick through the system file picker. Cells are escaped against spreadsheet formula injection. |
 
 Two things are outside the app's control. An exported CSV is plain text, so treat it like a bank statement. If you use the AI feature, OpenAI's own data policy applies to the aggregated numbers you send.
 
-## Does the OCR phone home?
+## What ML Kit sends
 
-ML Kit is a Google library, so the fair question is whether reading a bill quietly reports anything. For
-this app the answer is no, and it was checked three independent ways rather than taken on trust.
+FinTrack uses two Google ML Kit libraries: **text recognition** (bill photos, scanned statements) and, from
+v1.3, **GenAI Prompt** (Gemini Nano in Ask, on phones that have it). Both run their models on the phone: no bill
+photo, SMS, statement, question or answer is sent anywhere by them or by FinTrack.
 
-**1. Nothing in the dependencies can log.** None of the ML Kit or Play-services artifacts the app ships
-contains Google's telemetry transports — no `clearcut`, `phenotype`, `datatransport` or `firelog` code in
-`mlkit:common`, `mlkit:text-recognition`, `mlkit:vision-common`, `play-services-base`,
-`play-services-basement` or `play-services-mlkit-text-recognition`.
+They do carry Google's own **usage logging**, and it is left on:
 
-**2. The built APK has exactly one network endpoint.** Scanning the release APK — both the compiled dex
-and all three native libraries, including the 10.6 MB OCR pipeline — turns up a single URL the app could
-call:
+- Both libraries include Google's logging transport (`com.google.android.datatransport`, the "firelog" / CCT
+  backend) and ship with `enableFirelog=true` in their logging options. This has been true since v1.1 for text
+  recognition; the APK audit shows it in every release.
+- Per Google's ML Kit terms, these logs are anonymous metrics about the library itself: which feature ran, how
+  long it took, errors, the ML Kit and Android versions and the device model. They are batched and sent later
+  by the transport's scheduled job, not at the moment a bill is read, which is why the earlier "a recognition
+  sends zero bytes" measurement saw nothing.
+- The endpoint is built inside the library, so it does not appear as a plain URL in the APK. The audit therefore
+  watches the logging classes themselves (`scripts/audit_apk.py`): their count may not grow without a decision.
+- Gemini Nano's model is downloaded and run by Android's AICore system service, not by FinTrack.
 
-```
-https://api.openai.com/v1/chat/completions
-```
-
-Every other URL in the binary is a documentation or bug-tracker string (TensorFlow Lite guides, an
-Android reference page, the LLVM toolchain), not an endpoint.
-
-**3. A recognition sends zero bytes.** On a device with networking up, the app's uid was measured through
-the framework's own per-uid accounting across a cold launch and a full OCR recognition:
-
-| | rx | tx |
-|---|---|---|
-| after launch | 0 | 0 |
-| after recognising a bill | 0 | 0 |
-| *system uid, same moment (control)* | *124,041* | *96,050* |
-
-The control line matters: the counter was demonstrably working and reporting six-figure traffic for
-another uid at the same moment this app reported nothing.
-
-**On the manifest flag.** There is no ML Kit logging flag to set, because in this configuration there is
-no logging component to switch off. That only becomes a question with the *unbundled* recogniser
-(`play-services-mlkit-text-recognition` on its own), which hands the work to Google Play services — a
-separate app with its own telemetry, outside any setting this app controls. FinTrack deliberately uses
-the bundled model instead, which is also why the APK is larger and why OCR works in airplane mode.
-
-**Scope of this check.** The three checks above were run before the bundled Devanagari (Hindi) recogniser
-(`text-recognition-devanagari`) was added. It is the same kind of bundled ML Kit artifact, but the
-dependency scan, APK endpoint scan and per-uid traffic measurement should be repeated on the next release
-build before this section claims it too.
+Earlier versions of this README said the OCR libraries contained no logging code. That was wrong: the classes
+were there in v1.1 and v1.2 too.
 
 ## Splitting a bill
 

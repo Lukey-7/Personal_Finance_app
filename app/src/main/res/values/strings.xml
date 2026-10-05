@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">FinTrack</string>
+    <string name="widget_description">Spend this month, budget left and the next bill, with one-tap expense notes</string>
 </resources>

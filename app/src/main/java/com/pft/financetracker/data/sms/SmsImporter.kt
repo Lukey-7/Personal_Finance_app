@@ -48,6 +48,10 @@ class SmsImporter(
     private val repo: TransactionRepository,
     private val log: SmsLogRepository,
     private val settings: SettingsRepository,
+    /** A card statement alert (ignored as a transaction) still tells us a bill is due. */
+    private val onCardStatement: suspend (com.pft.financetracker.domain.bills.CardStatement, String?) -> Unit = { _, _ -> },
+    /** The "Avl Bal" an alert reports, for net worth: account last digits, bank, balance, message time. */
+    private val onBalance: suspend (String, String?, Long, Long) -> Unit = { _, _, _, _ -> },
 ) {
     fun hasSmsPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
@@ -153,6 +157,9 @@ class SmsImporter(
         return when (val r = parser.parse(sms)) {
             is ParseResult.Success -> {
                 val p = r.transaction
+                p.accountRef?.let { ref ->
+                    com.pft.financetracker.domain.networth.BalanceExtractor.extract(sms.body)?.let { runCatching { onBalance(ref, p.bankName, it, p.timestamp) } }
+                }
                 val category = Categorizer.categorize(p.merchant, p.type, p.bankName)
                 val candidate = Transaction(
                     amountPaise = p.amountPaise,
@@ -227,7 +234,11 @@ class SmsImporter(
                 if (ok) Outcome.REVIEW else Outcome.DUPLICATE
             }
             is ParseResult.Ignored -> {
-                log.log(entry(Outcomes.IGNORED, r.reason))
+                com.pft.financetracker.domain.bills.CardStatementReader.read(sms.body)?.let { s ->
+                    runCatching { onCardStatement(s, com.pft.financetracker.domain.parser.BankExtractor.extract(sms.sender, sms.body)) }
+                }
+                // An amount is kept only for skipped messages that still look like a payment ("possible misses").
+                log.log(entry(Outcomes.IGNORED, r.reason, amountPaise = com.pft.financetracker.domain.parser.MissDetector.possibleMiss(sms.body, r.reason)))
                 Outcome.IGNORED
             }
         }

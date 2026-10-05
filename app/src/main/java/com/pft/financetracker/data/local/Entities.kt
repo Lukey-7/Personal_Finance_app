@@ -199,6 +199,176 @@ data class ImportMatchEntity(
 )
 
 /** One statement or screenshot import, for the import history and "undo this import". */
+/**
+ * A refund or reversal paired with the purchase it gives money back for (v1.3). One row per credit: APPLIED while in
+ * force, REJECTED after the person undid it, so the same credit is never paired again. [prevFlow]/[prevCategory] are
+ * the credit's values before pairing changed them; null when pairing changed nothing.
+ */
+@Entity(
+    tableName = "refund_links",
+    foreignKeys = [
+        ForeignKey(entity = TransactionEntity::class, parentColumns = ["id"], childColumns = ["refundTxId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = TransactionEntity::class, parentColumns = ["id"], childColumns = ["debitTxId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index(value = ["refundTxId"], unique = true), Index(value = ["debitTxId"])],
+)
+data class RefundLinkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val refundTxId: Long,
+    val debitTxId: Long,
+    /** REFUND or REVERSAL. */
+    val kind: String,
+    val amountPaise: Long,
+    /** APPLIED or REJECTED. */
+    val status: String,
+    val prevFlow: String?,
+    val prevCategory: String?,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/**
+ * A message shape learned from Review (v1.3): the sender's core ID and its wording with amounts, merchant, numbers
+ * and months masked. Holds no amounts, names or account digits. Seen and deleted in Settings.
+ */
+@Entity(tableName = "parser_templates", indices = [Index(value = ["senderCore", "skeleton"], unique = true)])
+data class ParserTemplateEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val senderCore: String,
+    val skeleton: String,
+    /** DEBIT or CREDIT. */
+    val type: String,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/** A person's decision about a detected repeating charge (v1.3), by its stable key. Detection itself is recomputed. */
+@Entity(tableName = "recurring_decisions")
+data class RecurringDecisionEntity(
+    @PrimaryKey val key: String,
+    /** CONFIRMED, DISMISSED or CANCELLED. */
+    val status: String,
+    val decidedAt: Long = System.currentTimeMillis(),
+)
+
+/**
+ * A bill, EMI or card bill (v1.3); see [com.pft.financetracker.domain.bills.Bill]. Dates are epoch days. The loan
+ * columns are all set for an EMI and all null otherwise.
+ */
+@Entity(tableName = "bills")
+data class BillEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val amountPaise: Long?,
+    val dueDay: Int,
+    val keyword: String?,
+    val category: String,
+    val everyMonths: Int,
+    val startMonth: Int,
+    val fixedDueDay: Long?,
+    val loanPrincipalPaise: Long?,
+    val loanRateBp: Int?,
+    val loanTenureMonths: Int?,
+    val loanFirstDueDay: Long?,
+    val cardLast4: String?,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/** A bill cycle the person marked paid by hand (paid in cash, from another account, ...). */
+@Entity(
+    tableName = "bill_marks",
+    foreignKeys = [ForeignKey(entity = BillEntity::class, parentColumns = ["id"], childColumns = ["billId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index(value = ["billId", "dueDay"], unique = true)],
+)
+data class BillMarkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val billId: Long,
+    val dueDay: Long,
+)
+
+/** A credit card set up for cycle tracking (v1.3): matched to transactions by its last four digits. */
+@Entity(tableName = "cards", indices = [Index(value = ["last4"], unique = true)])
+data class CardEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val last4: String,
+    val name: String,
+    val statementDay: Int,
+    val dueDay: Int,
+    /** Reward rate in basis points: 1.5% = 150. */
+    val rewardBp: Int,
+)
+
+/** A savings goal (v1.3). Dates are epoch days; [targetDay] null means "no deadline". */
+@Entity(tableName = "goals")
+data class GoalEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val targetPaise: Long,
+    val targetDay: Long?,
+    val startDay: Long,
+)
+
+/** Money put toward (positive) or taken from (negative) a goal. */
+@Entity(
+    tableName = "goal_contributions",
+    foreignKeys = [ForeignKey(entity = GoalEntity::class, parentColumns = ["id"], childColumns = ["goalId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index(value = ["goalId"])],
+)
+data class GoalContributionEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val goalId: Long,
+    val amountPaise: Long,
+    val at: Long = System.currentTimeMillis(),
+)
+
+/** A person's own tax tag on a payment (v1.3). [section] null means "not a deduction", overriding the rules. */
+@Entity(
+    tableName = "tax_tags",
+    foreignKeys = [ForeignKey(entity = TransactionEntity::class, parentColumns = ["id"], childColumns = ["transactionId"], onDelete = ForeignKey.CASCADE)],
+)
+data class TaxTagEntity(
+    @PrimaryKey val transactionId: Long,
+    val section: String?,
+)
+
+/** Something owned (or, with [liability], owed) typed in by hand for net worth (v1.3). */
+@Entity(tableName = "assets")
+data class AssetEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val kind: String,
+    val valuePaise: Long,
+    val liability: Boolean,
+    val accountRef: String?,
+    val updatedAt: Long = System.currentTimeMillis(),
+)
+
+/** The newest balance a bank SMS reported for an account ("Avl Bal ..."), by its last digits. */
+@Entity(tableName = "account_balances")
+data class AccountBalanceEntity(
+    @PrimaryKey val accountRef: String,
+    val bankName: String?,
+    val balancePaise: Long,
+    val at: Long,
+)
+
+/** A mutual-fund holding from the latest CAS statement; a new CAS replaces them all. */
+@Entity(tableName = "holdings")
+data class HoldingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val folio: String,
+    val scheme: String,
+    val valuePaise: Long,
+    val asOfDay: Long,
+)
+
+/** Net worth at the end of each month it was seen, for the history line. [month] is "yyyy-MM". */
+@Entity(tableName = "networth_snapshots")
+data class NetWorthSnapshotEntity(
+    @PrimaryKey val month: String,
+    val totalPaise: Long,
+    val ownPaise: Long,
+    val owePaise: Long,
+)
+
 @Entity(tableName = "import_batches")
 data class ImportBatchEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

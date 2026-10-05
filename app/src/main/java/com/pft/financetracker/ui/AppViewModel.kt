@@ -5,6 +5,9 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pft.financetracker.appContainer
+import com.pft.financetracker.data.bills.toDomain
+import com.pft.financetracker.data.cards.toDomain
+import com.pft.financetracker.data.networth.toDomain
 import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.data.local.SmsLogEntity
 import com.pft.financetracker.data.repository.TransactionRepository
@@ -67,6 +70,15 @@ sealed class StatementUiState {
     data class Error(val message: String) : StatementUiState()
 }
 
+/** Reading a mutual-fund CAS PDF: (password) -> done. */
+sealed class CasUiState {
+    data object Idle : CasUiState()
+    data object Reading : CasUiState()
+    data class NeedsPassword(val uri: Uri, val wrong: Boolean) : CasUiState()
+    data class Done(val count: Int) : CasUiState()
+    data class Error(val message: String) : CasUiState()
+}
+
 /** Which period the dashboard shows. Kept in the view model so it survives tab switches. */
 sealed class PeriodChoice {
     data object ThisMonth : PeriodChoice()
@@ -108,6 +120,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val importBatches: StateFlow<List<ImportBatchEntity>> = c.db.importDao().observeBatches().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val splitAi: StateFlow<Boolean> = c.settings.splitAi
+    val remindersEnabled: StateFlow<Boolean> = c.settings.remindersEnabled
     val recentPeople: StateFlow<List<String>> = c.splits.recentPeople.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val hasApiKey: StateFlow<Boolean> = c.settings.hasApiKey
@@ -140,7 +153,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Re-run split intelligence. Cheap without AI; with AI, unchanged weeks come from the cache. */
-    fun refreshSplits(useAi: Boolean = true) = viewModelScope.launch(Dispatchers.IO) { runCatching { c.splitEngine.run(useAi) } }
+    fun refreshSplits(useAi: Boolean = true) = viewModelScope.launch(Dispatchers.IO) { c.afterChange(useAi) }
 
     fun hasSmsPermission() = c.importer.hasSmsPermission()
 
@@ -151,7 +164,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val since = if (full) 0L else lastImportAt.value
             val stats = runCatching { c.importer.scanInbox(since) }.getOrElse { ImportStats(0, 0, 0, 0, 0, 0) }
             _importState.value = ImportUiState.Done(stats)
-            withContext(Dispatchers.IO) { runCatching { c.splitEngine.run() } }
+            withContext(Dispatchers.IO) { c.afterChange() }
         }
     }
 
@@ -180,6 +193,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Save a transaction entered from a review item and remove the item from the queue. */
     fun resolveReview(reviewId: Long, t: Transaction, onDone: () -> Unit = {}) = viewModelScope.launch {
+        // The confirmed message teaches the parser this sender's wording, so the next one needs no review.
+        c.transactions.getReview(reviewId)?.let { r -> withContext(Dispatchers.IO) { runCatching { c.templates.learn(r.sender, r.body, t) } } }
         val id = c.transactions.insert(t.copy(userEdited = true))
         c.transactions.resolveReview(reviewId)
         t.smsHash?.let { c.smsLog.updateOutcome(it, "SAVED", t.merchant, id.takeIf { v -> v > 0 }) }
@@ -317,6 +332,172 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun acceptSplit(id: Long) = viewModelScope.launch { c.splitEngine.accept(id) }
     /** Undo or "not a split"; then re-check at once, so a transfer this split shared with another one is re-read. */
     fun rejectSplit(id: Long) = viewModelScope.launch { c.splitEngine.reject(id); refreshSplits(useAi = false) }
+    fun setRemindersEnabled(v: Boolean) { c.settings.setRemindersEnabled(v) }
+    val widgetHideAmounts: StateFlow<Boolean> = c.settings.widgetHideAmounts
+    fun setWidgetHideAmounts(v: Boolean) = viewModelScope.launch { c.settings.setWidgetHideAmounts(v); com.pft.financetracker.ui.widget.FinTrackWidget.refresh(getApplication()) }
+    /** Applied refund/reversal pairs, for badges and the "hide reversed payments" filter. */
+    val refundBadges: StateFlow<com.pft.financetracker.domain.refunds.RefundBadges> = c.db.refundDao().observeApplied()
+        .map { links ->
+            com.pft.financetracker.domain.refunds.RefundBadges.of(links.map {
+                com.pft.financetracker.domain.refunds.RefundPair(it.id, it.refundTxId, it.debitTxId,
+                    com.pft.financetracker.domain.refunds.RefundMatch.Kind.valueOf(it.kind), it.amountPaise)
+            })
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.refunds.RefundBadges.EMPTY)
+    fun undoRefund(linkId: Long) = viewModelScope.launch(Dispatchers.IO) { c.refunds.undo(linkId) }
+
+    val learnedTemplates = c.db.templateDao().observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun deleteTemplate(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.templates.delete(id) }
+
+    /** Subscriptions and other repeating charges, recomputed whenever transactions or decisions change. */
+    val recurringBook: StateFlow<com.pft.financetracker.domain.recurring.RecurringBook> =
+        combine(transactions, c.db.recurringDao().observeAll()) { txns, decisions ->
+            withContext(Dispatchers.Default) { c.recurring.bookOf(txns, decisions) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.recurring.RecurringBook.EMPTY)
+    fun decideRecurring(key: String, status: com.pft.financetracker.domain.recurring.RecurringStatus?) =
+        viewModelScope.launch(Dispatchers.IO) { c.recurring.decide(key, status) }
+
+    /** Every bill with its status today, recomputed when transactions, bills or paid marks change. */
+    /** Today, moving on just after midnight, so due dates and cycles update without new data. */
+    private val today = com.pft.financetracker.domain.reminders.DayClock.today()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, java.time.LocalDate.now())
+
+    val billStates: StateFlow<List<Pair<com.pft.financetracker.domain.bills.Bill, com.pft.financetracker.domain.bills.BillState>>> =
+        combine(transactions, c.db.billDao().observeAll(), c.db.billDao().observeMarks(), today) { txns, bills, marks, day ->
+            withContext(Dispatchers.Default) {
+                val byBill = marks.groupBy({ it.billId }, { java.time.LocalDate.ofEpochDay(it.dueDay) })
+                c.bills.statesOf(bills.map { it.toDomain() }, txns, byBill, day)
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun saveBill(b: com.pft.financetracker.domain.bills.Bill) = viewModelScope.launch(Dispatchers.IO) { c.bills.save(b) }
+    fun deleteBill(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.bills.delete(id) }
+    fun markBillPaid(id: Long, due: java.time.LocalDate) = viewModelScope.launch(Dispatchers.IO) { c.bills.markPaid(id, due) }
+    fun unmarkBillPaid(id: Long, due: java.time.LocalDate) = viewModelScope.launch(Dispatchers.IO) { c.bills.unmarkPaid(id, due) }
+
+    /** Each card's current billing cycle, recomputed when transactions or cards change. */
+    val cardSummaries: StateFlow<List<com.pft.financetracker.domain.cards.CardSummary>> =
+        combine(transactions, c.db.cardDao().observeAll(), today) { txns, cards, day ->
+            withContext(Dispatchers.Default) { c.cards.summariesOf(cards.map { it.toDomain() }, txns, day) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    suspend fun cardSuggestions(): List<String> = withContext(Dispatchers.IO) {
+        c.cards.suggestions(extra = c.bills.all().mapNotNull { it.cardLast4 })
+    }
+    fun saveCard(card: com.pft.financetracker.domain.cards.Card) = viewModelScope.launch(Dispatchers.IO) { c.cards.save(card) }
+    fun deleteCard(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.cards.delete(id) }
+
+    val goalProgress: StateFlow<List<com.pft.financetracker.domain.goals.GoalProgress>> =
+        combine(c.db.goalDao().observeAll(), c.db.goalDao().observeContributions(), today) { goals, contributions, day ->
+            c.goals.progressOf(goals, contributions, day)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** Income minus net spend last month: the natural amount to move into a goal. */
+    val lastMonthSavingsPaise: StateFlow<Long> = transactions.map { InsightsEngine.summarize(it, Periods.month(-1), c.settings.countCashAsSpend.value).savingsPaise }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
+    fun saveGoal(g: com.pft.financetracker.domain.goals.Goal) = viewModelScope.launch(Dispatchers.IO) { c.goals.save(g) }
+    fun deleteGoal(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.goals.delete(id) }
+    fun contributeToGoal(id: Long, paise: Long) = viewModelScope.launch(Dispatchers.IO) { c.goals.contribute(id, paise) }
+
+    private val _taxYear = MutableStateFlow(com.pft.financetracker.domain.tax.FinancialYear.of(java.time.LocalDate.now()))
+    val taxYear: StateFlow<com.pft.financetracker.domain.tax.FinancialYear> = _taxYear
+    fun setTaxYear(fy: com.pft.financetracker.domain.tax.FinancialYear) { _taxYear.value = fy }
+    /** The person's own tax tags by transaction id; a null value means "not a deduction". */
+    val taxTags: StateFlow<Map<Long, com.pft.financetracker.domain.tax.TaxSection?>> = c.db.taxDao().observeAll()
+        .map { l -> l.associate { it.transactionId to com.pft.financetracker.domain.tax.TaxSection.fromName(it.section) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    val taxSummary: StateFlow<List<com.pft.financetracker.domain.tax.SectionTotal>> =
+        combine(transactions, c.db.taxDao().observeAll(), _taxYear) { txns, tags, fy -> withContext(Dispatchers.Default) { c.tax.summaryOf(txns, tags, fy) } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    fun tagTax(txId: Long, s: com.pft.financetracker.domain.tax.TaxSection?) = viewModelScope.launch(Dispatchers.IO) { c.tax.tag(txId, s) }
+    fun clearTaxTag(txId: Long) = viewModelScope.launch(Dispatchers.IO) { c.tax.clearTag(txId) }
+    suspend fun taxCsv(fy: com.pft.financetracker.domain.tax.FinancialYear): String = withContext(Dispatchers.IO) { c.tax.csv(fy) }
+
+    val assets: StateFlow<List<com.pft.financetracker.domain.networth.Asset>> = c.db.netWorthDao().observeAssets()
+        .map { l -> l.map { it.toDomain() } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val accountBalances = c.db.netWorthDao().observeBalances().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val holdings = c.db.netWorthDao().observeHoldings().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val netWorthHistory = c.db.netWorthDao().observeSnapshots().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val netWorth: StateFlow<com.pft.financetracker.domain.networth.NetWorthSummary> =
+        combine(c.db.netWorthDao().observeAssets(), c.db.netWorthDao().observeBalances(), c.db.netWorthDao().observeHoldings(), c.db.billDao().observeAll()) { a, b, h, bills ->
+            c.netWorth.summaryOf(a, b, h, bills.map { it.toDomain() }, java.time.LocalDate.now())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.networth.NetWorthSummary(0, 0, emptyMap()))
+    fun saveAsset(a: com.pft.financetracker.domain.networth.Asset) = viewModelScope.launch(Dispatchers.IO) { c.netWorth.saveAsset(a); c.netWorth.snapshot() }
+    fun deleteAsset(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.netWorth.deleteAsset(id); c.netWorth.snapshot() }
+
+    private val _casState = MutableStateFlow<CasUiState>(CasUiState.Idle)
+    val casState: StateFlow<CasUiState> = _casState
+    fun resetCas() { _casState.value = CasUiState.Idle }
+    fun importCas(uri: Uri, password: String?) = viewModelScope.launch {
+        _casState.value = CasUiState.Reading
+        _casState.value = when (val r = c.statementFiles.readPdfText(uri, password)) {
+            is StatementFiles.TextRead.NeedsPassword -> CasUiState.NeedsPassword(uri, r.wrong)
+            is StatementFiles.TextRead.Error -> CasUiState.Error(r.message)
+            is StatementFiles.TextRead.Ok -> {
+                val h = withContext(Dispatchers.Default) { com.pft.financetracker.domain.networth.CasParser.parse(r.text) }
+                if (h.isEmpty()) CasUiState.Error("No fund holdings found. Use a CAMS or KFintech Consolidated Account Statement (detailed).")
+                else { withContext(Dispatchers.IO) { c.netWorth.replaceHoldings(h); c.netWorth.snapshot() }; CasUiState.Done(h.size) }
+            }
+        }
+    }
+
+    val lastBackupAt: StateFlow<Long> = c.settings.lastBackupAt
+    private val _backupBusy = MutableStateFlow<String?>(null)
+    /** "Locking your backup…" / "Opening the backup…" while it runs; null otherwise. */
+    val backupBusy: StateFlow<String?> = _backupBusy
+    /** Seals every table with [passphrase] and writes it to the file the person picked. Returns an error message, or null. */
+    suspend fun writeBackup(uri: Uri, passphrase: CharArray): String? = withContext(Dispatchers.IO) {
+        _backupBusy.value = "Locking your backup…"
+        runCatching {
+            val bytes = c.backup.export(passphrase)
+            getApplication<Application>().contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("Could not write the file.")
+            c.settings.setLastBackupAt(System.currentTimeMillis())
+        }.exceptionOrNull()?.let { it.message ?: "Backup failed." }.also { passphrase.fill(' '); _backupBusy.value = null }
+    }
+    /** Replaces all data with the backup's. Returns an error message, or null when done. */
+    suspend fun restoreBackup(uri: Uri, passphrase: CharArray): String? = withContext(Dispatchers.IO) {
+        _backupBusy.value = "Opening the backup…"
+        runCatching {
+            val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not open the file.")
+            c.backup.restore(bytes, passphrase)
+            c.templates.load()
+            c.afterChange(useAi = false)
+        }.exceptionOrNull()?.let { it.message ?: "Restore failed." }.also { passphrase.fill(' '); _backupBusy.value = null }
+    }
+
+    /**
+     * Answers a question about the person's own numbers, on the phone: the rules first (exact figures), then, for a
+     * question they do not understand, Gemini Nano with the phone's totals, where the phone has it.
+     */
+    suspend fun ask(question: String): com.pft.financetracker.domain.ask.AskAnswer = withContext(Dispatchers.Default) {
+        // Read fresh: the netWorth flow only runs while its screen is open.
+        val nw = c.netWorth.summary()
+        val ctx = com.pft.financetracker.domain.ask.AskContext(
+            txns = transactions.value, budgets = budgets.value, recurring = c.recurring.book(), bills = c.bills.states(),
+            netWorthPaise = if (nw.ownPaise == 0L && nw.owePaise == 0L) null else nw.totalPaise, includeCash = countCashAsSpend.value,
+        )
+        val rules = com.pft.financetracker.domain.ask.AskEngine.answer(question, ctx)
+        if (rules.understood || !c.settings.useNano.value) return@withContext rules
+        c.nano.answer(question, com.pft.financetracker.domain.ask.NanoPrompt.facts(ctx))
+            ?.let { com.pft.financetracker.domain.ask.AskAnswer(it, understood = true, byAi = true) } ?: rules
+    }
+
+    val useNano: StateFlow<Boolean> = c.settings.useNano
+    fun setUseNano(v: Boolean) = c.settings.setUseNano(v)
+    private val _nanoStatus = MutableStateFlow<com.pft.financetracker.data.ai.NanoAi.Status?>(null)
+    val nanoStatus: StateFlow<com.pft.financetracker.data.ai.NanoAi.Status?> = _nanoStatus
+    fun refreshNano() = viewModelScope.launch { _nanoStatus.value = c.nano.status() }
+    fun downloadNano() = viewModelScope.launch {
+        _nanoStatus.value = com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADING
+        c.nano.download()
+        _nanoStatus.value = c.nano.status()
+    }
+    /** This month in a few written lines, worked out on the phone (no key, no network). */
+    suspend fun monthInWords(): String = withContext(Dispatchers.Default) {
+        val all = transactions.value
+        com.pft.financetracker.domain.ask.MonthlySummary.write(
+            InsightsEngine.summarize(all, Periods.month(), countCashAsSpend.value), InsightsEngine.summarize(all, Periods.month(-1), countCashAsSpend.value),
+            budgets.value, c.recurring.book(),
+        )
+    }
+
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */
@@ -369,12 +550,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val batch = withContext(Dispatchers.IO) { c.statementImporter.commit(s.preview) }
             _statementState.value = StatementUiState.Saved(batch)
-            withContext(Dispatchers.IO) { runCatching { c.splitEngine.run() } }
+            withContext(Dispatchers.IO) { c.afterChange() }
         }
     }
 
     fun undoImport(batchId: Long) = viewModelScope.launch {
-        withContext(Dispatchers.IO) { c.statementImporter.undo(batchId); runCatching { c.splitEngine.run(useAi = false) } }
+        withContext(Dispatchers.IO) { c.statementImporter.undo(batchId); c.afterChange(useAi = false) }
     }
 
     fun resetStatementImport() { _statementState.value = StatementUiState.Idle }
@@ -390,12 +571,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun exportSplitsCsv(): String = CsvExporter.splitsToCsv(splits.value)
 
     fun clearAllData(onDone: () -> Unit = {}) = viewModelScope.launch {
-        c.transactions.clearAll()
-        c.budgets.clearAll()
-        c.smsLog.clearAll()
-        c.splits.clearAll()
-        c.db.importDao().clear()
-        c.db.importDao().clearMatches()
+        // Every table, including ones added in later versions, so nothing is left behind.
+        withContext(Dispatchers.IO) { c.db.clearAllTables(); c.templates.load() }
         c.settings.clearAll()
         _aiState.value = AiUiState.Idle
         _importState.value = ImportUiState.Idle

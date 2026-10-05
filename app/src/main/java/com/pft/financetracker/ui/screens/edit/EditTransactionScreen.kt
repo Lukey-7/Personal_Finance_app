@@ -70,7 +70,7 @@ import com.pft.financetracker.ui.components.SoftPanel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSplit: (Long) -> Unit = {}, onBack: () -> Unit) {
+fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSplit: (Long) -> Unit = {}, onOpenTransaction: (Long) -> Unit = {}, onBack: () -> Unit) {
     var existing by remember { mutableStateOf<Transaction?>(null) }
     var amount by remember { mutableStateOf("") }
     var merchant by remember { mutableStateOf("") }
@@ -171,6 +171,36 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
                         TextButton(onClick = { vm.rejectSplit(autoSplit.id); onBack() }) { Text("Not a split") }
                     }
                 }
+            }
+            val badges by vm.refundBadges.collectAsState()
+            val all by vm.transactions.collectAsState()
+            id?.let { badges.pairsOf(it) }?.forEach { p ->
+                val other = all.firstOrNull { it.id == (if (p.refundId == id) p.debitId else p.refundId) }
+                SoftPanel {
+                    CapsLabel(if (p.kind == com.pft.financetracker.domain.refunds.RefundMatch.Kind.REVERSAL) "Reversed" else "Refund")
+                    Text(
+                        when {
+                            other == null -> "Paired with a transaction that is no longer here."
+                            p.refundId == id -> "${com.pft.financetracker.ui.components.money(p.amountPaise)} back for ${other.merchant.ifBlank { "a purchase" }} on ${com.pft.financetracker.ui.components.shortDate(other.timestamp)}. It lowers that purchase's category."
+                            else -> "${com.pft.financetracker.ui.components.money(p.amountPaise)} of this came back on ${com.pft.financetracker.ui.components.shortDate(other.timestamp)}."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row {
+                        if (other != null) TextButton(onClick = { onOpenTransaction(other.id) }) { Text("Open the other one") }
+                        TextButton(onClick = { vm.undoRefund(p.linkId) }) { Text("Not a refund") }
+                    }
+                }
+            }
+            // Tax section: the rule's guess, or the person's own tag, changeable here for any payment out.
+            existing?.takeIf { it.type == TransactionType.DEBIT }?.let { t ->
+                val tags by vm.taxTags.collectAsState()
+                var picking by remember { mutableStateOf(false) }
+                val section = if (tags.containsKey(t.id)) tags[t.id] else com.pft.financetracker.domain.tax.TaxTagger.suggest(t)
+                androidx.compose.material3.TextButton(onClick = { picking = true }) {
+                    Text("Tax: " + (section?.let { "${it.code} · ${it.label}" } ?: "not a deduction") + if (tags.containsKey(t.id)) " (yours)" else "")
+                }
+                if (picking) com.pft.financetracker.ui.screens.tax.TaxTagDialog(t.merchant, onPick = { vm.tagTax(t.id, it); picking = false }, onRule = { vm.clearTaxTag(t.id); picking = false }, onDismiss = { picking = false })
             }
             reviewBody?.let {
                 SoftPanel {

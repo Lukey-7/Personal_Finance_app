@@ -86,8 +86,10 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
+    fun isMiss(e: SmsLogEntity) = e.outcome == Outcomes.IGNORED && e.reason == "no_transaction_hint" && e.amountPaise != null
+    val misses = all.count(::isMiss)
     val list = all.filter { e ->
-        (outcome == null || e.outcome == outcome) &&
+        (outcome == null || (if (outcome == MISSES) isMiss(e) else e.outcome == outcome)) &&
             (!onlyThisRun || runId == null || e.runId == runId) &&
             (query.isBlank() || e.sender.contains(query, true) || e.reason.contains(query, true) || (e.amountPaise?.let { money(it) } ?: "").contains(query))
     }
@@ -115,6 +117,8 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
                 listOf(Outcomes.SAVED to "Saved", Outcomes.REVIEW to "Review", Outcomes.DUPLICATE to "Duplicate", Outcomes.IGNORED to "Ignored").forEach { (k, label) ->
                     PillChip(outcome == k, "$label (${counts[k] ?: 0})") { outcome = if (outcome == k) null else k }
                 }
+                // Skipped messages that still carry an amount and an account: worth a look, one tap sends them to Review.
+                if (misses > 0) PillChip(outcome == MISSES, "Possible misses ($misses)") { outcome = if (outcome == MISSES) null else MISSES }
             }
             if (list.isEmpty()) EmptyState(Icons.Outlined.SearchOff, if (all.isEmpty()) "No SMS scanned yet." else "No log entries match.")
             LazyColumn(contentPadding = PaddingValues(bottom = bottomPadding())) {
@@ -186,6 +190,8 @@ private fun outcomeIcon(o: String): ImageVector = when (o) {
     Outcomes.DUPLICATE -> Icons.Outlined.ContentCopy
     else -> Icons.Outlined.Block
 }
+
+private const val MISSES = "MISSES"
 
 private fun outcomeLabel(o: String) = when (o) { Outcomes.SAVED -> "Saved"; Outcomes.REVIEW -> "Needs review"; Outcomes.DUPLICATE -> "Duplicate"; else -> "Ignored" }
 

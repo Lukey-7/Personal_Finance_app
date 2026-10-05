@@ -263,6 +263,171 @@ interface SplitDao {
 }
 
 @Dao
+interface RefundDao {
+    @Query("SELECT * FROM refund_links WHERE status = 'APPLIED'")
+    fun observeApplied(): Flow<List<RefundLinkEntity>>
+
+    @Query("SELECT * FROM refund_links WHERE status = 'APPLIED'")
+    suspend fun getApplied(): List<RefundLinkEntity>
+
+    @Query("SELECT * FROM refund_links")
+    suspend fun getAll(): List<RefundLinkEntity>
+
+    @Query("SELECT * FROM refund_links WHERE id = :id")
+    suspend fun get(id: Long): RefundLinkEntity?
+
+    @Insert suspend fun insert(e: RefundLinkEntity): Long
+
+    @Update suspend fun update(e: RefundLinkEntity)
+
+    @Query("DELETE FROM refund_links")
+    suspend fun clear()
+}
+
+@Dao
+interface TemplateDao {
+    @Query("SELECT * FROM parser_templates ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<ParserTemplateEntity>>
+
+    @Query("SELECT * FROM parser_templates ORDER BY createdAt DESC")
+    suspend fun getAll(): List<ParserTemplateEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insert(e: ParserTemplateEntity): Long
+
+    @Query("DELETE FROM parser_templates WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
+interface RecurringDao {
+    @Query("SELECT * FROM recurring_decisions")
+    fun observeAll(): Flow<List<RecurringDecisionEntity>>
+
+    @Query("SELECT * FROM recurring_decisions")
+    suspend fun getAll(): List<RecurringDecisionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(e: RecurringDecisionEntity)
+
+    @Query("DELETE FROM recurring_decisions WHERE `key` = :key")
+    suspend fun delete(key: String)
+}
+
+@Dao
+interface BillDao {
+    @Query("SELECT * FROM bills ORDER BY name")
+    fun observeAll(): Flow<List<BillEntity>>
+
+    @Query("SELECT * FROM bills ORDER BY name")
+    suspend fun getAll(): List<BillEntity>
+
+    @Query("SELECT * FROM bills WHERE cardLast4 = :last4 LIMIT 1")
+    suspend fun byCard(last4: String): BillEntity?
+
+    @Insert suspend fun insert(e: BillEntity): Long
+    @Update suspend fun update(e: BillEntity)
+
+    @Query("DELETE FROM bills WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("SELECT * FROM bill_marks")
+    fun observeMarks(): Flow<List<BillMarkEntity>>
+
+    @Query("SELECT * FROM bill_marks")
+    suspend fun allMarks(): List<BillMarkEntity>
+
+    @Query("SELECT * FROM bill_marks WHERE billId = :billId")
+    suspend fun marksFor(billId: Long): List<BillMarkEntity>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun mark(e: BillMarkEntity)
+
+    @Query("DELETE FROM bill_marks WHERE billId = :billId AND dueDay = :dueDay")
+    suspend fun unmark(billId: Long, dueDay: Long)
+}
+
+@Dao
+interface CardDao {
+    @Query("SELECT * FROM cards ORDER BY name")
+    fun observeAll(): Flow<List<CardEntity>>
+
+    @Query("SELECT * FROM cards ORDER BY name")
+    suspend fun getAll(): List<CardEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(e: CardEntity): Long
+
+    @Query("DELETE FROM cards WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
+interface GoalDao {
+    @Query("SELECT * FROM goals ORDER BY id")
+    fun observeAll(): Flow<List<GoalEntity>>
+
+    @Query("SELECT * FROM goals ORDER BY id")
+    suspend fun getAll(): List<GoalEntity>
+
+    @Query("SELECT * FROM goal_contributions ORDER BY at")
+    fun observeContributions(): Flow<List<GoalContributionEntity>>
+
+    @Query("SELECT * FROM goal_contributions ORDER BY at")
+    suspend fun allContributions(): List<GoalContributionEntity>
+
+    @Insert suspend fun insert(e: GoalEntity): Long
+    @Update suspend fun update(e: GoalEntity)
+    @Insert suspend fun contribute(e: GoalContributionEntity): Long
+
+    @Query("DELETE FROM goals WHERE id = :id")
+    suspend fun delete(id: Long)
+}
+
+@Dao
+interface TaxDao {
+    @Query("SELECT * FROM tax_tags")
+    fun observeAll(): Flow<List<TaxTagEntity>>
+
+    @Query("SELECT * FROM tax_tags")
+    suspend fun getAll(): List<TaxTagEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(e: TaxTagEntity)
+
+    @Query("DELETE FROM tax_tags WHERE transactionId = :txId")
+    suspend fun delete(txId: Long)
+}
+
+@Dao
+interface NetWorthDao {
+    @Query("SELECT * FROM assets ORDER BY liability, name")
+    fun observeAssets(): Flow<List<AssetEntity>>
+    @Query("SELECT * FROM assets ORDER BY liability, name")
+    suspend fun getAssets(): List<AssetEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertAsset(e: AssetEntity): Long
+    @Query("DELETE FROM assets WHERE id = :id")
+    suspend fun deleteAsset(id: Long)
+
+    @Query("SELECT * FROM account_balances")
+    fun observeBalances(): Flow<List<AccountBalanceEntity>>
+    @Query("SELECT * FROM account_balances")
+    suspend fun getBalances(): List<AccountBalanceEntity>
+    @Query("SELECT * FROM account_balances WHERE accountRef = :ref")
+    suspend fun getBalance(ref: String): AccountBalanceEntity?
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertBalance(e: AccountBalanceEntity)
+
+    @Query("SELECT * FROM holdings ORDER BY valuePaise DESC")
+    fun observeHoldings(): Flow<List<HoldingEntity>>
+    @Query("SELECT * FROM holdings ORDER BY valuePaise DESC")
+    suspend fun getHoldings(): List<HoldingEntity>
+    @Query("DELETE FROM holdings")
+    suspend fun clearHoldings()
+    @Insert suspend fun insertHoldings(e: List<HoldingEntity>)
+
+    @Query("SELECT * FROM networth_snapshots ORDER BY month")
+    fun observeSnapshots(): Flow<List<NetWorthSnapshotEntity>>
+    @Query("SELECT * FROM networth_snapshots ORDER BY month")
+    suspend fun getSnapshots(): List<NetWorthSnapshotEntity>
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertSnapshot(e: NetWorthSnapshotEntity)
+}
+
+@Dao
 interface ImportDao {
     @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>

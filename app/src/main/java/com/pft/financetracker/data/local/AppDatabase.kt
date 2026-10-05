@@ -17,8 +17,11 @@ import java.security.SecureRandom
         TransactionEntity::class, ReviewItemEntity::class, BudgetEntity::class,
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class, ImportMatchEntity::class,
+        RefundLinkEntity::class, ParserTemplateEntity::class, RecurringDecisionEntity::class, BillEntity::class, BillMarkEntity::class,
+        CardEntity::class, GoalEntity::class, GoalContributionEntity::class, TaxTagEntity::class,
+        AssetEntity::class, AccountBalanceEntity::class, HoldingEntity::class, NetWorthSnapshotEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -28,6 +31,14 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun smsLogDao(): SmsLogDao
     abstract fun splitDao(): SplitDao
     abstract fun importDao(): ImportDao
+    abstract fun refundDao(): RefundDao
+    abstract fun templateDao(): TemplateDao
+    abstract fun recurringDao(): RecurringDao
+    abstract fun billDao(): BillDao
+    abstract fun cardDao(): CardDao
+    abstract fun goalDao(): GoalDao
+    abstract fun taxDao(): TaxDao
+    abstract fun netWorthDao(): NetWorthDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -276,7 +287,56 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+        /**
+         * v6 -> v7 (v1.3): refund links, learned SMS templates, recurring charges, bills and loans, cards, goals,
+         * tax tags and net worth. Only new tables; existing rows are untouched.
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                V7_TABLES.forEach { db.execSQL(it) }
+            }
+        }
+
+        /** CREATE statements for the v1.3 tables, in the exact shape Room generates (checked by MigrationV7Test). */
+        private val V7_TABLES: List<String> = listOf(
+            """CREATE TABLE IF NOT EXISTS refund_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, refundTxId INTEGER NOT NULL, debitTxId INTEGER NOT NULL, kind TEXT NOT NULL,
+                amountPaise INTEGER NOT NULL, status TEXT NOT NULL, prevFlow TEXT, prevCategory TEXT, createdAt INTEGER NOT NULL,
+                FOREIGN KEY(refundTxId) REFERENCES transactions(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(debitTxId) REFERENCES transactions(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_refund_links_refundTxId ON refund_links (refundTxId)",
+            "CREATE INDEX IF NOT EXISTS index_refund_links_debitTxId ON refund_links (debitTxId)",
+            """CREATE TABLE IF NOT EXISTS parser_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, senderCore TEXT NOT NULL, skeleton TEXT NOT NULL, type TEXT NOT NULL, createdAt INTEGER NOT NULL)""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_parser_templates_senderCore_skeleton ON parser_templates (senderCore, skeleton)",
+            "CREATE TABLE IF NOT EXISTS recurring_decisions (`key` TEXT NOT NULL, status TEXT NOT NULL, decidedAt INTEGER NOT NULL, PRIMARY KEY(`key`))",
+            """CREATE TABLE IF NOT EXISTS bills (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, amountPaise INTEGER, dueDay INTEGER NOT NULL, keyword TEXT,
+                category TEXT NOT NULL, everyMonths INTEGER NOT NULL, startMonth INTEGER NOT NULL, fixedDueDay INTEGER, loanPrincipalPaise INTEGER,
+                loanRateBp INTEGER, loanTenureMonths INTEGER, loanFirstDueDay INTEGER, cardLast4 TEXT, createdAt INTEGER NOT NULL)""",
+            """CREATE TABLE IF NOT EXISTS bill_marks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, billId INTEGER NOT NULL, dueDay INTEGER NOT NULL,
+                FOREIGN KEY(billId) REFERENCES bills(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_bill_marks_billId_dueDay ON bill_marks (billId, dueDay)",
+            """CREATE TABLE IF NOT EXISTS cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, last4 TEXT NOT NULL, name TEXT NOT NULL, statementDay INTEGER NOT NULL,
+                dueDay INTEGER NOT NULL, rewardBp INTEGER NOT NULL)""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_cards_last4 ON cards (last4)",
+            "CREATE TABLE IF NOT EXISTS goals (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, targetPaise INTEGER NOT NULL, targetDay INTEGER, startDay INTEGER NOT NULL)",
+            """CREATE TABLE IF NOT EXISTS goal_contributions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, goalId INTEGER NOT NULL, amountPaise INTEGER NOT NULL, at INTEGER NOT NULL,
+                FOREIGN KEY(goalId) REFERENCES goals(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
+            "CREATE INDEX IF NOT EXISTS index_goal_contributions_goalId ON goal_contributions (goalId)",
+            """CREATE TABLE IF NOT EXISTS tax_tags (transactionId INTEGER NOT NULL, section TEXT, PRIMARY KEY(transactionId),
+                FOREIGN KEY(transactionId) REFERENCES transactions(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
+            """CREATE TABLE IF NOT EXISTS assets (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL,
+                valuePaise INTEGER NOT NULL, liability INTEGER NOT NULL, accountRef TEXT, updatedAt INTEGER NOT NULL)""",
+            "CREATE TABLE IF NOT EXISTS account_balances (accountRef TEXT NOT NULL, bankName TEXT, balancePaise INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY(accountRef))",
+            "CREATE TABLE IF NOT EXISTS holdings (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, folio TEXT NOT NULL, scheme TEXT NOT NULL, valuePaise INTEGER NOT NULL, asOfDay INTEGER NOT NULL)",
+            "CREATE TABLE IF NOT EXISTS networth_snapshots (month TEXT NOT NULL, totalPaise INTEGER NOT NULL, ownPaise INTEGER NOT NULL, owePaise INTEGER NOT NULL, PRIMARY KEY(month))",
+        )
+
+        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
     }
 }
 

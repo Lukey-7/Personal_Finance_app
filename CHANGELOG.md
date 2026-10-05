@@ -3,6 +3,61 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [1.3.0] - 2026-10-05
+
+Focus: **everyday money beyond the SMS**: subscriptions, bills and EMIs, cards, goals, tax, net worth, a widget,
+backups and on-phone answers. Still no account, no server and no analytics. Existing data is migrated in place
+(database version 7: new tables only, on top of 1.2.1's version 6).
+
+### New: Money tools (Home and Insights, top bar)
+- **Subscriptions.** Finds charges that repeat weekly, monthly, quarterly or yearly at a steady amount, plus UPI
+  AutoPay / mandate / NACH charges from the first one. Shows what they cost a month and a year, flags price rises,
+  and remembers "Keep", "Not one" and "I cancelled it" (and tells you if a cancelled one charges again).
+- **Bills & EMIs.** Rent, phone, insurance or a loan: due dates (monthly to yearly, month-end safe), paid
+  automatically when a matching payment shows up near the due date, or marked paid by hand. Loans work out the EMI
+  and show "EMI 10 of 36, Rs X still owed". Card statement SMS create and move the card's bill by themselves.
+- **Credit cards.** Each card's billing cycle: spend on it so far (refunds taken off), statement and due dates,
+  and an estimate of rewards at your rate.
+- **Goals.** Save toward a target and date: progress, what it needs a month, on track or behind, with last month's
+  savings offered as the top-up.
+- **Tax helper.** 80C, 80D, 80CCD(1B) NPS, 80E, 80G, 24(b) and rent payments per financial year, from payee names;
+  tag or untag any payment (also from the transaction screen); CSV for your records. Not tax advice.
+- **Net worth.** Bank balances from "Avl Bal" in SMS, mutual funds from a CAMS / KFintech CAS PDF (password used once,
+  never stored), FDs, gold and debts you type in, and loans from Bills; a month-by-month history.
+- **Ask FinTrack.** Questions like "food last month", "Swiggy in September", "how much did I save?", "any bills
+  due?", answered by rules on the phone, plus "This month in words". On phones with Android AICore (Pixel 9 and
+  later, Galaxy S24 and later, some others), questions the rules do not understand go to **Gemini Nano on the
+  phone**, with your totals only; its answers are labelled. Settings shows whether the model is ready.
+
+### New elsewhere
+- **Reminders** (Settings, off by default): a notification 3 and 1 days before a bill and 2 days before a
+  subscription renews; amounts stay off the lock screen.
+- **Home-screen widget**: spend this month, budget left and the next bill, with amounts hidden unless you choose to
+  show them, and one-tap "+ Expense" / "+ Cash". Long-press the app icon for the same quick add.
+- **Encrypted backup** (Settings → Backup): every table in one file locked with your passphrase (AES-256-GCM,
+  PBKDF2), saved wherever you choose; restore replaces everything in one step or changes nothing.
+
+### Accuracy
+- **Refunds and reversals** are paired with the purchase they give money back for (same reference, or same merchant
+  within 60 days, never more than was paid). A failed payment that came straight back is hidden from Activity
+  ("Show reversed payments") and a refund the bank worded like income is counted as a refund. Undo any pairing.
+- **The parser learns from Review**: confirming a message teaches FinTrack that sender's wording (numbers and names
+  masked), so the next one needs no review. See and delete learned shapes in Settings.
+- **TRAI sender suffixes** (-S, -T, -G) are read correctly, including headers shown without an operator prefix
+  ("HDFCBK-S"); promotional **-P** senders are skipped.
+- **Possible misses** in the SMS log: skipped messages that still carry an amount and an account, one tap to Review.
+
+### Privacy
+- New libraries: WorkManager (reminders), Glance (widget) and ML Kit GenAI Prompt (Gemini Nano). The README's
+  OCR section is replaced by **What ML Kit sends**: ML Kit (text recognition since v1.1, and now GenAI) carries
+  Google's anonymous usage logging, which is left on. Earlier README claims that it had none were wrong.
+- Toolchain: Kotlin 2.1.21 and KSP 2.1.21-2.0.2 (KSP1 mode for Room), needed by the GenAI library.
+
+### Fixed after review
+- The same subscription paid by UPI and by card (or under the company's full name) is one subscription.
+- Bills, cards and goals move on at midnight without waiting for new data.
+- Backup and restore show progress while the passphrase key is worked out.
+
 ## [1.2.1] - 2026-09-28
 
 Focus: **edge cases in split intelligence and statement import**, found with 130 new tests (each written to fail

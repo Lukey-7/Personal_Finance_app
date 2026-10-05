@@ -54,6 +54,30 @@ class SettingsRepository(context: Context) {
     val splitAi: StateFlow<Boolean> = _splitAi
     fun setSplitAi(v: Boolean) { plain.edit().putBoolean(KEY_SPLIT_AI, v).apply(); _splitAi.value = v }
 
+    /** Local notifications before bills, EMIs and renewals. Off until the user switches it on (and grants the permission). */
+    private val _remindersEnabled = MutableStateFlow(plain.getBoolean(KEY_REMINDERS, false))
+    val remindersEnabled: StateFlow<Boolean> = _remindersEnabled
+    fun setRemindersEnabled(v: Boolean) { plain.edit().putBoolean(KEY_REMINDERS, v).apply(); _remindersEnabled.value = v }
+
+    /** The home-screen widget shows "₹••••" instead of figures. On by default: anyone can see a home screen. */
+    private val _widgetHideAmounts = MutableStateFlow(plain.getBoolean(KEY_WIDGET_HIDE, true))
+    val widgetHideAmounts: StateFlow<Boolean> = _widgetHideAmounts
+    fun setWidgetHideAmounts(v: Boolean) { plain.edit().putBoolean(KEY_WIDGET_HIDE, v).apply(); _widgetHideAmounts.value = v }
+
+    /** Ask may hand questions its rules do not understand to Gemini Nano on the phone, where available. On by default. */
+    private val _useNano = MutableStateFlow(plain.getBoolean(KEY_USE_NANO, true))
+    val useNano: StateFlow<Boolean> = _useNano
+    fun setUseNano(v: Boolean) { plain.edit().putBoolean(KEY_USE_NANO, v).apply(); _useNano.value = v }
+
+    /** When the person last saved an encrypted backup; 0 = never. Drives the monthly "time for a backup" reminder. */
+    private val _lastBackupAt = MutableStateFlow(plain.getLong(KEY_LAST_BACKUP, 0L))
+    val lastBackupAt: StateFlow<Long> = _lastBackupAt
+    fun setLastBackupAt(t: Long) { plain.edit().putLong(KEY_LAST_BACKUP, t).apply(); _lastBackupAt.value = t }
+
+    /** Reminders already posted, as "thing@dueDay#lead" keys (no amounts or names), so none is sent twice. */
+    fun sentReminders(): Set<String> = plain.getStringSet(KEY_REMINDERS_SENT, emptySet())?.toSet() ?: emptySet()
+    fun setSentReminders(keys: Set<String>) { plain.edit().putStringSet(KEY_REMINDERS_SENT, keys).apply() }
+
     /**
      * AI answers kept by request, so an unchanged week is never asked (or paid for) twice. The requests are the
      * anonymised payloads, the answers the model's JSON; at most 300 are kept.
@@ -115,6 +139,10 @@ class SettingsRepository(context: Context) {
         _countCashAsSpend.value = true
         _myName.value = "Me"
         _splitAi.value = true
+        _remindersEnabled.value = false
+        _widgetHideAmounts.value = true
+        _lastBackupAt.value = 0L
+        _useNano.value = true
         aiAnswerCache.clear()
     }
 
@@ -126,6 +154,11 @@ class SettingsRepository(context: Context) {
         const val KEY_CASH_SPEND = "cash_as_spend"
         const val KEY_MY_NAME = "my_name"
         const val KEY_SPLIT_AI = "split_ai"
+        const val KEY_REMINDERS = "reminders_enabled"
+        const val KEY_REMINDERS_SENT = "reminders_sent"
+        const val KEY_WIDGET_HIDE = "widget_hide_amounts"
+        const val KEY_LAST_BACKUP = "last_backup_at"
+        const val KEY_USE_NANO = "use_nano"
         const val KEY_API_SEEDED = "api_key_seeded"
         const val KEY_API_USER_MANAGED = "api_key_user_managed"
     }

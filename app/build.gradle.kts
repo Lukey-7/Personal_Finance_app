@@ -10,8 +10,8 @@ plugins {
 // Single source of truth for the version. Bump both for every release:
 //   versionCode: integer, +1 each release (Android uses it to decide what is an upgrade)
 //   versionName: semantic version MAJOR.MINOR.PATCH, matches the git tag vX.Y.Z
-val appVersionCode = 6
-val appVersionName = "1.2.1"
+val appVersionCode = 7
+val appVersionName = "1.3.0"
 
 // Release signing is read from keystore.properties (git-ignored). Without it, release falls back to the debug key.
 val keystoreProps = Properties().apply {
@@ -62,7 +62,9 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
+            // -PappIdSuffix=.v13 installs a debug build beside the usual one, e.g. to try a newer database version on a
+            // shared test phone without upgrading (and so stranding) the data of the build already there.
+            applicationIdSuffix = ".debug" + (project.findProperty("appIdSuffix") as String? ?: "")
             // The app starts with OPENAI_API_KEY already saved, so you never type it into the phone.
             // This bakes the key into the APK: never share a debug build made with it set.
             buildConfigField("String", "SEED_OPENAI_KEY", "\"$buildKey\"")
@@ -151,6 +153,13 @@ dependencies {
     implementation(libs.mlkit.text.recognition.devanagari)
     // PDF statements: text with positions, password-protected files, and page rendering for scanned PDFs (Apache 2.0).
     implementation(libs.pdfbox.android)
+    // Daily local reminders for bills and renewals. Runs on the phone; no network.
+    implementation(libs.androidx.work.runtime)
+    // Home-screen widget. Draws from the local database only; no network.
+    implementation(libs.androidx.glance.appwidget)
+    // Gemini Nano through Android AICore, for Ask questions the rules cannot answer. Runs on the phone; like ML Kit OCR
+    // it carries Google's ML Kit usage logging (README: "What ML Kit sends").
+    implementation(libs.mlkit.genai.prompt)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)

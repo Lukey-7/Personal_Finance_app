@@ -14,13 +14,28 @@ import com.pft.financetracker.domain.model.TransactionType
  *   +5  bank identified
  * Result >= [threshold] -> Success, else NeedsReview. Messages that fail the pre-filter -> Ignored.
  */
-class SmsParser(private val threshold: Int = 60) {
+class SmsParser(private val threshold: Int = 60, private val templates: () -> List<LearnedTemplate> = { emptyList() }) {
 
     fun parse(sms: SmsMessage): ParseResult {
         val body = sms.body.replace('\n', ' ').replace(Regex("""\s{2,}"""), " ").trim()
         if (body.isBlank()) return ParseResult.Ignored("empty")
+        // TRAI marks promotional headers with -P; money alerts are always service or transactional.
+        if (SenderId.suffix(sms.sender) == 'P') return ParseResult.Ignored("promotional_sender")
 
         TextFilters.ignoreReason(body)?.let { return ParseResult.Ignored(it) }
+
+        // A shape this person already taught us for this sender wins over the generic layers.
+        for (t in templates()) {
+            val hit = TemplateLearner.apply(t, sms.sender, body) ?: continue
+            val bank = BankExtractor.extract(sms.sender, body)
+            return ParseResult.Success(
+                ParsedTransaction(
+                    amountPaise = hit.amountPaise, type = hit.type, merchant = hit.merchant ?: defaultMerchant(hit.type, bank),
+                    timestamp = DateExtractor.extract(body, sms.receivedAt), bankName = bank, accountRef = AccountExtractor.extract(body),
+                    refNumber = RefExtractor.extract(body), confidence = 90,
+                )
+            )
+        }
         if (!TextFilters.looksTransactional(body)) return ParseResult.Ignored("no_transaction_hint")
 
         val amountCandidates = AmountExtractor.candidates(body)

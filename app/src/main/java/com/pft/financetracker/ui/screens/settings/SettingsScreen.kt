@@ -1,6 +1,18 @@
 package com.pft.financetracker.ui.screens.settings
 
 import android.Manifest
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Memory
+import android.net.Uri
+import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.outlined.Widgets
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -98,6 +110,22 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
     val cashAsSpend by vm.countCashAsSpend.collectAsState()
     val myName by vm.myName.collectAsState()
     val splitAi by vm.splitAi.collectAsState()
+    val remindersOn by vm.remindersEnabled.collectAsState()
+    val templates by vm.learnedTemplates.collectAsState()
+    val widgetHide by vm.widgetHideAmounts.collectAsState()
+    val useNano by vm.useNano.collectAsState()
+    val nanoStatus by vm.nanoStatus.collectAsState()
+    LaunchedEffect(Unit) { vm.refreshNano() }
+    val lastBackup by vm.lastBackupAt.collectAsState()
+    val backupBusy by vm.backupBusy.collectAsState()
+    var backupAsk by remember { mutableStateOf<Uri?>(null) }
+    var restoreAsk by remember { mutableStateOf<Uri?>(null) }
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> backupAsk = uri }
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> restoreAsk = uri }
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        vm.setRemindersEnabled(granted)
+        if (!granted) scope.launch { snackbar.showSnackbar("Notifications are blocked. Allow them in Android settings to get reminders.") }
+    }
     var nameInput by remember(myName) { mutableStateOf(myName) }
     var exportingSplits by remember { mutableStateOf(false) }
     val aiState by vm.aiState.collectAsState()
@@ -122,6 +150,21 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
             }
             snackbar.showSnackbar(if (ok) "Exported CSV" else "Export failed")
         }
+    }
+
+    backupAsk?.let { uri ->
+        com.pft.financetracker.ui.screens.settings.BackupPassphraseDialog(
+            restoring = false,
+            onConfirm = { pw -> backupAsk = null; scope.launch { snackbar.showSnackbar(vm.writeBackup(uri, pw) ?: "Backup saved") } },
+            onDismiss = { backupAsk = null },
+        )
+    }
+    restoreAsk?.let { uri ->
+        com.pft.financetracker.ui.screens.settings.BackupPassphraseDialog(
+            restoring = true,
+            onConfirm = { pw -> restoreAsk = null; scope.launch { snackbar.showSnackbar(vm.restoreBackup(uri, pw) ?: "Restored. Everything now matches the backup.") } },
+            onDismiss = { restoreAsk = null },
+        )
     }
 
     Scaffold(
@@ -163,6 +206,20 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         ActionRow("Rescan the last 12 months", Icons.Outlined.ManageHistory, { vm.scanInbox(full = true) })
                     }
                     ActionRow("SMS log: every message scanned and what happened to it", Icons.Outlined.History, onOpenSmsLog)
+                    // Shapes learned from Review. Only the bank's fixed wording is kept: amounts, names and numbers are masked.
+                    if (templates.isNotEmpty()) {
+                        Text("Learned from Review (${templates.size})", style = MaterialTheme.typography.labelLarge)
+                        Text("When you confirm a message, FinTrack remembers that sender's wording and reads the next one by itself.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        templates.forEach { t ->
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("${t.senderCore} · ${if (t.type == "CREDIT") "money in" else "money out"}", style = MaterialTheme.typography.bodyMedium)
+                                    Text(t.skeleton, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                }
+                                IconButton(onClick = { vm.deleteTemplate(t.id) }) { Icon(Icons.Outlined.Delete, "Forget this shape") }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -238,6 +295,63 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                 Text("Bill photos are read on this phone with an offline text recogniser and are not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
+            Section("Reminders", Icons.Outlined.NotificationsActive) {
+                Row(
+                    Modifier.fillMaxWidth().toggleable(value = remindersOn, role = Role.Switch, onValueChange = { on ->
+                        if (on && ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else vm.setRemindersEnabled(on)
+                    }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Remind me before bills and renewals")
+                        Text("A notification a few days before a bill, EMI or subscription is due. Worked out on this phone; amounts are hidden on the lock screen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = remindersOn, onCheckedChange = null)
+                }
+            }
+
+            Section("Backup", Icons.Outlined.Backup) {
+                Text(
+                    "One file with all your data, locked with a passphrase only you know (AES-256). Save it anywhere you like: another folder, a USB drive, your own cloud. " +
+                        "FinTrack never uploads it, and without the passphrase nobody can open it, not even you.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(if (lastBackup == 0L) "No backup yet." else "Last backup: ${com.pft.financetracker.ui.components.fullDate(lastBackup)}", style = MaterialTheme.typography.bodyMedium)
+                backupBusy?.let { msg ->
+                    Text(msg, style = MaterialTheme.typography.bodyMedium)
+                    androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                } ?: run {
+                    ActionRow("Back up now", Icons.Outlined.Backup, { backupLauncher.launch("FinTrack-${java.time.LocalDate.now()}.ftbackup") })
+                    ActionRow("Restore from a backup", Icons.Outlined.Restore, { restoreLauncher.launch(arrayOf("*/*")) })
+                }
+            }
+
+            Section("Home-screen widget", Icons.Outlined.Widgets) {
+                Row(
+                    Modifier.fillMaxWidth().toggleable(value = widgetHide, role = Role.Switch, onValueChange = { vm.setWidgetHideAmounts(it) }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Hide amounts on the widget")
+                        Text("Shows ₹•••• instead of figures, since anyone can see your home screen. Long-press the app icon or use the widget to note a purchase quickly.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = widgetHide, onCheckedChange = null)
+                }
+                // Launchers that support it show their own "Add to home screen" sheet; others need a long-press on the home screen.
+                ActionRow("Add the widget to your home screen", Icons.Outlined.Widgets, {
+                    scope.launch {
+                        val ok = runCatching {
+                            androidx.glance.appwidget.GlanceAppWidgetManager(ctx).requestPinGlanceAppWidget(com.pft.financetracker.ui.widget.FinTrackWidgetReceiver::class.java)
+                        }.getOrDefault(false)
+                        if (!ok) snackbar.showSnackbar("Long-press your home screen, choose Widgets and find FinTrack.")
+                    }
+                })
+            }
+
             Section("Split intelligence", Icons.Outlined.Groups) {
                 Text(
                     "When you pay for a group and friends pay you back, only your share counts as your spending. FinTrack spots this by itself: " +
@@ -260,6 +374,27 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                     Switch(checked = splitAi && hasKey, onCheckedChange = null, enabled = hasKey)
                 }
                 ActionRow("Check again now", Icons.Outlined.Sync, { vm.refreshSplits() })
+            }
+
+            Section("On-device AI (Gemini Nano)", Icons.Outlined.Memory) {
+                Text(
+                    when (nanoStatus) {
+                        com.pft.financetracker.data.ai.NanoAi.Status.READY -> "Ready on this phone. Ask hands it questions its rules don't understand, with your totals only; nothing leaves the phone."
+                        com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADABLE -> "This phone supports it. Android downloads the model once (about 1-2 GB, over Wi-Fi is best)."
+                        com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADING -> "Android is downloading the model…"
+                        com.pft.financetracker.data.ai.NanoAi.Status.UNSUPPORTED -> "Not available on this phone (it needs Android AICore: Pixel 9 or later, Galaxy S24 or later and some others). Ask still answers with its rules."
+                        null -> "Checking…"
+                    },
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (nanoStatus == com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADABLE) ActionRow("Download the model", Icons.Outlined.Download, { vm.downloadNano() })
+                if (nanoStatus == com.pft.financetracker.data.ai.NanoAi.Status.READY) Row(
+                    Modifier.fillMaxWidth().toggleable(value = useNano, role = Role.Switch, onValueChange = { vm.setUseNano(it) }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Text("Use it in Ask", Modifier.weight(1f))
+                    Switch(checked = useNano, onCheckedChange = null)
+                }
             }
 
             Section("AI monthly summary (optional)", Icons.Outlined.AutoAwesome) {

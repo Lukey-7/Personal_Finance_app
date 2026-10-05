@@ -18,6 +18,13 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.EventRepeat
+import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material.icons.outlined.QuestionAnswer
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.CompositionLocalProvider
@@ -84,6 +91,14 @@ object Routes {
     const val IMPORT = "import"
     const val SPLIT_DETAIL = "split/{id}"
     fun splitDetail(id: Long) = "split/$id"
+    const val TOOLS = "tools"
+    const val RECURRING = "recurring"
+    const val BILLS = "bills"
+    const val CARDS = "cards"
+    const val GOALS = "goals"
+    const val TAX = "tax"
+    const val NET_WORTH = "networth"
+    const val ASK = "ask"
 }
 
 /** Outline glyph normally; the filled one marks the selected tab, a second cue besides colour. */
@@ -184,6 +199,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                     onOpenSmsLog = { nav.navigate(Routes.smsLog(it)) },
                     onDrill = { bucket, cat -> nav.navigate(Routes.drill(bucket, cat)) },
                     onOpenSplit = { nav.navigate(Routes.splitDetail(it)) },
+                    onOpenTools = { nav.navigate(Routes.TOOLS) },
                 )
             }
             composable(Routes.TRANSACTIONS) {
@@ -205,7 +221,65 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             composable(Routes.SPLIT_DETAIL, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                 SplitDetailScreen(vm, entry.arguments?.getLong("id") ?: -1L, onBack = { nav.popBackStack() }, onOpenTransaction = { nav.navigate(Routes.edit(id = it)) })
             }
-            composable(Routes.INSIGHTS) { InsightsScreen(vm, onOpenBudgets = { nav.navigate(Routes.BUDGETS) }) }
+            composable(Routes.INSIGHTS) { InsightsScreen(vm, onOpenBudgets = { nav.navigate(Routes.BUDGETS) }, onOpenTools = { nav.navigate(Routes.TOOLS) }) }
+            composable(Routes.TOOLS) {
+                val book by vm.recurringBook.collectAsState()
+                val bills by vm.billStates.collectAsState()
+                val cards by vm.cardSummaries.collectAsState()
+                val goals by vm.goalProgress.collectAsState()
+                val tax by vm.taxSummary.collectAsState()
+                val worth by vm.netWorth.collectAsState()
+                com.pft.financetracker.ui.screens.tools.ToolsScreen(
+                    listOf(
+                        com.pft.financetracker.ui.screens.tools.Tool("Ask FinTrack", "Questions about your money, answered on this phone", Icons.Outlined.QuestionAnswer) { nav.navigate(Routes.ASK) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Subscriptions",
+                            if (book.shown.isEmpty()) "None found yet" else "${com.pft.financetracker.ui.components.money(book.monthlyPaise)} a month · ${book.shown.count { it.counted }} active",
+                            Icons.Outlined.EventRepeat,
+                        ) { nav.navigate(Routes.RECURRING) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Bills & EMIs",
+                            run {
+                                val overdue = bills.count { it.second is com.pft.financetracker.domain.bills.BillState.Overdue }
+                                val soon = bills.count { (it.second as? com.pft.financetracker.domain.bills.BillState.Upcoming)?.daysLeft?.let { d -> d <= 7 } == true }
+                                when { bills.isEmpty() -> "Add rent, phone or a loan"; overdue > 0 -> "$overdue overdue · $soon due this week"; else -> "$soon due this week" }
+                            },
+                            Icons.Outlined.ReceiptLong,
+                        ) { nav.navigate(Routes.BILLS) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Credit cards",
+                            if (cards.isEmpty()) "Billing cycles and rewards" else "${com.pft.financetracker.ui.components.money(cards.sumOf { it.spendPaise })} this cycle on ${cards.size} card${if (cards.size == 1) "" else "s"}",
+                            Icons.Outlined.CreditCard,
+                        ) { nav.navigate(Routes.CARDS) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Goals",
+                            if (goals.isEmpty()) "Save toward something" else goals.joinToString(" · ") { "${it.goal.name} ${it.percent}%" },
+                            Icons.Outlined.Flag,
+                        ) { nav.navigate(Routes.GOALS) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Tax helper",
+                            if (tax.isEmpty()) "80C, 80D, NPS, rent and donations" else "${com.pft.financetracker.ui.components.money(tax.sumOf { it.claimablePaise })} found across ${tax.size} section${if (tax.size == 1) "" else "s"}",
+                            Icons.Outlined.AccountBalance,
+                        ) { nav.navigate(Routes.TAX) },
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Net worth",
+                            if (worth.ownPaise == 0L && worth.owePaise == 0L) "Accounts, funds, FDs and loans" else com.pft.financetracker.ui.components.money(worth.totalPaise),
+                            Icons.Outlined.ShowChart,
+                        ) { nav.navigate(Routes.NET_WORTH) },
+                    ),
+                ) { nav.popBackStack() }
+            }
+            composable(Routes.ASK) { com.pft.financetracker.ui.screens.ask.AskScreen(vm, onOpenTransaction = { nav.navigate(Routes.edit(it)) }) { nav.popBackStack() } }
+            composable(Routes.NET_WORTH) { com.pft.financetracker.ui.screens.networth.NetWorthScreen(vm) { nav.popBackStack() } }
+            composable(Routes.TAX) { com.pft.financetracker.ui.screens.tax.TaxScreen(vm) { nav.popBackStack() } }
+            composable(Routes.GOALS) { com.pft.financetracker.ui.screens.goals.GoalsScreen(vm) { nav.popBackStack() } }
+            composable(Routes.CARDS) { com.pft.financetracker.ui.screens.cards.CardsScreen(vm) { nav.popBackStack() } }
+            composable(Routes.BILLS) {
+                com.pft.financetracker.ui.screens.bills.BillsScreen(vm, onOpenTransaction = { nav.navigate(Routes.edit(it)) }) { nav.popBackStack() }
+            }
+            composable(Routes.RECURRING) {
+                com.pft.financetracker.ui.screens.recurring.RecurringScreen(vm, onOpenTransaction = { nav.navigate(Routes.edit(it)) }) { nav.popBackStack() }
+            }
             composable(Routes.BUDGETS) { BudgetsScreen(vm, onBack = { nav.popBackStack() }) }
             composable(Routes.SETTINGS) { SettingsScreen(vm, onOpenSmsLog = { nav.navigate(Routes.smsLog()) }, onOpenImport = { nav.navigate(Routes.IMPORT) }) }
             composable(Routes.IMPORT) {
@@ -236,7 +310,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             ) { entry ->
                 val id = entry.arguments?.getLong("id")?.takeIf { it >= 0 }
                 val reviewId = entry.arguments?.getLong("reviewId")?.takeIf { it >= 0 }
-                EditTransactionScreen(vm, id, reviewId, onOpenSplit = { nav.navigate(Routes.splitDetail(it)) }) { nav.popBackStack() }
+                EditTransactionScreen(vm, id, reviewId, onOpenSplit = { nav.navigate(Routes.splitDetail(it)) }, onOpenTransaction = { nav.navigate(Routes.edit(it)) }) { nav.popBackStack() }
             }
         }
         }
