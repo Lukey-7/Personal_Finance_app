@@ -101,10 +101,10 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T8.2 FY summary screen (per section, with limits such as 80C ₹1.5L shown as progress) + CSV export through the existing exporter
 
 ### M9. Net worth (feature 6)
-- [ ] T9.1 Accounts, assets and liabilities (manual); loans from M4 appear as liabilities automatically
-- [ ] T9.2 Bank balance from the SMS "Avl bal / available balance" → latest balance per account; tests on corpus shapes
-- [ ] T9.3 `CasParser` for CAMS and KFintech CAS PDFs (folio, scheme, units, NAV, value), using the existing PDFBox + password flow; synthetic fixtures; tests
-- [ ] T9.4 Net-worth screen: total, breakdown, monthly snapshot history (stored once a month)
+- [x] T9.1 Accounts, assets and liabilities (manual); loans from M4 appear as liabilities automatically
+- [x] T9.2 Bank balance from the SMS "Avl bal / available balance" → latest balance per account; tests on corpus shapes
+- [x] T9.3 `CasParser` for CAMS and KFintech CAS PDFs (folio, scheme, units, NAV, value), using the existing PDFBox + password flow; synthetic fixtures; tests
+- [x] T9.4 Net-worth screen: total, breakdown, monthly snapshot history (stored once a month)
 
 ### M10. Encrypted backup and restore (feature 9)
 - [ ] T10.1 `BackupCodec`: every table (v1.3 schema) ↔ JSON, AES-GCM + PBKDF2 (D4); tests: round-trip equality, wrong passphrase fails cleanly, tampered file fails, a backup from schema 6 restores into a fresh DB
