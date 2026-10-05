@@ -323,6 +323,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Undo or "not a split"; then re-check at once, so a transfer this split shared with another one is re-read. */
     fun rejectSplit(id: Long) = viewModelScope.launch { c.splitEngine.reject(id); refreshSplits(useAi = false) }
     fun setRemindersEnabled(v: Boolean) { c.settings.setRemindersEnabled(v) }
+    val widgetHideAmounts: StateFlow<Boolean> = c.settings.widgetHideAmounts
+    fun setWidgetHideAmounts(v: Boolean) = viewModelScope.launch { c.settings.setWidgetHideAmounts(v); com.pft.financetracker.ui.widget.FinTrackWidget.refresh(getApplication()) }
     /** Applied refund/reversal pairs, for badges and the "hide reversed payments" filter. */
     val refundBadges: StateFlow<com.pft.financetracker.domain.refunds.RefundBadges> = c.db.refundDao().observeApplied()
         .map { links ->

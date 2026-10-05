@@ -34,6 +34,8 @@ fun interface ReminderSource {
 class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val c = applicationContext.appContainer
+        // Twice a day is also the widget's clock: "this month" and "next bill" move on even without new SMS.
+        com.pft.financetracker.ui.widget.FinTrackWidget.refresh(applicationContext)
         if (!c.settings.remindersEnabled.value || !Reminders.canPost(applicationContext)) return Result.success()
         val now = System.currentTimeMillis()
         val all = c.reminderSources.flatMap { runCatching { it.reminders(now) }.getOrDefault(emptyList()) }

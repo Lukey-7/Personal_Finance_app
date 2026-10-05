@@ -21,6 +21,7 @@ import com.pft.financetracker.data.reminders.Reminders
 
 /** Simple manual dependency container. No DI framework, no reflection, no third-party SDKs. */
 class AppContainer(context: Context) {
+    private val appContext: Context = context.applicationContext
     val db: AppDatabase = AppDatabase.get(context)
     val settings: SettingsRepository = SettingsRepository(context)
     val transactions: TransactionRepository = TransactionRepository(db.transactionDao(), db.reviewDao())
@@ -55,6 +56,7 @@ class AppContainer(context: Context) {
     suspend fun afterChange(useAi: Boolean = true) {
         runCatching { refunds.run() }
         runCatching { splitEngine.run(useAi) }
+        com.pft.financetracker.ui.widget.FinTrackWidget.refresh(appContext)
     }
 }
 
@@ -69,6 +71,7 @@ class FinanceApp : Application() {
         Reminders.ensureChannel(this)
         container.reminderSources += ReminderSource { now -> container.recurring.book(now).reminders() }
         container.reminderSources += ReminderSource { now -> container.bills.reminders(now) }
+        publishShortcuts()
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { runCatching { container.templates.load() } }
         Reminders.schedule(this)
     }
@@ -80,6 +83,18 @@ class FinanceApp : Application() {
      * with a new key takes effect. Once you change or remove the key in Settings it is yours and is never
      * overwritten. Ordinary release builds carry no key, and the key is never logged.
      */
+    /** Long-press the app icon: note a purchase without opening the app. Published from code so debug builds' package names work. */
+    private fun publishShortcuts() {
+        fun shortcut(id: String, label: String, cash: Boolean) = androidx.core.content.pm.ShortcutInfoCompat.Builder(this, id)
+            .setShortLabel(label).setLongLabel(label)
+            .setIcon(androidx.core.graphics.drawable.IconCompat.createWithResource(this, R.mipmap.ic_launcher))
+            .setIntent(com.pft.financetracker.ui.widget.QuickAddActivity.intent(this, cash).setAction(android.content.Intent.ACTION_VIEW))
+            .build()
+        runCatching {
+            androidx.core.content.pm.ShortcutManagerCompat.setDynamicShortcuts(this, listOf(shortcut("quick_add", "Add expense", false), shortcut("quick_cash", "Paid in cash", true)))
+        }
+    }
+
     private fun seedBuiltInApiKey() {
         val seed = BuildConfig.SEED_OPENAI_KEY
         if (seed.isBlank()) return

@@ -155,6 +155,8 @@ dependencies {
     implementation(libs.pdfbox.android)
     // Daily local reminders for bills and renewals. Runs on the phone; no network.
     implementation(libs.androidx.work.runtime)
+    // Home-screen widget. Draws from the local database only; no network.
+    implementation(libs.androidx.glance.appwidget)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)

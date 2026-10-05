@@ -59,6 +59,11 @@ class SettingsRepository(context: Context) {
     val remindersEnabled: StateFlow<Boolean> = _remindersEnabled
     fun setRemindersEnabled(v: Boolean) { plain.edit().putBoolean(KEY_REMINDERS, v).apply(); _remindersEnabled.value = v }
 
+    /** The home-screen widget shows "₹••••" instead of figures. On by default: anyone can see a home screen. */
+    private val _widgetHideAmounts = MutableStateFlow(plain.getBoolean(KEY_WIDGET_HIDE, true))
+    val widgetHideAmounts: StateFlow<Boolean> = _widgetHideAmounts
+    fun setWidgetHideAmounts(v: Boolean) { plain.edit().putBoolean(KEY_WIDGET_HIDE, v).apply(); _widgetHideAmounts.value = v }
+
     /** Reminders already posted, as "thing@dueDay#lead" keys (no amounts or names), so none is sent twice. */
     fun sentReminders(): Set<String> = plain.getStringSet(KEY_REMINDERS_SENT, emptySet())?.toSet() ?: emptySet()
     fun setSentReminders(keys: Set<String>) { plain.edit().putStringSet(KEY_REMINDERS_SENT, keys).apply() }
@@ -125,6 +130,7 @@ class SettingsRepository(context: Context) {
         _myName.value = "Me"
         _splitAi.value = true
         _remindersEnabled.value = false
+        _widgetHideAmounts.value = true
         aiAnswerCache.clear()
     }
 
@@ -138,6 +144,7 @@ class SettingsRepository(context: Context) {
         const val KEY_SPLIT_AI = "split_ai"
         const val KEY_REMINDERS = "reminders_enabled"
         const val KEY_REMINDERS_SENT = "reminders_sent"
+        const val KEY_WIDGET_HIDE = "widget_hide_amounts"
         const val KEY_API_SEEDED = "api_key_seeded"
         const val KEY_API_USER_MANAGED = "api_key_user_managed"
     }

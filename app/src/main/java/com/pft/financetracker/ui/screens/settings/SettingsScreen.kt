@@ -1,6 +1,7 @@
 package com.pft.financetracker.ui.screens.settings
 
 import android.Manifest
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.NotificationsActive
@@ -105,6 +106,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
     val splitAi by vm.splitAi.collectAsState()
     val remindersOn by vm.remindersEnabled.collectAsState()
     val templates by vm.learnedTemplates.collectAsState()
+    val widgetHide by vm.widgetHideAmounts.collectAsState()
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         vm.setRemindersEnabled(granted)
         if (!granted) scope.launch { snackbar.showSnackbar("Notifications are blocked. Allow them in Android settings to get reminders.") }
@@ -278,6 +280,20 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                     }
                     Spacer(Modifier.width(12.dp))
                     Switch(checked = remindersOn, onCheckedChange = null)
+                }
+            }
+
+            Section("Home-screen widget", Icons.Outlined.Widgets) {
+                Row(
+                    Modifier.fillMaxWidth().toggleable(value = widgetHide, role = Role.Switch, onValueChange = { vm.setWidgetHideAmounts(it) }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Hide amounts on the widget")
+                        Text("Shows ₹•••• instead of figures, since anyone can see your home screen. Long-press the app icon or use the widget to note a purchase quickly.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = widgetHide, onCheckedChange = null)
                 }
             }
 
