@@ -139,3 +139,12 @@ The order follows dependencies: shared plumbing first, then features that create
 | CAS PDF layouts vary | Synthetic fixtures from the public CAMS/KFintech samples; unknown rows go to a review list, as statements do |
 | Shared checkout and emulator with other chats | Worktree (D1); short notice before using the emulator |
 | Restore is destructive | Typed confirmation; an automatic backup of current data to app-private cache before restoring, kept until the next app start |
+
+### M13. Follow-ups (5 Oct 2026, after review)
+User decisions: add Gemini Nano and accept its Google logging; test what can be tested on the emulator; fix the rough edges; keep ML Kit logging on but describe it truthfully.
+- [ ] T13.1 Gemini Nano (`genai-prompt:1.0.0-beta2`, Kotlin 1.8 compatible): Ask hands questions the rules cannot answer to the on-device model with local totals only; Settings shows model status and download
+- [ ] T13.2 One subscription per service across UPI and card names (netflix@ybl = NETFLIX.COM)
+- [ ] T13.3 Progress shown while a backup is sealed or opened
+- [ ] T13.4 Bill, card and goal states move on at midnight without new data
+- [ ] T13.5 README: ML Kit and GenAI usage logging described as it is (left on)
+- [ ] T13.6 Emulator checks: widget, backup/restore via the file picker, a real reminder, a reversal SMS, a CAS PDF
