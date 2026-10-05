@@ -82,10 +82,10 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T4.4 Bills screen (upcoming, overdue, paid this month) + reminders 3 days and 1 day before
 
 ### M5. Credit-card cycles and rewards (feature 8)
-- [ ] T5.1 `Card` config (last 4 digits, statement day, due day, reward % optional) (D9); auto-suggest cards from SMS account refs
-- [ ] T5.2 `CardCycle` calc: spend per cycle, days to due, estimated reward; tests for month-end and Feb edge cases
-- [ ] T5.3 RuPay-credit-on-UPI detection in the parser (card wording + UPI) → card account; corpus cases
-- [ ] T5.4 Cards screen; the card bill links to M4
+- [x] T5.1 `Card` config (last 4 digits, statement day, due day, reward % optional) (D9); auto-suggest cards from SMS account refs
+- [x] T5.2 `CardCycle` calc: spend per cycle, days to due, estimated reward; tests for month-end and Feb edge cases
+- [x] T5.3 RuPay-credit-on-UPI detection in the parser (card wording + UPI) → card account; corpus cases
+- [x] T5.4 Cards screen; the card bill links to M4
 
 ### M6. Home-screen widget and quick add (feature 4)
 - [ ] T6.1 Glance widget: month-to-date spend, budget left, next bill; refreshed after each import and daily
