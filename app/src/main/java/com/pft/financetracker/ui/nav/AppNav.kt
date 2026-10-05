@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.CompositionLocalProvider
@@ -84,6 +85,8 @@ object Routes {
     const val IMPORT = "import"
     const val SPLIT_DETAIL = "split/{id}"
     fun splitDetail(id: Long) = "split/$id"
+    const val TOOLS = "tools"
+    const val RECURRING = "recurring"
 }
 
 /** Outline glyph normally; the filled one marks the selected tab, a second cue besides colour. */
@@ -205,7 +208,22 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             composable(Routes.SPLIT_DETAIL, arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                 SplitDetailScreen(vm, entry.arguments?.getLong("id") ?: -1L, onBack = { nav.popBackStack() }, onOpenTransaction = { nav.navigate(Routes.edit(id = it)) })
             }
-            composable(Routes.INSIGHTS) { InsightsScreen(vm, onOpenBudgets = { nav.navigate(Routes.BUDGETS) }) }
+            composable(Routes.INSIGHTS) { InsightsScreen(vm, onOpenBudgets = { nav.navigate(Routes.BUDGETS) }, onOpenTools = { nav.navigate(Routes.TOOLS) }) }
+            composable(Routes.TOOLS) {
+                val book by vm.recurringBook.collectAsState()
+                com.pft.financetracker.ui.screens.tools.ToolsScreen(
+                    listOf(
+                        com.pft.financetracker.ui.screens.tools.Tool(
+                            "Subscriptions",
+                            if (book.shown.isEmpty()) "None found yet" else "${com.pft.financetracker.ui.components.money(book.monthlyPaise)} a month · ${book.shown.count { it.counted }} active",
+                            Icons.Outlined.EventRepeat,
+                        ) { nav.navigate(Routes.RECURRING) },
+                    ),
+                ) { nav.popBackStack() }
+            }
+            composable(Routes.RECURRING) {
+                com.pft.financetracker.ui.screens.recurring.RecurringScreen(vm, onOpenTransaction = { nav.navigate(Routes.edit(it)) }) { nav.popBackStack() }
+            }
             composable(Routes.BUDGETS) { BudgetsScreen(vm, onBack = { nav.popBackStack() }) }
             composable(Routes.SETTINGS) { SettingsScreen(vm, onOpenSmsLog = { nav.navigate(Routes.smsLog()) }, onOpenImport = { nav.navigate(Routes.IMPORT) }) }
             composable(Routes.IMPORT) {

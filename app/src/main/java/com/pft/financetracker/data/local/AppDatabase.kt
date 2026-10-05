@@ -17,7 +17,7 @@ import java.security.SecureRandom
         TransactionEntity::class, ReviewItemEntity::class, BudgetEntity::class,
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
-        RefundLinkEntity::class, ParserTemplateEntity::class,
+        RefundLinkEntity::class, ParserTemplateEntity::class, RecurringDecisionEntity::class,
     ],
     version = 6,
     exportSchema = true
@@ -31,6 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun importDao(): ImportDao
     abstract fun refundDao(): RefundDao
     abstract fun templateDao(): TemplateDao
+    abstract fun recurringDao(): RecurringDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -269,6 +270,7 @@ abstract class AppDatabase : RoomDatabase() {
             """CREATE TABLE IF NOT EXISTS parser_templates (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, senderCore TEXT NOT NULL, skeleton TEXT NOT NULL, type TEXT NOT NULL, createdAt INTEGER NOT NULL)""",
             "CREATE UNIQUE INDEX IF NOT EXISTS index_parser_templates_senderCore_skeleton ON parser_templates (senderCore, skeleton)",
+            "CREATE TABLE IF NOT EXISTS recurring_decisions (`key` TEXT NOT NULL, status TEXT NOT NULL, decidedAt INTEGER NOT NULL, PRIMARY KEY(`key`))",
         )
 
         val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)

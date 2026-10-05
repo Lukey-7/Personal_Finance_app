@@ -335,6 +335,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val learnedTemplates = c.db.templateDao().observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     fun deleteTemplate(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.templates.delete(id) }
 
+    /** Subscriptions and other repeating charges, recomputed whenever transactions or decisions change. */
+    val recurringBook: StateFlow<com.pft.financetracker.domain.recurring.RecurringBook> =
+        combine(transactions, c.db.recurringDao().observeAll()) { txns, decisions ->
+            withContext(Dispatchers.Default) { c.recurring.bookOf(txns, decisions) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.recurring.RecurringBook.EMPTY)
+    fun decideRecurring(key: String, status: com.pft.financetracker.domain.recurring.RecurringStatus?) =
+        viewModelScope.launch(Dispatchers.IO) { c.recurring.decide(key, status) }
+
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */

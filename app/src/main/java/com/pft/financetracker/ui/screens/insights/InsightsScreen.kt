@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.TrendingDown
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material3.Icon
@@ -58,7 +59,7 @@ import com.pft.financetracker.ui.components.PillChip
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit) {
+fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () -> Unit = {}) {
     val txns by vm.transactions.collectAsState()
     val budgets by vm.budgets.collectAsState()
     var weekly by remember { mutableStateOf(false) }
@@ -75,7 +76,10 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit) {
             TopAppBar(
                 title = { Text("Insights") },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                actions = { IconButton(onClick = onOpenBudgets) { Icon(Icons.Outlined.Savings, "Budgets") } },
+                actions = {
+                    IconButton(onClick = onOpenTools) { Icon(Icons.Outlined.Apps, "Money tools") }
+                    IconButton(onClick = onOpenBudgets) { Icon(Icons.Outlined.Savings, "Budgets") }
+                },
             )
         },
     ) { padding ->

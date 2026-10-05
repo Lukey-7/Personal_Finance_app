@@ -43,6 +43,7 @@ class AppContainer(context: Context) {
     /** Everything that can have a due date. Features add themselves here; [com.pft.financetracker.data.reminders.ReminderWorker] reads it. */
     val reminderSources: MutableList<ReminderSource> = mutableListOf()
     val refunds: RefundLinker = RefundLinker(db.transactionDao(), db.refundDao())
+    val recurring: com.pft.financetracker.data.recurring.RecurringService = com.pft.financetracker.data.recurring.RecurringService(db.transactionDao(), db.recurringDao())
 
     /**
      * Everything that derives from the transactions, re-run after any import, edit or delete: refund pairing first
@@ -64,6 +65,7 @@ class FinanceApp : Application() {
         container = AppContainer(this)
         seedBuiltInApiKey()
         Reminders.ensureChannel(this)
+        container.reminderSources += ReminderSource { now -> container.recurring.book(now).reminders() }
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { runCatching { container.templates.load() } }
         Reminders.schedule(this)
     }

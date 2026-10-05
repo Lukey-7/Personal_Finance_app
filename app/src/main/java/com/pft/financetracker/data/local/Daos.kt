@@ -286,6 +286,20 @@ interface TemplateDao {
 }
 
 @Dao
+interface RecurringDao {
+    @Query("SELECT * FROM recurring_decisions")
+    fun observeAll(): Flow<List<RecurringDecisionEntity>>
+
+    @Query("SELECT * FROM recurring_decisions")
+    suspend fun getAll(): List<RecurringDecisionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(e: RecurringDecisionEntity)
+
+    @Query("DELETE FROM recurring_decisions WHERE `key` = :key")
+    suspend fun delete(key: String)
+}
+
+@Dao
 interface ImportDao {
     @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>

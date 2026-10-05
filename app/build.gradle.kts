@@ -62,7 +62,9 @@ android {
     buildTypes {
         debug {
             isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
+            // -PappIdSuffix=.v13 installs a debug build beside the usual one, e.g. to try a newer database version on a
+            // shared test phone without upgrading (and so stranding) the data of the build already there.
+            applicationIdSuffix = ".debug" + (project.findProperty("appIdSuffix") as String? ?: "")
             // The app starts with OPENAI_API_KEY already saved, so you never type it into the phone.
             // This bakes the key into the APK: never share a debug build made with it set.
             buildConfigField("String", "SEED_OPENAI_KEY", "\"$buildKey\"")

@@ -227,6 +227,15 @@ data class ParserTemplateEntity(
     val createdAt: Long = System.currentTimeMillis(),
 )
 
+/** A person's decision about a detected repeating charge (v1.3), by its stable key. Detection itself is recomputed. */
+@Entity(tableName = "recurring_decisions")
+data class RecurringDecisionEntity(
+    @PrimaryKey val key: String,
+    /** CONFIRMED, DISMISSED or CANCELLED. */
+    val status: String,
+    val decidedAt: Long = System.currentTimeMillis(),
+)
+
 @Entity(tableName = "import_batches")
 data class ImportBatchEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
