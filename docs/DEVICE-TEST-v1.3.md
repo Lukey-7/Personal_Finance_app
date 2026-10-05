@@ -22,13 +22,27 @@ Legend: `[x]` checked on the emulator · `[ ]` not checked here (reason given)
 - [x] Long-press shortcuts `quick_add` and `quick_cash` are published; the widget provider is registered.
 - [x] APK audit (`scripts/audit_apk.py`): telemetry counts at or below the v1.2 baseline; one endpoint, `api.openai.com`.
 
-## Not checked here (please try on your phone)
+## Checked in the second round (after Gemini Nano and the follow-up fixes)
 
-- [ ] **Widget on a home screen** and its "+ Expense / + Cash" buttons (placing a widget needs the launcher's UI).
-- [ ] **A real CAS PDF** from CAMS or KFintech (the parser is tested on synthetic text in their layout).
-- [ ] **Backup → Restore** through the system file picker (the round trip is unit-tested on every table).
-- [ ] **A real reminder notification** (needs a bill or renewal 1-3 days ahead and the twice-daily worker to run).
-- [ ] **Refund pairing and "Show reversed payments"** with a real failed-UPI reversal (unit-tested).
+- [x] **Reversal, live SMS**: a ₹650 UPI debit and its "Reversal of UPI txn" credit sent to the emulator are both tagged
+  "Reversed" and hidden behind "Show 2 reversed payments".
+- [x] **A real reminder notification**: bill "Phone bill" ₹799 due the next day, reminders on, worker run (clock moved
+  forward 13 h with `adb root`, then restored) → notification "Phone bill is due soon · ₹799 due 6 Oct".
+- [x] **CAS PDF through the file picker**: a synthetic CAMS-layout PDF in Downloads → Net worth → Import → two funds read
+  (₹1,05,467.89 + ₹40,000), Mutual funds ₹1,45,468, net worth updated.
+- [x] **Backup → restore through the file picker**: saved `FinTrack-2026-10-05.ftbackup` (9.6 KB, starts with `FTBK1`, no
+  readable merchant or table names inside) with "Locking your backup…" shown; deleted a bill; restored with the passphrase
+  and RESTORE ("Opening the backup…") → the bill is back.
+- [x] **Home-screen widget**: Settings → "Add the widget to your home screen" → Android's "Add to home screen" sheet → the
+  widget shows "Spent this month ₹••••" (amounts hidden by default) and "Next: Phone bill · 6 Oct"; "+ Expense" opens the
+  quick-add sheet, and ₹240 "Chai and samosa" appears in Activity.
+- [x] **Gemini Nano status** on a phone without AICore: Settings says "Not available on this phone…"; Ask keeps its rule answers.
+
+## Not checked here
+
+- [ ] **Gemini Nano answering**: needs a phone with Android AICore (Pixel 9 or later, Galaxy S24 or later). Unit tests
+  cover the facts and prompt it is given.
+- [ ] **A real CAS** from CAMS or KFintech (the layout used above is synthetic).
 
 ## Found and fixed during this check
 

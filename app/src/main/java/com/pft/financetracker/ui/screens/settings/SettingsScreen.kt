@@ -341,6 +341,15 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                     Spacer(Modifier.width(12.dp))
                     Switch(checked = widgetHide, onCheckedChange = null)
                 }
+                // Launchers that support it show their own "Add to home screen" sheet; others need a long-press on the home screen.
+                ActionRow("Add the widget to your home screen", Icons.Outlined.Widgets, {
+                    scope.launch {
+                        val ok = runCatching {
+                            androidx.glance.appwidget.GlanceAppWidgetManager(ctx).requestPinGlanceAppWidget(com.pft.financetracker.ui.widget.FinTrackWidgetReceiver::class.java)
+                        }.getOrDefault(false)
+                        if (!ok) snackbar.showSnackbar("Long-press your home screen, choose Widgets and find FinTrack.")
+                    }
+                })
             }
 
             Section("Split intelligence", Icons.Outlined.Groups) {
