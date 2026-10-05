@@ -203,6 +203,29 @@ object AccountExtractor {
 // ---------------------------------------------------------------------------------------------
 // Layer 4: bank / issuer name from sender ID or body. Extensible list, not a hard requirement.
 // ---------------------------------------------------------------------------------------------
+/**
+ * Sender IDs ("headers"): an optional two-letter operator/circle prefix, the sender's core, and since TRAI's 2025
+ * rules an optional category suffix: S service, T transactional, P promotional, G government. Phones show them as
+ * "VM-HDFCBK-S", "HDFCBK-S" or "VM-HDFCBK".
+ */
+object SenderId {
+    private val suffixes = setOf('S', 'T', 'P', 'G')
+
+    private fun parts(sender: String): List<String> {
+        var p = sender.trim().uppercase(Locale.ROOT).split('-').filter { it.isNotEmpty() }
+        if (p.size >= 2 && p.last().length == 1 && p.last()[0] in suffixes) p = p.dropLast(1)
+        if (p.size >= 2 && p.first().length == 2) p = p.drop(1)
+        return p
+    }
+
+    fun core(sender: String): String = parts(sender).joinToString("-")
+
+    fun suffix(sender: String): Char? {
+        val last = sender.trim().uppercase(Locale.ROOT).split('-').filter { it.isNotEmpty() }
+        return if (last.size >= 2 && last.last().length == 1 && last.last()[0] in suffixes) last.last()[0] else null
+    }
+}
+
 object BankExtractor {
     /** Map of substrings (lowercase) found in sender IDs / bodies to display names. Append freely. */
     val knownIssuers: List<Pair<String, String>> = listOf(
@@ -225,9 +248,8 @@ object BankExtractor {
     private val genericBank = Regex("""\b([A-Z][A-Za-z&]+(?:\s[A-Z][A-Za-z&]+)?\s(?:Bank|Payments Bank))\b""")
 
     fun extract(sender: String, body: String): String? {
-        val s = sender.lowercase(Locale.ROOT)
-        // Sender IDs look like "VM-HDFCBK", "AD-ICICIB-S", "JK-SBIINB". Strip the operator prefix.
-        val senderCore = s.substringAfter('-', s).substringBefore('-')
+        // Sender IDs look like "VM-HDFCBK", "AD-ICICIB-S", "HDFCBK-T": compare on the core only.
+        val senderCore = SenderId.core(sender).lowercase(Locale.ROOT)
         knownIssuers.firstOrNull { senderCore.contains(it.first) }?.let { return it.second }
         val b = body.lowercase(Locale.ROOT)
         knownIssuers.firstOrNull { b.contains(it.first) }?.let { return it.second }

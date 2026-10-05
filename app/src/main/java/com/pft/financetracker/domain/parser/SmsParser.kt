@@ -19,6 +19,8 @@ class SmsParser(private val threshold: Int = 60) {
     fun parse(sms: SmsMessage): ParseResult {
         val body = sms.body.replace('\n', ' ').replace(Regex("""\s{2,}"""), " ").trim()
         if (body.isBlank()) return ParseResult.Ignored("empty")
+        // TRAI marks promotional headers with -P; money alerts are always service or transactional.
+        if (SenderId.suffix(sms.sender) == 'P') return ParseResult.Ignored("promotional_sender")
 
         TextFilters.ignoreReason(body)?.let { return ParseResult.Ignored(it) }
         if (!TextFilters.looksTransactional(body)) return ParseResult.Ignored("no_transaction_hint")
