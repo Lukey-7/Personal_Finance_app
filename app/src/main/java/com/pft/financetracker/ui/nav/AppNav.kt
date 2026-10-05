@@ -199,6 +199,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                     onOpenSmsLog = { nav.navigate(Routes.smsLog(it)) },
                     onDrill = { bucket, cat -> nav.navigate(Routes.drill(bucket, cat)) },
                     onOpenSplit = { nav.navigate(Routes.splitDetail(it)) },
+                    onOpenTools = { nav.navigate(Routes.TOOLS) },
                 )
             }
             composable(Routes.TRANSACTIONS) {
