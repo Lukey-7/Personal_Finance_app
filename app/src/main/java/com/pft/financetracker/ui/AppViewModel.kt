@@ -453,6 +453,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }.exceptionOrNull()?.let { it.message ?: "Restore failed." }.also { passphrase.fill(' ') }
     }
 
+    /** Answers a question about the person's own numbers, on the phone. */
+    suspend fun ask(question: String): com.pft.financetracker.domain.ask.AskAnswer = withContext(Dispatchers.Default) {
+        val nw = netWorth.value
+        com.pft.financetracker.domain.ask.AskEngine.answer(
+            question,
+            com.pft.financetracker.domain.ask.AskContext(
+                txns = transactions.value, budgets = budgets.value, recurring = c.recurring.book(), bills = c.bills.states(),
+                netWorthPaise = if (nw.ownPaise == 0L && nw.owePaise == 0L) null else nw.totalPaise, includeCash = countCashAsSpend.value,
+            ),
+        )
+    }
+    /** This month in a few written lines, worked out on the phone (no key, no network). */
+    suspend fun monthInWords(): String = withContext(Dispatchers.Default) {
+        val all = transactions.value
+        com.pft.financetracker.domain.ask.MonthlySummary.write(
+            InsightsEngine.summarize(all, Periods.month(), countCashAsSpend.value), InsightsEngine.summarize(all, Periods.month(-1), countCashAsSpend.value),
+            budgets.value, c.recurring.book(),
+        )
+    }
+
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */
