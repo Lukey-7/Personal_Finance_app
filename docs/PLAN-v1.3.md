@@ -52,10 +52,10 @@ Fold and INDmoney win on net worth, bills and cards, but they need cloud sync an
 The order follows dependencies: shared plumbing first, then features that create data, then features that read all of it (backup and AI come last, so they cover every new table).
 
 ### M0. Setup and shared plumbing
-- [ ] T0.1 Worktree and branch (D1); baseline `bash build.sh testDebugUnitTest` passes
-- [ ] T0.2 Room v6 migration skeleton: tables `recurring`, `bills`, `refund_links`, `parser_templates`, `accounts`, `holdings`, `cards`, `goals`, `goal_contributions`, `tax_tags`; `MigrationTest` 5→6 RED→GREEN
-- [ ] T0.3 Notification channel + `ReminderWorker` (daily, WorkManager) + POST_NOTIFICATIONS flow (D2); unit test for the "what is due" calculation
-- [ ] T0.4 Dependency audit script (`scripts/audit-deps.sh`): scans the resolved artifacts for telemetry packages and the release APK for URLs. Run it on the baseline APK
+- [x] T0.1 Worktree and branch (D1); baseline `bash build.sh testDebugUnitTest` passes
+- [x] T0.2 Room v6 migration skeleton: tables `recurring`, `bills`, `refund_links`, `parser_templates`, `accounts`, `holdings`, `cards`, `goals`, `goal_contributions`, `tax_tags`; `MigrationTest` 5→6 RED→GREEN
+- [x] T0.3 Notification channel + `ReminderWorker` (daily, WorkManager) + POST_NOTIFICATIONS flow (D2); unit test for the "what is due" calculation
+- [x] T0.4 Dependency audit script (`scripts/audit-deps.sh`): scans the resolved artifacts for telemetry packages and the release APK for URLs. Run it on the baseline APK
 
 ### M1. Refund and reversal matching (feature 5)
 - [ ] T1.1 `RefundMatcher` (domain, pure): pairs by ref number → same merchant + amount ≤ debit within 60 days → reversal rule (D6). Tests: full refund, partial refund, failed-UPI reversal, two equal debits with one refund, an INCOME credit that should be a REFUND
