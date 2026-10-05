@@ -108,6 +108,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val importBatches: StateFlow<List<ImportBatchEntity>> = c.db.importDao().observeBatches().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val splitAi: StateFlow<Boolean> = c.settings.splitAi
+    val remindersEnabled: StateFlow<Boolean> = c.settings.remindersEnabled
     val recentPeople: StateFlow<List<String>> = c.splits.recentPeople.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val hasApiKey: StateFlow<Boolean> = c.settings.hasApiKey
@@ -317,6 +318,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun acceptSplit(id: Long) = viewModelScope.launch { c.splitEngine.accept(id) }
     /** Undo or "not a split"; then re-check at once, so a transfer this split shared with another one is re-read. */
     fun rejectSplit(id: Long) = viewModelScope.launch { c.splitEngine.reject(id); refreshSplits(useAi = false) }
+    fun setRemindersEnabled(v: Boolean) { c.settings.setRemindersEnabled(v) }
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */

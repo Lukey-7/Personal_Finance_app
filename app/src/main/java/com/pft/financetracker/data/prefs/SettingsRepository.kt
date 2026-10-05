@@ -54,6 +54,15 @@ class SettingsRepository(context: Context) {
     val splitAi: StateFlow<Boolean> = _splitAi
     fun setSplitAi(v: Boolean) { plain.edit().putBoolean(KEY_SPLIT_AI, v).apply(); _splitAi.value = v }
 
+    /** Local notifications before bills, EMIs and renewals. Off until the user switches it on (and grants the permission). */
+    private val _remindersEnabled = MutableStateFlow(plain.getBoolean(KEY_REMINDERS, false))
+    val remindersEnabled: StateFlow<Boolean> = _remindersEnabled
+    fun setRemindersEnabled(v: Boolean) { plain.edit().putBoolean(KEY_REMINDERS, v).apply(); _remindersEnabled.value = v }
+
+    /** Reminders already posted, as "thing@dueDay#lead" keys (no amounts or names), so none is sent twice. */
+    fun sentReminders(): Set<String> = plain.getStringSet(KEY_REMINDERS_SENT, emptySet())?.toSet() ?: emptySet()
+    fun setSentReminders(keys: Set<String>) { plain.edit().putStringSet(KEY_REMINDERS_SENT, keys).apply() }
+
     /**
      * AI answers kept by request, so an unchanged week is never asked (or paid for) twice. The requests are the
      * anonymised payloads, the answers the model's JSON; at most 300 are kept.
@@ -115,6 +124,7 @@ class SettingsRepository(context: Context) {
         _countCashAsSpend.value = true
         _myName.value = "Me"
         _splitAi.value = true
+        _remindersEnabled.value = false
         aiAnswerCache.clear()
     }
 
@@ -126,6 +136,8 @@ class SettingsRepository(context: Context) {
         const val KEY_CASH_SPEND = "cash_as_spend"
         const val KEY_MY_NAME = "my_name"
         const val KEY_SPLIT_AI = "split_ai"
+        const val KEY_REMINDERS = "reminders_enabled"
+        const val KEY_REMINDERS_SENT = "reminders_sent"
         const val KEY_API_SEEDED = "api_key_seeded"
         const val KEY_API_USER_MANAGED = "api_key_user_managed"
     }

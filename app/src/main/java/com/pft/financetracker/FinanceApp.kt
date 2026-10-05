@@ -14,6 +14,8 @@ import com.pft.financetracker.data.sms.SmsImporter
 import com.pft.financetracker.data.split.SplitEngine
 import com.pft.financetracker.domain.ai.OpenAiSplitProvider
 import com.pft.financetracker.domain.parser.SmsParser
+import com.pft.financetracker.data.reminders.ReminderSource
+import com.pft.financetracker.data.reminders.Reminders
 
 /** Simple manual dependency container. No DI framework, no reflection, no third-party SDKs. */
 class AppContainer(context: Context) {
@@ -34,6 +36,8 @@ class AppContainer(context: Context) {
     )
     val statementFiles: StatementFiles = StatementFiles(context)
     val statementImporter: StatementImporter = StatementImporter(db.transactionDao(), transactions, db.importDao())
+    /** Everything that can have a due date. Features add themselves here; [com.pft.financetracker.data.reminders.ReminderWorker] reads it. */
+    val reminderSources: MutableList<ReminderSource> = mutableListOf()
 }
 
 class FinanceApp : Application() {
@@ -44,6 +48,8 @@ class FinanceApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         seedBuiltInApiKey()
+        Reminders.ensureChannel(this)
+        Reminders.schedule(this)
     }
 
     /**

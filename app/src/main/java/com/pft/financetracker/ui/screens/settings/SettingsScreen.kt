@@ -1,6 +1,9 @@
 package com.pft.financetracker.ui.screens.settings
 
 import android.Manifest
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -98,6 +101,11 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
     val cashAsSpend by vm.countCashAsSpend.collectAsState()
     val myName by vm.myName.collectAsState()
     val splitAi by vm.splitAi.collectAsState()
+    val remindersOn by vm.remindersEnabled.collectAsState()
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        vm.setRemindersEnabled(granted)
+        if (!granted) scope.launch { snackbar.showSnackbar("Notifications are blocked. Allow them in Android settings to get reminders.") }
+    }
     var nameInput by remember(myName) { mutableStateOf(myName) }
     var exportingSplits by remember { mutableStateOf(false) }
     val aiState by vm.aiState.collectAsState()
@@ -236,6 +244,24 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                     exportLauncher.launch("fintrack-splits-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ENGLISH).format(Date()) + ".csv")
                 })
                 Text("Bill photos are read on this phone with an offline text recogniser and are not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Section("Reminders", Icons.Outlined.NotificationsActive) {
+                Row(
+                    Modifier.fillMaxWidth().toggleable(value = remindersOn, role = Role.Switch, onValueChange = { on ->
+                        if (on && ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else vm.setRemindersEnabled(on)
+                    }),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Remind me before bills and renewals")
+                        Text("A notification a few days before a bill, EMI or subscription is due. Worked out on this phone; amounts are hidden on the lock screen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = remindersOn, onCheckedChange = null)
+                }
             }
 
             Section("Split intelligence", Icons.Outlined.Groups) {

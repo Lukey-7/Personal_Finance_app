@@ -151,6 +151,8 @@ dependencies {
     implementation(libs.mlkit.text.recognition.devanagari)
     // PDF statements: text with positions, password-protected files, and page rendering for scanned PDFs (Apache 2.0).
     implementation(libs.pdfbox.android)
+    // Daily local reminders for bills and renewals. Runs on the phone; no network.
+    implementation(libs.androidx.work.runtime)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)
