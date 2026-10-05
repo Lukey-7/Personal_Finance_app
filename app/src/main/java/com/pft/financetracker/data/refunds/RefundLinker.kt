@@ -16,8 +16,9 @@ class RefundLinker(private val txDao: TransactionDao, private val dao: RefundDao
 
     /** Returns how many new pairs were made. */
     suspend fun run(): Int {
-        val all = txDao.getAll().map { it.toDomain() }
         val links = dao.getAll()
+        reassert(links)
+        val all = txDao.getAll().map { it.toDomain() }
         val used = links.filter { it.status == APPLIED }.groupBy { it.debitTxId }.mapValues { (_, l) -> l.sumOf { it.amountPaise } }
         val matches = RefundMatcher.match(all, links.map { it.refundTxId }.toSet(), used)
         for (m in matches) {
@@ -34,6 +35,19 @@ class RefundLinker(private val txDao: TransactionDao, private val dao: RefundDao
             )
         }
         return matches.size
+    }
+
+    /**
+     * A rescan writes the parser's flow and category back onto rows nobody edited, which would quietly turn a paired
+     * refund back into income. Paired credits stay refunds, in the purchase's category when pairing set it.
+     */
+    private suspend fun reassert(links: List<RefundLinkEntity>) {
+        for (l in links) {
+            if (l.status != APPLIED || (l.prevFlow == null && l.prevCategory == null)) continue
+            val credit = txDao.getById(l.refundTxId)?.takeIf { !it.userEdited } ?: continue
+            val category = if (l.prevCategory != null) txDao.getById(l.debitTxId)?.category ?: credit.category else credit.category
+            if (credit.flow != Flow.REFUND.name || credit.category != category) txDao.update(credit.copy(flow = Flow.REFUND.name, category = category))
+        }
     }
 
     /** Unpairs and restores the credit, unless a person has corrected it since. The credit is never paired again. */

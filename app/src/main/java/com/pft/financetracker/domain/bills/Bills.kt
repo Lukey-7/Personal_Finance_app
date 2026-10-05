@@ -120,7 +120,7 @@ object BillTracker {
         return BillState.Upcoming(next, ChronoUnit.DAYS.between(today, next))
     }
 
-    /** The payment closest to [due] inside its window, by keyword or (for a fixed amount) by the exact amount. */
+    /** The payment closest to [due] inside its window: by keyword when the bill has one, else by its exact fixed amount. */
     fun payment(b: Bill, due: LocalDate, txns: List<Transaction>, zone: ZoneId = ZoneId.systemDefault()): Transaction? {
         val start = due.minusDays(EARLY_DAYS).atStartOfDay(zone).toInstant().toEpochMilli()
         val end = due.plusDays(LATE_DAYS + 1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -130,7 +130,8 @@ object BillTracker {
         return txns.asSequence()
             .filter { it.type == TransactionType.DEBIT && !it.needsReview && it.timestamp in start until end }
             .filter { it.flow == Flow.EXPENSE || it.flow == Flow.TRANSFER }
-            .filter { t -> (key != null && normalize(t.merchant).contains(key)) || (amount != null && t.amountPaise == amount) }
+            // A keyword names the payee, so only that payee counts; without one, the exact amount has to do.
+            .filter { t -> if (key != null) normalize(t.merchant).contains(key) else amount != null && t.amountPaise == amount }
             .minByOrNull { kotlin.math.abs(it.timestamp - dueMillis) }
     }
 

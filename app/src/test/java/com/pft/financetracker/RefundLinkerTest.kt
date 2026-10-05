@@ -93,4 +93,15 @@ class RefundLinkerTest {
         db.transactionDao().delete(db.transactionDao().getById(d)!!)
         assertTrue(db.refundDao().getAll().isEmpty())
     }
+
+    @Test
+    fun aRescanThatPutsTheIncomeFlowBackIsCorrectedAgain() = runBlocking {
+        order(); val c = refundBookedAsIncome()
+        linker.run()
+        // A 12-month rescan re-reads the SMS and writes the parser's flow and category back onto rows nobody edited.
+        db.transactionDao().update(tx(c).copy(flow = Flow.INCOME, category = Category.OTHER).toEntity())
+        linker.run()
+        assertEquals(Flow.REFUND, tx(c).flow)
+        assertEquals(Category.SHOPPING, tx(c).category)
+    }
 }

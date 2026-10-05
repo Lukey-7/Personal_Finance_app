@@ -95,6 +95,13 @@ class BillsTest {
         assertTrue(s is BillState.Upcoming)
     }
 
+    @Test fun aBillWithAKeywordIsNotPaidByAnotherPaymentOfTheSameAmount() {
+        // Rent is ₹25,000 to NoBroker; a ₹25,000 card-bill payment the same week must not mark it paid.
+        val rent = Bill(id = 3, name = "Rent", amountPaise = 25_000_00, dueDay = 5, keyword = "nobroker")
+        val s = BillTracker.state(rent, d("2026-10-04"), listOf(debit("CRED CLUB", 25_000_00, "2026-10-03")), emptySet(), zone)
+        assertTrue(s is BillState.Upcoming)
+    }
+
     @Test fun unpaidAfterTheDueDateIsOverdue() {
         val s = BillTracker.state(airtel, d("2026-10-08"), emptyList(), emptySet(), zone)
         assertEquals(BillState.Overdue(d("2026-10-05"), 3), s)

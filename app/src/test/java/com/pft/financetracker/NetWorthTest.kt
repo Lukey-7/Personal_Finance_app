@@ -25,6 +25,14 @@ class NetWorthTest {
     @Test fun aCardLimitIsNotABalance() =
         assertNull(BalanceExtractor.extract("INR 250.00 spent on Credit Card XX1234 at Swiggy. Avl Limit: INR 45,000.00"))
 
+    @Test fun aCreditCardsAvailableBalanceIsItsLimitNotMoney() {
+        // Some issuers word the remaining credit limit as "available balance"; it is not money in the bank.
+        assertNull(BalanceExtractor.extract("Rs.1,200.00 spent on your SBI Credit Card ending 5678 at AMAZON. Available Balance: Rs.48,800.00"))
+        assertNull(BalanceExtractor.extract("Txn of INR 500 on ICICI Bank Card XX9012 at Zepto. Avl Bal INR 99,500"))
+        // A debit card spends from the bank account, so its balance is real.
+        assertEquals(20_000_00L, BalanceExtractor.extract("Rs 500 spent on HDFC Debit Card XX1234 at Zepto. Avl Bal INR 20,000.00"))
+    }
+
     @Test fun noBalanceMeansNull() = assertNull(BalanceExtractor.extract("Rs.450.00 debited from a/c **1234 to VPA x@ybl"))
 
     // ---- CAS statements (CAMS / KFintech) ----

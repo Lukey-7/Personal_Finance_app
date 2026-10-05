@@ -35,7 +35,14 @@ object BalanceExtractor {
         RegexOption.IGNORE_CASE,
     )
 
-    fun extract(body: String): Long? = rx.find(body)?.groupValues?.get(1)?.let { Money.parsePaise(it) }
+    private val card = Regex("""\bcard\b""", RegexOption.IGNORE_CASE)
+    private val debitCard = Regex("""debit\s*card""", RegexOption.IGNORE_CASE)
+
+    /** Null for card alerts other than debit cards: what a credit card calls its "available balance" is its unused limit. */
+    fun extract(body: String): Long? {
+        if (card.containsMatchIn(body) && !debitCard.containsMatchIn(body)) return null
+        return rx.find(body)?.groupValues?.get(1)?.let { Money.parsePaise(it) }
+    }
 }
 
 /**
