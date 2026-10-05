@@ -32,10 +32,12 @@ URL = re.compile(rb"https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]{4,}")
 ALLOWED_ENDPOINT = b"https://api.openai.com/"
 
 
-BASELINE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audit_baseline.json")
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def main(apk: str, write_baseline: bool = False) -> int:
+    # R8 rewrites release dex, so release and debug APKs each have their own v1.2 baseline.
+    BASELINE = os.path.join(HERE, "audit_baseline_release.json" if "release" in os.path.basename(apk) else "audit_baseline.json")
     hits, urls = {}, set()
     with zipfile.ZipFile(apk) as z:
         for name in z.namelist():
