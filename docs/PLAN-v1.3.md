@@ -97,8 +97,8 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T7.2 Goals screen + dashboard card
 
 ### M8. Tax helper (feature 11)
-- [ ] T8.1 `TaxTagger` rules (D10) with tests; manual tag/untag on any transaction
-- [ ] T8.2 FY summary screen (per section, with limits such as 80C ₹1.5L shown as progress) + CSV export through the existing exporter
+- [x] T8.1 `TaxTagger` rules (D10) with tests; manual tag/untag on any transaction
+- [x] T8.2 FY summary screen (per section, with limits such as 80C ₹1.5L shown as progress) + CSV export through the existing exporter
 
 ### M9. Net worth (feature 6)
 - [ ] T9.1 Accounts, assets and liabilities (manual); loans from M4 appear as liabilities automatically
