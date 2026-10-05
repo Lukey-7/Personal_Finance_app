@@ -70,10 +70,10 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T2.5 Settings → Learned templates (list, delete)
 
 ### M3. Subscriptions and UPI AutoPay (feature 1)
-- [ ] T3.1 `RecurringDetector` (domain): clusters by merchant and amount band, infers period (weekly, monthly, quarterly, yearly) and next date; boosts on AutoPay / mandate / SI / e-mandate wording. Replaces the old ad-hoc check in `InsightsEngine.suggestions` (the Insight now reads from the detector). Tests: Netflix monthly, yearly Prime, weekly, price hike, irregular grocery (must NOT match), mandate keyword with only one charge
-- [ ] T3.2 Store detected items; user can confirm, dismiss or mark cancelled (dismissals survive re-detection)
-- [ ] T3.3 "Recurring" screen: monthly total, yearly cost, next charge, price-hike flag; Insights card links to it
-- [ ] T3.4 Renewal reminders through T0.3 (D5)
+- [x] T3.1 `RecurringDetector` (domain): clusters by merchant and amount band, infers period (weekly, monthly, quarterly, yearly) and next date; boosts on AutoPay / mandate / SI / e-mandate wording. Replaces the old ad-hoc check in `InsightsEngine.suggestions` (the Insight now reads from the detector). Tests: Netflix monthly, yearly Prime, weekly, price hike, irregular grocery (must NOT match), mandate keyword with only one charge
+- [x] T3.2 Store detected items; user can confirm, dismiss or mark cancelled (dismissals survive re-detection)
+- [x] T3.3 "Recurring" screen: monthly total, yearly cost, next charge, price-hike flag; Insights card links to it
+- [x] T3.4 Renewal reminders through T0.3 (D5)
 
 ### M4. Bills, EMIs and loans (feature 3)
 - [ ] T4.1 `Bill` model: name, amount (fixed or "varies"), due rule (day of month / every N months), optional loan (principal, rate, tenure → EMI schedule). `Amortization` tests against a known loan table
