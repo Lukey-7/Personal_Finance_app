@@ -20,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -54,8 +55,12 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
     val reviewCount by vm.reviewCount.collectAsState()
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf<Category?>(null) }
+    val badges by vm.refundBadges.collectAsState()
+    var showReversed by remember { mutableStateOf(false) }
+    val hiddenCount = txns.count { it.id in badges.hiddenByDefault }
 
     val filtered = txns.filter { t ->
+        (showReversed || t.id !in badges.hiddenByDefault) &&
         (filter == null || t.category == filter) &&
             (query.isBlank() || t.merchant.contains(query, true) || (t.bankName ?: "").contains(query, true) || money(t.amountPaise).contains(query) || (t.refNumber ?: "").contains(query, true))
     }
@@ -90,6 +95,10 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
                     PillChip(filter == c, c.label, icon = categoryIcon(c)) { filter = if (filter == c) null else c }
                 }
             }
+            // Failed payments that came straight back never really happened; keep them out of the way, one tap to see.
+            if (hiddenCount > 0) TextButton(onClick = { showReversed = !showReversed }, modifier = Modifier.padding(horizontal = Gutter - 12.dp)) {
+                Text(if (showReversed) "Hide reversed payments" else "Show $hiddenCount reversed payment${if (hiddenCount == 1) "" else "s"}")
+            }
             if (filtered.isEmpty()) {
                 EmptyState(Icons.Outlined.SearchOff, if (txns.isEmpty()) "No transactions yet." else "Nothing matches this search or filter.")
             }
@@ -99,7 +108,7 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
                         Text(day, Modifier.padding(start = Gutter, end = Gutter, top = 16.dp, bottom = 8.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Hairline(startInset = Gutter, endInset = Gutter)
                     }
-                    items(list, key = { it.id }) { t -> TransactionRow(t, showDate = false) { onEdit(t.id) } }
+                    items(list, key = { it.id }) { t -> TransactionRow(t, showDate = false, tag = badges.tag(t.id)) { onEdit(t.id) } }
                 }
             }
         }

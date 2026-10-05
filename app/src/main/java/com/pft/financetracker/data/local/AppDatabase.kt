@@ -17,6 +17,7 @@ import java.security.SecureRandom
         TransactionEntity::class, ReviewItemEntity::class, BudgetEntity::class,
         SmsLogEntity::class, SplitEntity::class, SplitPersonEntity::class, SplitShareEntity::class, SplitItemEntity::class, RecentPersonEntity::class,
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class,
+        RefundLinkEntity::class,
     ],
     version = 6,
     exportSchema = true
@@ -28,6 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun smsLogDao(): SmsLogDao
     abstract fun splitDao(): SplitDao
     abstract fun importDao(): ImportDao
+    abstract fun refundDao(): RefundDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -255,7 +257,15 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /** CREATE statements for the v1.3 tables, in the exact shape Room generates (checked by MigrationV6Test). */
-        private val V6_TABLES: List<String> = listOf()
+        private val V6_TABLES: List<String> = listOf(
+            """CREATE TABLE IF NOT EXISTS refund_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, refundTxId INTEGER NOT NULL, debitTxId INTEGER NOT NULL, kind TEXT NOT NULL,
+                amountPaise INTEGER NOT NULL, status TEXT NOT NULL, prevFlow TEXT, prevCategory TEXT, createdAt INTEGER NOT NULL,
+                FOREIGN KEY(refundTxId) REFERENCES transactions(id) ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(debitTxId) REFERENCES transactions(id) ON UPDATE NO ACTION ON DELETE CASCADE)""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS index_refund_links_refundTxId ON refund_links (refundTxId)",
+            "CREATE INDEX IF NOT EXISTS index_refund_links_debitTxId ON refund_links (debitTxId)",
+        )
 
         val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
     }

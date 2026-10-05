@@ -186,6 +186,33 @@ data class SplitDecisionEntity(
 )
 
 /** One statement or screenshot import, for the import history and "undo this import". */
+/**
+ * A refund or reversal paired with the purchase it gives money back for (v1.3). One row per credit: APPLIED while in
+ * force, REJECTED after the person undid it, so the same credit is never paired again. [prevFlow]/[prevCategory] are
+ * the credit's values before pairing changed them; null when pairing changed nothing.
+ */
+@Entity(
+    tableName = "refund_links",
+    foreignKeys = [
+        ForeignKey(entity = TransactionEntity::class, parentColumns = ["id"], childColumns = ["refundTxId"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = TransactionEntity::class, parentColumns = ["id"], childColumns = ["debitTxId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index(value = ["refundTxId"], unique = true), Index(value = ["debitTxId"])],
+)
+data class RefundLinkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val refundTxId: Long,
+    val debitTxId: Long,
+    /** REFUND or REVERSAL. */
+    val kind: String,
+    val amountPaise: Long,
+    /** APPLIED or REJECTED. */
+    val status: String,
+    val prevFlow: String?,
+    val prevCategory: String?,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
 @Entity(tableName = "import_batches")
 data class ImportBatchEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

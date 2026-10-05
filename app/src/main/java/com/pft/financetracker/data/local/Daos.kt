@@ -250,6 +250,28 @@ interface SplitDao {
 }
 
 @Dao
+interface RefundDao {
+    @Query("SELECT * FROM refund_links WHERE status = 'APPLIED'")
+    fun observeApplied(): Flow<List<RefundLinkEntity>>
+
+    @Query("SELECT * FROM refund_links WHERE status = 'APPLIED'")
+    suspend fun getApplied(): List<RefundLinkEntity>
+
+    @Query("SELECT * FROM refund_links")
+    suspend fun getAll(): List<RefundLinkEntity>
+
+    @Query("SELECT * FROM refund_links WHERE id = :id")
+    suspend fun get(id: Long): RefundLinkEntity?
+
+    @Insert suspend fun insert(e: RefundLinkEntity): Long
+
+    @Update suspend fun update(e: RefundLinkEntity)
+
+    @Query("DELETE FROM refund_links")
+    suspend fun clear()
+}
+
+@Dao
 interface ImportDao {
     @Query("SELECT * FROM import_batches ORDER BY importedAt DESC")
     fun observeBatches(): Flow<List<ImportBatchEntity>>

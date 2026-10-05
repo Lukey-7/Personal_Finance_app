@@ -70,7 +70,7 @@ import com.pft.financetracker.ui.components.SoftPanel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSplit: (Long) -> Unit = {}, onBack: () -> Unit) {
+fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSplit: (Long) -> Unit = {}, onOpenTransaction: (Long) -> Unit = {}, onBack: () -> Unit) {
     var existing by remember { mutableStateOf<Transaction?>(null) }
     var amount by remember { mutableStateOf("") }
     var merchant by remember { mutableStateOf("") }
@@ -169,6 +169,26 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
                     if (autoSplit != null) Row {
                         TextButton(onClick = { onOpenSplit(autoSplit.id) }) { Text("Open split") }
                         TextButton(onClick = { vm.rejectSplit(autoSplit.id); onBack() }) { Text("Not a split") }
+                    }
+                }
+            }
+            val badges by vm.refundBadges.collectAsState()
+            val all by vm.transactions.collectAsState()
+            id?.let { badges.pairsOf(it) }?.forEach { p ->
+                val other = all.firstOrNull { it.id == (if (p.refundId == id) p.debitId else p.refundId) }
+                SoftPanel {
+                    CapsLabel(if (p.kind == com.pft.financetracker.domain.refunds.RefundMatch.Kind.REVERSAL) "Reversed" else "Refund")
+                    Text(
+                        when {
+                            other == null -> "Paired with a transaction that is no longer here."
+                            p.refundId == id -> "${com.pft.financetracker.ui.components.money(p.amountPaise)} back for ${other.merchant.ifBlank { "a purchase" }} on ${com.pft.financetracker.ui.components.shortDate(other.timestamp)}. It lowers that purchase's category."
+                            else -> "${com.pft.financetracker.ui.components.money(p.amountPaise)} of this came back on ${com.pft.financetracker.ui.components.shortDate(other.timestamp)}."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row {
+                        if (other != null) TextButton(onClick = { onOpenTransaction(other.id) }) { Text("Open the other one") }
+                        TextButton(onClick = { vm.undoRefund(p.linkId) }) { Text("Not a refund") }
                     }
                 }
             }

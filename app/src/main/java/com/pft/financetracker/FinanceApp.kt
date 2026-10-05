@@ -15,6 +15,7 @@ import com.pft.financetracker.data.split.SplitEngine
 import com.pft.financetracker.domain.ai.OpenAiSplitProvider
 import com.pft.financetracker.domain.parser.SmsParser
 import com.pft.financetracker.data.reminders.ReminderSource
+import com.pft.financetracker.data.refunds.RefundLinker
 import com.pft.financetracker.data.reminders.Reminders
 
 /** Simple manual dependency container. No DI framework, no reflection, no third-party SDKs. */
@@ -38,6 +39,17 @@ class AppContainer(context: Context) {
     val statementImporter: StatementImporter = StatementImporter(db.transactionDao(), transactions, db.importDao())
     /** Everything that can have a due date. Features add themselves here; [com.pft.financetracker.data.reminders.ReminderWorker] reads it. */
     val reminderSources: MutableList<ReminderSource> = mutableListOf()
+    val refunds: RefundLinker = RefundLinker(db.transactionDao(), db.refundDao())
+
+    /**
+     * Everything that derives from the transactions, re-run after any import, edit or delete: refund pairing first
+     * (it never touches money from people), then split intelligence. Each step is idempotent and isolated, so one
+     * failing never blocks the others.
+     */
+    suspend fun afterChange(useAi: Boolean = true) {
+        runCatching { refunds.run() }
+        runCatching { splitEngine.run(useAi) }
+    }
 }
 
 class FinanceApp : Application() {

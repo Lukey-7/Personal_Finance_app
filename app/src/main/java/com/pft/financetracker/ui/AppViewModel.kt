@@ -141,7 +141,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Re-run split intelligence. Cheap without AI; with AI, unchanged weeks come from the cache. */
-    fun refreshSplits(useAi: Boolean = true) = viewModelScope.launch(Dispatchers.IO) { runCatching { c.splitEngine.run(useAi) } }
+    fun refreshSplits(useAi: Boolean = true) = viewModelScope.launch(Dispatchers.IO) { c.afterChange(useAi) }
 
     fun hasSmsPermission() = c.importer.hasSmsPermission()
 
@@ -152,7 +152,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val since = if (full) 0L else lastImportAt.value
             val stats = runCatching { c.importer.scanInbox(since) }.getOrElse { ImportStats(0, 0, 0, 0, 0, 0) }
             _importState.value = ImportUiState.Done(stats)
-            withContext(Dispatchers.IO) { runCatching { c.splitEngine.run() } }
+            withContext(Dispatchers.IO) { c.afterChange() }
         }
     }
 
@@ -319,6 +319,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Undo or "not a split"; then re-check at once, so a transfer this split shared with another one is re-read. */
     fun rejectSplit(id: Long) = viewModelScope.launch { c.splitEngine.reject(id); refreshSplits(useAi = false) }
     fun setRemindersEnabled(v: Boolean) { c.settings.setRemindersEnabled(v) }
+    /** Applied refund/reversal pairs, for badges and the "hide reversed payments" filter. */
+    val refundBadges: StateFlow<com.pft.financetracker.domain.refunds.RefundBadges> = c.db.refundDao().observeApplied()
+        .map { links ->
+            com.pft.financetracker.domain.refunds.RefundBadges.of(links.map {
+                com.pft.financetracker.domain.refunds.RefundPair(it.id, it.refundTxId, it.debitTxId,
+                    com.pft.financetracker.domain.refunds.RefundMatch.Kind.valueOf(it.kind), it.amountPaise)
+            })
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.refunds.RefundBadges.EMPTY)
+    fun undoRefund(linkId: Long) = viewModelScope.launch(Dispatchers.IO) { c.refunds.undo(linkId) }
+
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
     /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */
@@ -371,12 +382,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val batch = withContext(Dispatchers.IO) { c.statementImporter.commit(s.preview) }
             _statementState.value = StatementUiState.Saved(batch)
-            withContext(Dispatchers.IO) { runCatching { c.splitEngine.run() } }
+            withContext(Dispatchers.IO) { c.afterChange() }
         }
     }
 
     fun undoImport(batchId: Long) = viewModelScope.launch {
-        withContext(Dispatchers.IO) { c.statementImporter.undo(batchId); runCatching { c.splitEngine.run(useAi = false) } }
+        withContext(Dispatchers.IO) { c.statementImporter.undo(batchId); c.afterChange(useAi = false) }
     }
 
     fun resetStatementImport() { _statementState.value = StatementUiState.Idle }
@@ -392,11 +403,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun exportSplitsCsv(): String = CsvExporter.splitsToCsv(splits.value)
 
     fun clearAllData(onDone: () -> Unit = {}) = viewModelScope.launch {
-        c.transactions.clearAll()
-        c.budgets.clearAll()
-        c.smsLog.clearAll()
-        c.splits.clearAll()
-        c.db.importDao().clear()
+        // Every table, including ones added in later versions, so nothing is left behind.
+        withContext(Dispatchers.IO) { c.db.clearAllTables() }
         c.settings.clearAll()
         _aiState.value = AiUiState.Idle
         _importState.value = ImportUiState.Idle

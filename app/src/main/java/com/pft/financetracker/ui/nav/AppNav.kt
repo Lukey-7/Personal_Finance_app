@@ -236,7 +236,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             ) { entry ->
                 val id = entry.arguments?.getLong("id")?.takeIf { it >= 0 }
                 val reviewId = entry.arguments?.getLong("reviewId")?.takeIf { it >= 0 }
-                EditTransactionScreen(vm, id, reviewId, onOpenSplit = { nav.navigate(Routes.splitDetail(it)) }) { nav.popBackStack() }
+                EditTransactionScreen(vm, id, reviewId, onOpenSplit = { nav.navigate(Routes.splitDetail(it)) }, onOpenTransaction = { nav.navigate(Routes.edit(it)) }) { nav.popBackStack() }
             }
         }
         }
