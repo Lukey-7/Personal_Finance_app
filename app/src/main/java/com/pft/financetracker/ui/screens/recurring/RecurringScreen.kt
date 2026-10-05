@@ -76,7 +76,7 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
             contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item {
+            if (book.shown.isNotEmpty()) item {
                 FinCard {
                     CapsLabel("Repeating charges")
                     Row(verticalAlignment = Alignment.Bottom) {
