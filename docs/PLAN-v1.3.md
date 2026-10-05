@@ -107,9 +107,9 @@ The order follows dependencies: shared plumbing first, then features that create
 - [x] T9.4 Net-worth screen: total, breakdown, monthly snapshot history (stored once a month)
 
 ### M10. Encrypted backup and restore (feature 9)
-- [ ] T10.1 `BackupCodec`: every table (v1.3 schema) ↔ JSON, AES-GCM + PBKDF2 (D4); tests: round-trip equality, wrong passphrase fails cleanly, tampered file fails, a backup from schema 6 restores into a fresh DB
-- [ ] T10.2 Settings → Backup now / Restore (typed confirmation "RESTORE"), plus an optional monthly reminder to back up
-- [ ] T10.3 README security table updated
+- [x] T10.1 `BackupCodec`: every table (v1.3 schema) ↔ JSON, AES-GCM + PBKDF2 (D4); tests: round-trip equality, wrong passphrase fails cleanly, tampered file fails, a backup from schema 6 restores into a fresh DB
+- [x] T10.2 Settings → Backup now / Restore (typed confirmation "RESTORE"), plus an optional monthly reminder to back up
+- [~] T10.3 README security table updated (in M12 docs pass)
 
 ### M11. On-device AI and Ask FinTrack (feature 7)
 - [ ] T11.1 `AiProvider` interface over the existing OpenAI client + new `GeminiNanoProvider`; availability check; the provider picker in Settings
