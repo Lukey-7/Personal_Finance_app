@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Brush
 import com.pft.financetracker.ui.components.LocalBottomBarPadding
+import com.pft.financetracker.ui.components.cappedScale
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -129,6 +130,10 @@ fun AppNav(vm: AppViewModel = viewModel()) {
             // Content scrolls underneath it, so the strip behind the pill fades into the page colour
             // rather than showing rows sliding under the system navigation buttons.
             val page = MaterialTheme.colorScheme.background
+            // Labels stop growing at 1.3x the design size (decision D4); the pill grows by the extra line height so the
+            // icons are never clipped. Below that cap the bar is the usual 64dp.
+            val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+            val barHeight = 64.dp + (MaterialTheme.typography.labelSmall.lineHeight.value * (minOf(fontScale, 1.3f) - 1f)).coerceAtLeast(0f).dp
             if (showBar) Box(
                 Modifier
                     .fillMaxWidth()
@@ -140,7 +145,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                     modifier = Modifier
                         .clip(CircleShape)
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                        .height(64.dp),
+                        .height(barHeight),
                     containerColor = MaterialTheme.colorScheme.surface,
                     tonalElevation = 0.dp,
                     windowInsets = WindowInsets(0, 0, 0, 0),
@@ -162,7 +167,7 @@ fun AppNav(vm: AppViewModel = viewModel()) {
                                     BadgedBox(badge = { Badge { Text(reviewCount.toString()) } }) { Icon(glyph, tab.label) }
                                 } else Icon(glyph, tab.label)
                             },
-                            label = { Text(tab.label, style = MaterialTheme.typography.labelSmall) },
+                            label = { Text(tab.label, style = MaterialTheme.typography.labelSmall.cappedScale(), maxLines = 1, softWrap = false) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = MaterialTheme.colorScheme.primary,
                                 selectedTextColor = MaterialTheme.colorScheme.primary,
