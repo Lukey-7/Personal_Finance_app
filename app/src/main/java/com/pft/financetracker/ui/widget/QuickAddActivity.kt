@@ -66,6 +66,7 @@ class QuickAddActivity : ComponentActivity() {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun Sheet(startCash: Boolean, cashCounted: Boolean, onSave: (Transaction) -> Unit, onCancel: () -> Unit) {
     var amount by remember { mutableStateOf("") }
@@ -80,7 +81,10 @@ private fun Sheet(startCash: Boolean, cashCounted: Boolean, onSave: (Transaction
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(amount, { amount = it }, label = { Text("Amount (₹)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                ChipRow(inset = 0.dp) { Category.spendCategories.filter { it != Category.TRANSFER && it != Category.INVESTMENT }.forEach { c -> PillChip(category == c, c.label) { category = c } } }
+                // Wrapping pills: a scrolling row was cut off at the dialog's edge.
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Category.spendCategories.filter { it != Category.TRANSFER && it != Category.INVESTMENT }.forEach { c -> PillChip(category == c, c.label) { category = c } }
+                }
                 OutlinedTextField(note, { note = it }, label = { Text("What for (optional)") }, singleLine = true)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Paid in cash", Modifier.weight(1f)); Switch(cash, { cash = it })
