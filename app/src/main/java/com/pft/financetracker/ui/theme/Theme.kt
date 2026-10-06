@@ -8,6 +8,10 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -34,7 +38,7 @@ private val SoftPanel = Color(0xFFF4F5F6)   // tonal grouping, no border
 private val Hairline = Color(0xFFE7E6E6)    // the only separator
 private val Ink = Color(0xFF000000)
 private val InkBody = Color(0xFF101112)
-private val Muted = Color(0xFF70757D)
+private val Muted = Color(0xFF6A6F77)       // 4.6:1 on SoftPanel (#70757D was 4.25)
 private val MutedSoft = Color(0xFFA8ABB0)
 private val Accent = Color(0xFF0000FF)      // Buro blue: buttons, links, selected state
 private val AccentSoft = Color(0xFFF0EFFB)  // selected chip / avatar tint
@@ -107,10 +111,29 @@ private val Dark = darkColorScheme(
     onErrorContainer = Color(0xFFFFB4AB),
 )
 
-/** Money direction. Sampled from the reference; the same two colours everywhere, nowhere else. */
-val Income = Color(0xFF00A62D)
-val Expense = Color(0xFFB50000)
-val Neutral = Color(0xFF70757D)
+/**
+ * Money direction: money in, money out, and money that only moved. The same three colours everywhere, nowhere else,
+ * with a dark-mode set of their own. Every value is at least 4.5:1 on its theme's page, card and panel.
+ */
+@Immutable
+data class MoneyColors(val income: Color, val expense: Color, val neutral: Color)
+
+private val LightMoney = MoneyColors(income = Color(0xFF007F22), expense = Color(0xFFB50000), neutral = Color(0xFF6A6F77))
+private val DarkMoney = MoneyColors(income = Color(0xFF4CD07D), expense = Color(0xFFFF7B72), neutral = Color(0xFF9AA0A8))
+
+val LocalMoneyColors = staticCompositionLocalOf { LightMoney }
+
+val Income: Color @Composable @ReadOnlyComposable get() = LocalMoneyColors.current.income
+val Expense: Color @Composable @ReadOnlyComposable get() = LocalMoneyColors.current.expense
+val Neutral: Color @Composable @ReadOnlyComposable get() = LocalMoneyColors.current.neutral
+
+/** Colour for a signed balance: green above zero, red below, plain ink at zero (₹0 is neither good nor bad). */
+@Composable @ReadOnlyComposable
+fun moneyTone(paise: Long): Color = when {
+    paise > 0 -> Income
+    paise < 0 -> Expense
+    else -> MaterialTheme.colorScheme.onSurface
+}
 
 /** Category accents for charts and avatars: muted, distinguishable, legible on both themes. */
 val CategoryColors: List<Color> = listOf(
@@ -171,5 +194,7 @@ val LabelCaps = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 14.
 
 @Composable
 fun FinTrackTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (darkTheme) Dark else Light, shapes = AppShapes, typography = AppTypography, content = content)
+    CompositionLocalProvider(LocalMoneyColors provides if (darkTheme) DarkMoney else LightMoney) {
+        MaterialTheme(colorScheme = if (darkTheme) Dark else Light, shapes = AppShapes, typography = AppTypography, content = content)
+    }
 }
