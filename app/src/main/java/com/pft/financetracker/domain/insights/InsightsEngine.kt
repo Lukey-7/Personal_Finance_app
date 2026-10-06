@@ -6,6 +6,7 @@ import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.recurring.Period as RecurringPeriod
 import com.pft.financetracker.domain.recurring.RecurringDetector
 import com.pft.financetracker.domain.model.Money
+import com.pft.financetracker.domain.model.Rupees
 import com.pft.financetracker.domain.model.Transaction
 import java.util.Calendar
 import java.util.Locale
@@ -45,6 +46,20 @@ object Periods {
         c.timeInMillis = endInclusive; zero(c); c.add(Calendar.DAY_OF_MONTH, 1)
         val label = String.format(Locale.ENGLISH, "%1\$td %1\$tb – %2\$td %2\$tb", Calendar.getInstance().apply { timeInMillis = s }, Calendar.getInstance().apply { timeInMillis = endInclusive })
         return Period(s, c.timeInMillis, label)
+    }
+
+    /**
+     * The stretch of [previous] that matches how far [current] has run at [now]: six days into October compares with
+     * 1–6 Sep, not all of September. A finished [current] compares with the whole of [previous].
+     */
+    fun sameSpanBefore(current: Period, previous: Period, now: Long): Period {
+        if (now !in current) return previous
+        val end = minOf(previous.end, previous.start + (now - current.start))
+        val from = Calendar.getInstance().apply { timeInMillis = previous.start }
+        val to = Calendar.getInstance().apply { timeInMillis = end - 1 }
+        val label = if (from.get(Calendar.MONTH) == to.get(Calendar.MONTH)) String.format(Locale.ENGLISH, "%1\$te–%2\$te %2\$tb", from, to)
+        else String.format(Locale.ENGLISH, "%1\$te %1\$tb – %2\$te %2\$tb", from, to)
+        return Period(previous.start, end, label)
     }
 
     private fun zero(c: Calendar) {
@@ -294,10 +309,10 @@ object InsightsEngine {
         return d == Calendar.SATURDAY || d == Calendar.SUNDAY
     }
 
-    /** Compact rupee formatting from paise: 1,234 or 1.2L. */
-    fun fmt(paise: Long): String {
-        val r = Math.round(paise / 100.0)
-        return if (r >= 100000) String.format(Locale.ENGLISH, "%.1fL", r / 100000.0)
-        else String.format(Locale.ENGLISH, "%,d", r)
-    }
+    /** Whole-number change from [before] to [now]; null when either is nothing, since "100% less" says nothing. */
+    fun changePercent(now: Long, before: Long): Int? =
+        if (now <= 0 || before <= 0) null else Math.round((now - before) * 100.0 / before).toInt()
+
+    /** A rupee figure without the ₹ (callers write "₹${fmt(p)}"): 1,05,000 or 1,234.50, as [Rupees.format]. */
+    fun fmt(paise: Long): String = (if (paise < 0) "-" else "") + Rupees.format(kotlin.math.abs(paise)).removePrefix("₹")
 }
