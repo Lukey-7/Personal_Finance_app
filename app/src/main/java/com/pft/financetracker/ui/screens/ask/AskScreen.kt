@@ -37,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.outlined.QuestionAnswer
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -88,7 +89,7 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).imePadding()) {
-            LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(Modifier.weight(1f), state = list, contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.sm), verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 item {
                     Text("Answers come from your transactions on this phone. Nothing is sent anywhere.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -97,11 +98,11 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
                 }
                 items(turns) { t -> TurnCard(t, byId, onOpenTransaction) }
             }
-            ChipRow(Modifier.padding(vertical = 8.dp)) {
+            ChipRow(Modifier.padding(vertical = Space.sm)) {
                 PillChip(false, "This month in words") { scope.launch { turns += Turn("This month in words", AskAnswer(vm.monthInWords()), markdown = true) } }
                 AskEngine.examples.forEach { e -> PillChip(false, e) { send(e) } }
             }
-            Row(Modifier.fillMaxWidth().padding(start = Gutter, end = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = Gutter, end = Space.sm, bottom = Space.md), verticalAlignment = Alignment.CenterVertically) {
                 // The same filled pill as the search fields; the send button lights up once there is a question.
                 OutlinedTextField(
                     input, { input = it }, Modifier.weight(1f), placeholder = { Text("Ask, e.g. food last month") }, singleLine = true,
@@ -132,7 +133,7 @@ private fun TurnCard(t: Turn, byId: Map<Long, com.pft.financetracker.domain.mode
             if (t.answer.byAi) Text("Gemini Nano, on this phone. AI can get things wrong: check figures in Activity.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val rows = t.answer.transactionIds.mapNotNull { byId[it] }
             if (rows.isNotEmpty()) TextAction(if (expanded) "Hide payments" else "Show ${countLabel(rows.size, "payment")}", { expanded = !expanded }, alignStart = true)
-            if (expanded) FinCard(padding = PaddingValues(vertical = 4.dp)) {
+            if (expanded) FinCard(padding = PaddingValues(vertical = Space.xs)) {
                 Column { rows.sortedByDescending { it.timestamp }.take(30).forEach { r -> TransactionRow(r) { onOpen(r.id) } } }
             }
         }

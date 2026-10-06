@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,8 +74,8 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl),
+            verticalArrangement = Arrangement.spacedBy(Space.lg),
         ) {
             if (book.shown.isNotEmpty()) item {
                 FinCard {
@@ -88,7 +89,7 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
             }
             if (book.shown.isEmpty()) item { EmptyState(Icons.Outlined.EventRepeat, "No subscriptions found yet. A service shows up here once it has charged you twice.") }
             else item {
-                FinCard(padding = PaddingValues(vertical = 8.dp)) {
+                FinCard(padding = PaddingValues(vertical = Space.sm)) {
                     Column {
                         book.shown.forEachIndexed { i, v ->
                             if (i > 0) Hairline(startInset = 20.dp + RowIconSize + RowIconGap, endInset = 20.dp)
@@ -106,7 +107,7 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
             onDismissRequest = { selected = null },
             title = { Text(i.merchant) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text("${money(i.amountPaise)} · ${i.period.label} · ${i.transactionIds.size} charge${if (i.transactionIds.size == 1) "" else "s"} seen")
                     Text("Last charged ${shortDate(i.lastChargeAt)}" + (i.nextExpectedAt?.let { ", next around ${shortDate(it)}" } ?: ""), style = MaterialTheme.typography.bodySmall)
                     i.priceRise?.let { Text("Price went up from ${money(it.fromPaise)} to ${money(it.toPaise)}.", style = MaterialTheme.typography.bodySmall, color = Expense) }
@@ -133,7 +134,7 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
 @Composable
 private fun RecurringRow(v: RecurringView, onClick: () -> Unit) {
     val i = v.item
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = Space.md), verticalAlignment = Alignment.CenterVertically) {
         LetterAvatar(i.merchant, colorFor(Category.entries.indexOf(i.category)), size = RowIconSize)
         Spacer(Modifier.width(RowIconGap))
         Column(Modifier.weight(1f)) {

@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import com.pft.financetracker.ui.components.SecondaryButton
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -77,7 +78,7 @@ fun CardsScreen(vm: AppViewModel, onBack: () -> Unit) {
         },
         floatingActionButton = { AddFab({ editing = Card(last4 = "", name = "", statementDay = 1, dueDay = 20) }, label = "Add card") },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             item {
                 Text("Spend is counted per billing cycle, from card SMS with the card's last four digits. Refunds to the card are taken off.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

@@ -94,7 +94,7 @@ fun BillsScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () 
         },
         floatingActionButton = { AddFab({ editing = Bill(name = "", amountPaise = null, dueDay = LocalDate.now().dayOfMonth, keyword = null) }, label = "Add bill") },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             item {
                 Text("Paid automatically when a matching payment shows up near the due date. Card bills appear by themselves from statement SMS.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -104,7 +104,7 @@ fun BillsScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () 
                 }
             }
             else item {
-                FinCard(padding = PaddingValues(vertical = 8.dp)) {
+                FinCard(padding = PaddingValues(vertical = Space.sm)) {
                     Column {
                         sorted.forEachIndexed { i, (b, s) ->
                             if (i > 0) Hairline(startInset = 20.dp + RowIconSize + RowIconGap, endInset = 20.dp)
@@ -122,7 +122,7 @@ fun BillsScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () 
             onDismissRequest = { selected = null },
             title = { Text(b.name) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text(statusText(b, s))
                     BillTracker.loanProgress(b, LocalDate.now())?.let { p ->
                         Text("EMI ${p.paidInstalments} of ${p.totalInstalments} · ${money(p.outstandingPaise)} still owed", style = MaterialTheme.typography.bodySmall)
@@ -156,7 +156,7 @@ private fun statusText(b: Bill, s: BillState): String {
 
 @Composable
 private fun BillRow(b: Bill, s: BillState, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = Space.md), verticalAlignment = Alignment.CenterVertically) {
         LetterAvatar(b.name, colorFor(Category.entries.indexOf(b.category)), size = RowIconSize)
         Spacer(Modifier.width(RowIconGap))
         Column(Modifier.weight(1f)) {

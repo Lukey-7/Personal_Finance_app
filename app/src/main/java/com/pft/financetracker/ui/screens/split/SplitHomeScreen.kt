@@ -24,7 +24,6 @@ import com.pft.financetracker.ui.components.FabClearance
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.IconCircle
 import com.pft.financetracker.ui.components.LocalBottomBarPadding
-import com.pft.financetracker.ui.components.PrimaryPill
 import com.pft.financetracker.ui.components.bottomPadding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -77,7 +76,7 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
         // With no splits yet the empty state carries the button, so a floating one would only repeat it.
         floatingActionButton = { if (splits.isNotEmpty()) AddFabExtended("New split", onNew, Modifier.padding(bottom = barPad)) }
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = bottomPadding(FabClearance)), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = bottomPadding(FabClearance)), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             // Until the database answers, the balances would read ₹0: show a spinner instead.
             if (!loaded) {
                 item { LoadingState() }
@@ -102,7 +101,7 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
                 item { Text("Balances", style = MaterialTheme.typography.titleMedium) }
                 item {
                     FinCard {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                             balances.forEach { b ->
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     // Both sides share the width, so at a large font neither squeezes the other to a sliver.
@@ -126,10 +125,10 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
                 ) { PrimaryButton("New split", onNew, fill = false) }
             } else item { Text("Splits", style = MaterialTheme.typography.titleMedium) }
             items(splits, key = { it.id }) { s ->
-                FinCard(onClick = { onOpen(s.id) }, padding = PaddingValues(horizontal = 20.dp, vertical = 16.dp)) {
+                FinCard(onClick = { onOpen(s.id) }, padding = PaddingValues(horizontal = 20.dp, vertical = Space.lg)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconCircle(Icons.AutoMirrored.Outlined.ReceiptLong, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(16.dp))
+                        Spacer(Modifier.width(Space.lg))
                         Column(Modifier.weight(1f)) {
                             Text(s.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                             Text(

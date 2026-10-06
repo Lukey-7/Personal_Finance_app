@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.tax
 
+import com.pft.financetracker.ui.components.Space
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -94,7 +95,7 @@ fun TaxScreen(vm: AppViewModel, onBack: () -> Unit) {
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             item {
                 ChipRow(inset = 0.dp) {
                     PillChip(fy == thisFy, thisFy.label) { vm.setTaxYear(thisFy) }

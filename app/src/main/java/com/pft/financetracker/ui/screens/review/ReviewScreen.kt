@@ -62,13 +62,13 @@ fun ReviewScreen(vm: AppViewModel, onEnter: (Long) -> Unit, onBack: () -> Unit) 
             EmptyState(Icons.Outlined.TaskAlt, "Nothing to review. Messages the parser is unsure about will appear here.", Modifier.padding(padding))
             return@Scaffold
         }
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             items(queue, key = { it.id }) { r ->
                 FinCard {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             IconCircle(Icons.Outlined.Sms, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(Space.md))
                             Column(Modifier.weight(1f)) {
                                 Text(r.sender, style = MaterialTheme.typography.labelLarge)
                                 Text(fullDate(r.receivedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.transactions
 
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -98,8 +99,8 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
         floatingActionButton = { AddFab(onAdd, Modifier.padding(bottom = barPad)) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            SearchField(query, { query = it }, "Search merchant, bank, amount", Modifier.padding(horizontal = Gutter, vertical = 8.dp))
-            ChipRow(Modifier.padding(bottom = 8.dp)) {
+            SearchField(query, { query = it }, "Search merchant, bank, amount", Modifier.padding(horizontal = Gutter, vertical = Space.sm))
+            ChipRow(Modifier.padding(bottom = Space.sm)) {
                 PillChip(filter == null, "All") { filter = null }
                 Category.entries.forEach { c ->
                     PillChip(filter == c, c.label, icon = categoryIcon(c)) { filter = if (filter == c) null else c }
@@ -125,7 +126,7 @@ fun TransactionsScreen(vm: AppViewModel, onAdd: () -> Unit, onEdit: (Long) -> Un
             LazyColumn(contentPadding = PaddingValues(bottom = bottomPadding(FabClearance))) {
                 grouped.forEach { (day, list) ->
                     item(key = "h_$day") {
-                        Text(day, Modifier.padding(start = Gutter, end = Gutter, top = 16.dp, bottom = 8.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(day, Modifier.padding(start = Gutter, end = Gutter, top = Space.lg, bottom = Space.sm), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Hairline(startInset = Gutter, endInset = Gutter)
                     }
                     itemsIndexed(list, key = { _, t -> t.id }) { i, t ->

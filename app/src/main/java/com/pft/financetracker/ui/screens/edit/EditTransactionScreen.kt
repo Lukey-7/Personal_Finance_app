@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import com.pft.financetracker.ui.components.ChipRow
 import com.pft.financetracker.ui.components.Gutter
-import com.pft.financetracker.ui.components.PrimaryPill
 import com.pft.financetracker.ui.components.categoryIcon
 import com.pft.financetracker.ui.components.edgeToEdge
 import androidx.compose.material3.AlertDialog
@@ -51,6 +50,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.material.icons.outlined.AccountBalance
 import com.pft.financetracker.ui.components.ActionRow
 import com.pft.financetracker.ui.components.PickerField
@@ -158,8 +158,8 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
         if (!loaded) return@Scaffold
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
-                .padding(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl),
+            verticalArrangement = Arrangement.spacedBy(Space.lg),
         ) {
             val autoSplit = id?.let { vm.autoSplitOf.collectAsState().value[it] }
             existing?.takeIf { it.originalAmountPaise != null || autoSplit != null }?.let { t ->

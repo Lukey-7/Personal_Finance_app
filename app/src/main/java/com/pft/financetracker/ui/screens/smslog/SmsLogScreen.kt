@@ -116,10 +116,10 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
         Column(Modifier.fillMaxSize().padding(padding)) {
             Text(
                 "Every bank/UPI SMS scanned, and what the app did with it. Message text is not stored; tap a row to read it from your inbox.",
-                Modifier.padding(horizontal = Gutter, vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                Modifier.padding(horizontal = Gutter, vertical = Space.sm), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            SearchField(query, { query = it }, "Search sender, reason, amount", Modifier.padding(horizontal = Gutter, vertical = 8.dp))
-            ChipRow(Modifier.padding(bottom = 8.dp)) {
+            SearchField(query, { query = it }, "Search sender, reason, amount", Modifier.padding(horizontal = Gutter, vertical = Space.sm))
+            ChipRow(Modifier.padding(bottom = Space.sm)) {
                 if (runId != null) PillChip(onlyThisRun, "This scan only") { onlyThisRun = !onlyThisRun }
                 PillChip(outcome == null, "All (${all.size})") { outcome = null }
                 listOf(Outcomes.SAVED to "Saved", Outcomes.REVIEW to "To review", Outcomes.DUPLICATE to "Duplicate", Outcomes.IGNORED to "Skipped").forEach { (k, label) ->
@@ -153,11 +153,11 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
             onDismissRequest = { selected = null },
             title = { Text(e.sender) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text(fullDate(e.receivedAt), style = MaterialTheme.typography.labelMedium)
                     Text("${outcomeLabel(e.outcome)} · ${reasonLabel(e.reason)}", style = MaterialTheme.typography.bodyMedium, color = outcomeColor(e.outcome), fontWeight = FontWeight.SemiBold)
                     e.amountPaise?.let { Text("Amount read: ${money(it)}" + when (e.type) { "DEBIT" -> ", going out"; "CREDIT" -> ", coming in"; else -> "" }) }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(Space.xs))
                     Text("Message", style = MaterialTheme.typography.labelLarge)
                     Text(
                         when { !loaded -> "Reading from inbox…"; body == null -> "Not found in the inbox (deleted, or SMS permission revoked)."; else -> body!! },

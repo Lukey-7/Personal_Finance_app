@@ -176,8 +176,8 @@ fun DashboardScreen(
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
             // Clears the nav pill and the + button, so the last card can be scrolled fully into view.
-            contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding(FabClearance)),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(top = Space.sm, bottom = bottomPadding(FabClearance)),
+            verticalArrangement = Arrangement.spacedBy(Space.lg),
         ) {
             item {
                 ChipRow {
@@ -289,7 +289,7 @@ fun DashboardScreen(
                 SoftPanel(Modifier.padding(horizontal = Gutter), onClick = onOpenReview) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(20.dp), tint = Expense)
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(Space.md))
                         Text(reviewLine(reviewCount), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                         Text("Review", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                     }
@@ -312,22 +312,22 @@ fun DashboardScreen(
             }
 
             if (summary.byMerchant.isNotEmpty()) item {
-                FinCard(Modifier.padding(horizontal = Gutter), padding = PaddingValues(top = CardPadding, bottom = 8.dp)) {
+                FinCard(Modifier.padding(horizontal = Gutter), padding = PaddingValues(top = CardPadding, bottom = Space.sm)) {
                     Text("Top merchants", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = CardPadding))
                     Column {
                         summary.byMerchant.take(5).forEachIndexed { i, m ->
                             if (i > 0) Hairline(startInset = CardPadding + 56.dp, endInset = CardPadding)
                             Row(
-                                Modifier.fillMaxWidth().clickable { onDrill(Bucket.SPEND, m.category) }.padding(horizontal = CardPadding, vertical = 12.dp),
+                                Modifier.fillMaxWidth().clickable { onDrill(Bucket.SPEND, m.category) }.padding(horizontal = CardPadding, vertical = Space.md),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 IconCircle(categoryIcon(m.category), tint = colorFor(Category.entries.indexOf(m.category)))
-                                Spacer(Modifier.width(16.dp))
+                                Spacer(Modifier.width(Space.lg))
                                 Column(Modifier.weight(1f)) {
                                     Text(displayMerchant(m.merchant), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text("${countLabel(m.count, "payment")} · ${m.category.label}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
-                                Spacer(Modifier.width(12.dp))
+                                Spacer(Modifier.width(Space.md))
                                 Text(money(m.amountPaise), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
                             }
                         }

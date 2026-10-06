@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import com.pft.financetracker.ui.components.DateField
 import com.pft.financetracker.ui.components.SecondaryButton
 import com.pft.financetracker.ui.components.TextAction
@@ -78,7 +79,7 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
         },
         floatingActionButton = { AddFab({ editing = Goal(name = "", targetPaise = 0, targetDate = LocalDate.now().plusMonths(12)) }, label = "Add goal") },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             if (goals.isEmpty()) item {
                 EmptyState(Icons.Outlined.Flag, "No goals yet. Save toward a trip, a phone or an emergency fund.") {
                     SecondaryButton("Add a goal", { editing = Goal(name = "", targetPaise = 0, targetDate = LocalDate.now().plusMonths(12)) })
@@ -117,7 +118,7 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
             onDismissRequest = { adding = null },
             title = { Text("Add to ${p.goal.name}") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     if (lastMonthSavings > 0) Text("Last month you saved ${money(lastMonthSavings)}.", style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(amount, { amount = it }, label = { Text("Amount (₹), minus to take out") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text))
                 }
@@ -141,7 +142,7 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
             onDismissRequest = { editing = null },
             title = { Text(if (g.id == 0L) "New goal" else "Edit goal") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     OutlinedTextField(name, { name = it }, label = { Text("Goal name") }, placeholder = { Text("e.g. Goa trip") }, singleLine = true)
                     OutlinedTextField(target, { target = it }, label = { Text("Target (₹)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     DateField("Target date (optional)", d, { date = it.toString() }, onClear = { date = "" })

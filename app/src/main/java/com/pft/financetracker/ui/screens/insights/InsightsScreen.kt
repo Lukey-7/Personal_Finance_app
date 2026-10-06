@@ -85,7 +85,7 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () 
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(top = Space.sm, bottom = bottomPadding()), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             item {
                 ChipRow {
                     PillChip(!weekly, "Monthly") { weekly = false }
@@ -97,7 +97,7 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () 
                     Column {
                         Text("Net spending trend", style = MaterialTheme.typography.titleMedium)
                         Text("Expenses minus refunds. Transfers and investments excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(Space.md))
                         BarChart(series)
                         // The current period is still running, so it is compared with the same days of the one before.
                         val now = System.currentTimeMillis()
@@ -115,11 +115,11 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () 
                     }
                 }
             }
-            item { SectionHeader("Category changes", Modifier.padding(top = 16.dp)) }
+            item { SectionHeader("Category changes", Modifier.padding(top = Space.lg)) }
             if (trends.isEmpty()) item { Hint("Not enough data for comparisons yet.") }
             items(trends.size) { i -> InsightCard(trends[i]) }
 
-            item { SectionHeader("Reduce spending", Modifier.padding(top = 16.dp)) }
+            item { SectionHeader("Reduce spending", Modifier.padding(top = Space.lg)) }
             if (suggestions.isEmpty()) item { Hint("Suggestions appear once there are a few weeks of transactions.") }
             items(suggestions.size) { i -> InsightCard(suggestions[i]) }
         }
@@ -147,7 +147,7 @@ fun InsightCard(i: Insight) {
         Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
             Icon(icon, null, Modifier.size(22.dp), tint = tint)
             Spacer(Modifier.width(14.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Text(i.title, style = MaterialTheme.typography.titleMedium)
                 Text(i.body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

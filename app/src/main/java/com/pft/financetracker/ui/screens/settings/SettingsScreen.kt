@@ -186,8 +186,8 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
-                .padding(start = Gutter, top = 8.dp, end = Gutter, bottom = bottomPadding()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(start = Gutter, top = Space.sm, end = Gutter, bottom = bottomPadding()),
+            verticalArrangement = Arrangement.spacedBy(Space.lg),
         ) {
 
             Section("SMS import", Icons.Outlined.Sms) {
@@ -280,7 +280,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         Text("Count ATM cash as spend")
                         Text("Off: cash withdrawals are shown separately and left out of spend totals.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.md))
                     Switch(checked = cashAsSpend, onCheckedChange = null)
                 }
                 Text("Spend = expenses minus refunds. Transfers between your accounts, credit-card bill payments, investments and split settlements are never counted. Tap any number on the Home tab to see the transactions behind it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -312,7 +312,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         Text("Remind me before bills and renewals")
                         Text("A notification a few days before a bill, EMI or subscription is due. Worked out on this phone; amounts are hidden on the lock screen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.md))
                     Switch(checked = remindersOn, onCheckedChange = null)
                 }
             }
@@ -342,7 +342,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         Text("Hide amounts on the widget")
                         Text("Shows ₹•••• instead of figures, since anyone can see your home screen. Long-press the app icon or use the widget to note a purchase quickly.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.md))
                     Switch(checked = widgetHide, onCheckedChange = null)
                 }
                 // Launchers that support it show their own "Add to home screen" sheet; others need a long-press on the home screen.
@@ -374,7 +374,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.md))
                     Switch(checked = splitAi && hasKey, onCheckedChange = null, enabled = hasKey)
                 }
                 ActionRow("Check again now", Icons.Outlined.Sync, { vm.refreshSplits() })
@@ -409,7 +409,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                 if (hasKey) {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(Space.sm))
                         Text(
                             if (keyBuiltIn) "Using the key built into this app, encrypted with Android Keystore"
                             else "Using your own key, encrypted with Android Keystore",
@@ -432,7 +432,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), modifier = Modifier.padding(top = Space.sm)) {
                                 PrimaryButton("Save new key", { vm.setApiKey(keyInput); keyInput = ""; changingKey = false; vm.clearAi() }, enabled = keyInput.trim().length > 20, fill = false)
                                 TextAction("Cancel", { keyInput = ""; changingKey = false })
                             }

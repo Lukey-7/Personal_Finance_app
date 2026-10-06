@@ -290,16 +290,6 @@ fun TextAction(
     ) { Text(text, style = MaterialTheme.typography.labelLarge) }
 }
 
-/** Kept for screens not yet moved to [PrimaryButton]. */
-@Composable
-fun PrimaryPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
-    PrimaryButton(text, onClick, modifier, enabled)
-
-/** Kept for screens not yet moved to [SecondaryButton]. */
-@Composable
-fun SecondaryPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
-    SecondaryButton(text, onClick, modifier, enabled)
-
 /** Circular tinted avatar holding a single letter, as used in the reference's asset rows. */
 @Composable
 fun LetterAvatar(letter: String, tint: Color, size: androidx.compose.ui.unit.Dp = 44.dp) {

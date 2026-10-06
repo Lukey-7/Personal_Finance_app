@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.split
 
+import com.pft.financetracker.ui.components.Space
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -38,7 +39,6 @@ import com.pft.financetracker.ui.components.ChipRow
 import com.pft.financetracker.ui.components.CardPadding
 import com.pft.financetracker.ui.components.edgeToEdge
 import com.pft.financetracker.ui.components.Gutter
-import com.pft.financetracker.ui.components.SecondaryPill
 import com.pft.financetracker.ui.components.categoryIcon
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -106,7 +106,7 @@ import com.pft.financetracker.ui.components.paiseToInput
 import java.io.File
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.PillChip
-import com.pft.financetracker.ui.components.PrimaryPill
+import com.pft.financetracker.ui.components.PrimaryButton
 
 /** Editable item row state. Strings so the user can type freely; parsed on use. */
 private class ItemState(name: String, qty: Int, price: Long, assigned: Set<Int>) {
@@ -228,18 +228,18 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
-                .padding(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl),
+            verticalArrangement = Arrangement.spacedBy(Space.lg),
         ) {
 
             // ---- 1. Source ----
             Section("1 · The bill") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                     SecondaryButton("Photo", { launchCamera() }, Modifier.weight(1f), icon = Icons.Outlined.PhotoCamera)
                     SecondaryButton("Gallery", { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, Modifier.weight(1f), icon = Icons.Outlined.Image)
                 }
                 when (val s = ocr) {
-                    OcrUiState.Running -> Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.height(18.dp).width(18.dp)); Spacer(Modifier.width(8.dp)); Text("Reading the bill on-device…", style = MaterialTheme.typography.bodySmall) }
+                    OcrUiState.Running -> Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.height(18.dp).width(18.dp)); Spacer(Modifier.width(Space.sm)); Text("Reading the bill on-device…", style = MaterialTheme.typography.bodySmall) }
                     is OcrUiState.Error -> Text(s.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     is OcrUiState.Done -> Text("Read ${s.bill.items.size} items" + (s.bill.totalPaise?.let { ", total ${money(it)}" } ?: ", no total found") + ". Check and correct below.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     OcrUiState.Idle -> Text("Or just type the total. Photos are processed on this phone and not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -251,10 +251,10 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                     val total: @Composable (Modifier) -> Unit = { m ->
                         OutlinedTextField(totalInput, { totalInput = it }, label = { Text("Total") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
                     }
-                    if (maxWidth >= 290.dp) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (maxWidth >= 290.dp) Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                         total(Modifier.weight(1f))
                         DateField(date, Modifier.weight(1.4f)) { showDate = true }
-                    } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    } else Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                         total(Modifier.fillMaxWidth())
                         DateField(date, Modifier.fillMaxWidth()) { showDate = true }
                     }
@@ -268,14 +268,14 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
             // ---- 2. Items (optional) ----
             Section("2 · Items", subtitle = "Optional · needed to split by item") {
                 items.forEachIndexed { idx, it ->
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlinedTextField(it.name, { v -> it.name = v }, label = { Text("Item") }, singleLine = true, modifier = Modifier.weight(2f))
                             OutlinedTextField(it.qty, { v -> it.qty = v.filter { ch -> ch.isDigit() } }, label = { Text("Qty") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(0.7f))
                             OutlinedTextField(it.price, { v -> it.price = v }, label = { Text("₹ each") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1.1f))
                             IconButton(onClick = { items.removeAt(idx) }) { Icon(Icons.Outlined.Close, "Remove item") }
                         }
-                        if (mode == SplitMode.BY_ITEM) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (mode == SplitMode.BY_ITEM) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.xs), verticalAlignment = Alignment.CenterVertically) {
                             people.forEachIndexed { pi, name ->
                                 PillChip(pi in it.assigned, name) { if (pi in it.assigned) it.assigned.remove(pi) else it.assigned.add(pi) }
                             }
@@ -283,7 +283,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                         }
                     }
                 }
-                SecondaryPill("+  Add item", onClick = { items += ItemState("", 1, 0, emptySet()) })
+                SecondaryButton("Add item", { items += ItemState("", 1, 0, emptySet()) }, icon = Icons.Outlined.Add)
                 // One-word labels, ₹ as a prefix, three to a line where each gets 90dp and stacked where not,
                 // so no label is ever cut short.
                 AdaptiveRow(count = 3, minItemWidth = 90.dp) { m ->
@@ -310,7 +310,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
             // ---- 3. People ----
             Section("3 · People") {
                 // FlowRows, not fixed Rows: a fixed Row squeezed its last chip into a one-letter-wide column.
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                     people.forEachIndexed { i, name ->
                         PillChip(
                             selected = false, label = name, icon = Icons.Outlined.Person,
@@ -319,16 +319,16 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                     }
                 }
                 // Placeholder rather than a floating label, so the field and the button share a centre line.
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                     OutlinedTextField(newPerson, { newPerson = it }, placeholder = { Text("Add a name") }, singleLine = true, modifier = Modifier.weight(1f))
                     SecondaryButton("Add", { people += newPerson.trim(); newPerson = ""; syncPerPersonLists() }, enabled = newPerson.isNotBlank())
                 }
                 val suggestions = recent.filter { r -> people.none { it.equals(r, true) } }
-                if (suggestions.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (suggestions.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                     suggestions.take(10).forEach { r -> PillChip(false, r, icon = Icons.Outlined.Add) { people += r; syncPerPersonLists() } }
                 }
                 CapsLabel("Quick add")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                     listOf(2, 3, 4, 5).forEach { n ->
                         PillChip(false, "$n people") { while (people.size < n) people += "Person ${people.size + 1}"; syncPerPersonLists() }
                     }
@@ -343,7 +343,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
             Section("4 · How to split") {
                 // Pills that wrap, not a four-way segmented bar: at a small phone's width the segments were
                 // too narrow for "Shares" and "Custom amounts".
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     SplitMode.entries.forEach { m -> PillChip(mode == m, m.label) { mode = m } }
                 }
                 when (mode) {
@@ -392,7 +392,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                PrimaryPill(
+                PrimaryButton(
                     text = "Save split",
                     enabled = result != null && people.size >= 2,
                     onClick = onClick@{

@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -57,8 +58,8 @@ import com.pft.financetracker.ui.components.CardTitle
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
-import com.pft.financetracker.ui.components.PrimaryPill
-import com.pft.financetracker.ui.components.SecondaryPill
+import com.pft.financetracker.ui.components.PrimaryButton
+import com.pft.financetracker.ui.components.SecondaryButton
 import com.pft.financetracker.ui.components.SoftPanel
 import com.pft.financetracker.ui.components.dateOnly
 import com.pft.financetracker.ui.components.money
@@ -97,8 +98,8 @@ fun ImportScreen(vm: AppViewModel, onBack: () -> Unit, onOpenSplits: () -> Unit)
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(start = Gutter, top = 8.dp, end = Gutter, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xxl),
+            verticalArrangement = Arrangement.spacedBy(Space.lg),
         ) {
             when (val s = state) {
                 StatementUiState.Idle, is StatementUiState.Error -> {
@@ -117,7 +118,7 @@ fun ImportScreen(vm: AppViewModel, onBack: () -> Unit, onOpenSplits: () -> Unit)
                     if (s is StatementUiState.Error) SoftPanel {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(20.dp), tint = Expense)
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(Space.md))
                             Text(s.message, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
@@ -125,7 +126,7 @@ fun ImportScreen(vm: AppViewModel, onBack: () -> Unit, onOpenSplits: () -> Unit)
                 StatementUiState.Reading -> FinCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(Space.md))
                         Text("Reading… large statements and scans take a little while.")
                     }
                 }
@@ -141,7 +142,7 @@ fun ImportScreen(vm: AppViewModel, onBack: () -> Unit, onOpenSplits: () -> Unit)
                         visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    PrimaryPill("Open statement", { vm.importFile(s.uri, password); password = "" }, enabled = password.isNotEmpty())
+                    PrimaryButton("Open statement", { vm.importFile(s.uri, password); password = "" }, enabled = password.isNotEmpty())
                     TextButton(onClick = { vm.resetStatementImport() }) { Text("Cancel") }
                 }
                 is StatementUiState.Preview -> PreviewCard(s, onImport = { vm.confirmImport() }, onCancel = { vm.resetStatementImport() })
@@ -155,9 +156,9 @@ fun ImportScreen(vm: AppViewModel, onBack: () -> Unit, onOpenSplits: () -> Unit)
                         "Shared payments are being checked: bills your friends paid you back for will count only your share. Look in the Split tab for anything that needs your yes.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SecondaryPill("Open Split", { vm.resetStatementImport(); onOpenSplits() })
-                        SecondaryPill("Import another", { vm.resetStatementImport() })
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                        SecondaryButton("Open Split", { vm.resetStatementImport(); onOpenSplits() })
+                        SecondaryButton("Import another", { vm.resetStatementImport() })
                     }
                 }
             }
@@ -231,7 +232,7 @@ private fun PreviewCard(s: StatementUiState.Preview, onImport: () -> Unit, onCan
             }
             if (p.newRows.size > 40) Text("…and ${p.newRows.size - 40} more", style = MaterialTheme.typography.bodySmall)
         }
-        PrimaryPill(if (p.newRows.isEmpty() && st.problems.isEmpty()) "Nothing new to add" else "Import ${p.newRows.size}", onImport, enabled = p.newRows.isNotEmpty() || st.problems.isNotEmpty())
+        PrimaryButton(if (p.newRows.isEmpty() && st.problems.isEmpty()) "Nothing new to add" else "Import ${p.newRows.size}", onImport, enabled = p.newRows.isNotEmpty() || st.problems.isNotEmpty())
         TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Cancel") }
     }
 }

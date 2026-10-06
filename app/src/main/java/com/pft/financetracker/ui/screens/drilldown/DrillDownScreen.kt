@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.insights.InsightsEngine
@@ -56,7 +57,7 @@ fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: C
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = Space.xl)) {
             item {
                 FinCard(Modifier.padding(Gutter)) {
                     Column {

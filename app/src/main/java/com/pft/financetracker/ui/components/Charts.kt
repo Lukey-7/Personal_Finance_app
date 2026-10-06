@@ -59,7 +59,7 @@ fun DonutChart(slices: List<Slice>, modifier: Modifier = Modifier, centerText: S
             }
         }
         if (centerText != null) {
-            Text(centerText, style = MaterialTheme.typography.titleMedium)
+            Text(centerText, style = MaterialTheme.typography.titleMedium.cappedScale(1.2f), maxLines = 1, softWrap = false)
         }
     }
 }
