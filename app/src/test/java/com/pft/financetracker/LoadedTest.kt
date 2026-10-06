@@ -11,4 +11,11 @@ class LoadedTest {
     @Test fun theStartingMarkerIsNotLoaded() = assertFalse(isLoaded(notLoaded<Int>()))
     @Test fun anEmptyAnswerFromTheDatabaseIsLoaded() = assertTrue(isLoaded(ArrayList<Int>()))
     @Test fun aKotlinEmptyListIsLoaded() = assertTrue(isLoaded(emptyList<Int>()))
+
+    /** A StateFlow skips a value equal to the current one: an empty answer must still replace the marker. */
+    @Test fun anEmptyAnswerReplacesTheMarkerInAStateFlow() {
+        val flow = kotlinx.coroutines.flow.MutableStateFlow(notLoaded<Int>())
+        flow.value = ArrayList()
+        assertTrue(isLoaded(flow.value))
+    }
 }

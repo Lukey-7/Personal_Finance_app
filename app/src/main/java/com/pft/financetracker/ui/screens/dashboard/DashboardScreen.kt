@@ -228,11 +228,13 @@ fun DashboardScreen(
             }
 
             item {
-                SoftPanel(Modifier.padding(horizontal = Gutter)) {
+                // The rows are 48dp touch targets already; extra gaps between them made the sum read as a list.
+                SoftPanel(Modifier.padding(horizontal = Gutter), padding = PaddingValues(horizontal = CardPadding, vertical = Space.md), spacing = 0.dp) {
                     AmountRow("Income", summary.incomePaise, moneyTone(summary.incomePaise), sign = "+") { onDrill(Bucket.INCOME, null) }
                     AmountRow("Gross spend", summary.grossSpendPaise, MaterialTheme.colorScheme.onSurface, sign = "−") { onDrill(Bucket.SPEND, null) }
                     if (summary.refundsPaise > 0) AmountRow("Refunds & cashback", summary.refundsPaise, Income, sign = "+") { onDrill(Bucket.REFUNDS, null) }
                     Hairline()
+                    Spacer(Modifier.height(Space.md))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Savings", style = MaterialTheme.typography.titleMedium)
                         Text(

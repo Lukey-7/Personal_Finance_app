@@ -122,6 +122,7 @@ fun SoftPanel(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     padding: PaddingValues = PaddingValues(horizontal = CardPadding, vertical = 20.dp),
+    spacing: Dp = 12.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -131,7 +132,7 @@ fun SoftPanel(
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(padding),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(spacing),
         content = content,
     )
 }

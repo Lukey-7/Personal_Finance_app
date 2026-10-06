@@ -11,6 +11,11 @@ import java.util.RandomAccess
 private object NotLoaded : AbstractList<Any?>(), RandomAccess {
     override val size: Int get() = 0
     override fun get(index: Int): Any? = throw IndexOutOfBoundsException("not loaded yet")
+
+    // Equal only to itself. As a list it would equal any empty list, and a StateFlow skips a value equal to the
+    // current one, so an empty answer from the database would never replace the marker: an endless spinner.
+    override fun equals(other: Any?): Boolean = other === this
+    override fun hashCode(): Int = System.identityHashCode(this)
 }
 
 /** The starting value of a list that comes from the database. Reads as empty. */
