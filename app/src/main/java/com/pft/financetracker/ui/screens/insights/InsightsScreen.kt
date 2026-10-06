@@ -45,6 +45,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.CardShape
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.insights.Insight
 import com.pft.financetracker.domain.insights.InsightsEngine
@@ -97,15 +99,17 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () 
                         Text("Expenses minus refunds. Transfers and investments excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
                         BarChart(series)
-                        val cur = series.last().second
-                        val prev = series[series.lastIndex - 1].second
-                        // With nothing to compare against, the bar's own label already states the value.
-                        if (prev > 0.0) {
-                            Spacer(Modifier.height(12.dp))
+                        // The current period is still running, so it is compared with the same days of the one before.
+                        val now = System.currentTimeMillis()
+                        val cur = InsightsEngine.summarize(txns, periods.last()).netSpendPaise
+                        val span = Periods.sameSpanBefore(periods.last(), periods[periods.lastIndex - 1], now)
+                        val before = InsightsEngine.summarize(txns, span).netSpendPaise
+                        val change = InsightsEngine.changePercent(cur, before)
+                        if (change != null) {
+                            Spacer(Modifier.height(Space.md))
                             Text(
-                                if (cur > prev) "Up ${((cur - prev) / prev * 100).toInt()}% vs previous (${money(prev)})"
-                                else "Down ${((prev - cur) / prev * 100).toInt()}% vs previous (${money(prev)})",
-                                style = MaterialTheme.typography.bodyMedium
+                                (if (change >= 0) "$change% more" else "${-change}% less") + " than ${span.label} (${money(before)})",
+                                style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                     }
@@ -136,7 +140,7 @@ fun InsightCard(i: Insight) {
     }
     Card(
         Modifier.fillMaxWidth().padding(horizontal = Gutter),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+        shape = CardShape,
         colors = CardDefaults.cardColors(containerColor = container),
         elevation = CardDefaults.cardElevation(0.dp),
     ) {
