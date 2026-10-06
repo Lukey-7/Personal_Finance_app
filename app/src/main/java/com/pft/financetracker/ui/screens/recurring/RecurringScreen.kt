@@ -86,7 +86,7 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
                     Text("${money(book.yearlyPaise)} a year. Found on this phone from charges that repeat at a steady amount and rhythm.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            if (book.shown.isEmpty()) item { EmptyState(Icons.Outlined.EventRepeat, "No repeating charges yet. They show up after a service has charged you twice.") }
+            if (book.shown.isEmpty()) item { EmptyState(Icons.Outlined.EventRepeat, "No subscriptions found yet. A service shows up here once it has charged you twice.") }
             else item {
                 FinCard(padding = PaddingValues(vertical = 8.dp)) {
                     Column {

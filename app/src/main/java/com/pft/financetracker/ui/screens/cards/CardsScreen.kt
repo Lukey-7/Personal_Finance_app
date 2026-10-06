@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.SecondaryButton
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -80,7 +81,11 @@ fun CardsScreen(vm: AppViewModel, onBack: () -> Unit) {
             item {
                 Text("Spend is counted per billing cycle, from card SMS with the card's last four digits. Refunds to the card are taken off.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (summaries.isEmpty()) item { EmptyState(Icons.Outlined.CreditCard, "No cards yet. Add one with its statement and due days.") }
+            if (summaries.isEmpty()) item {
+                EmptyState(Icons.Outlined.CreditCard, "No cards yet. Add one to see its spend for each billing cycle and when to pay.") {
+                    SecondaryButton("Add a card", { editing = Card(last4 = "", name = "", statementDay = 1, dueDay = 20) })
+                }
+            }
             items(summaries, key = { it.card.id }) { s -> CardTile(s) { editing = s.card } }
         }
     }
@@ -103,7 +108,9 @@ private fun CardTile(s: CardSummary, onClick: () -> Unit) {
         }
         val total = ChronoUnit.DAYS.between(s.cycle.start, s.cycle.end).toFloat() + 1
         val gone = (total - ChronoUnit.DAYS.between(java.time.LocalDate.now(), s.cycle.end).toFloat()).coerceIn(0f, total)
+        // How far through the billing cycle, not how much is spent: say so, or the bar reads as spend.
         LinearProgressIndicator(progress = { gone / total }, modifier = Modifier.fillMaxWidth().height(6.dp), gapSize = 0.dp, drawStopIndicator = {})
+        Text("Day ${gone.toInt().coerceAtLeast(1)} of ${total.toInt()} in this cycle", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text("${s.cycle.start.format(dayFmt)} – ${s.cycle.end.format(dayFmt)} · statement ${s.cycle.end.format(dayFmt)}", style = MaterialTheme.typography.bodySmall)
         Text(
             "Pay by ${s.cycle.due.format(dayFmt)} (in ${s.daysToDue} days)" + if (s.card.rewardBp > 0) " · about ${money(s.rewardPaise)} back" else "",

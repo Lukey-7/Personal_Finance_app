@@ -34,6 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.DateField
+import com.pft.financetracker.ui.components.SecondaryButton
+import com.pft.financetracker.ui.components.TextAction
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -76,7 +79,11 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
         floatingActionButton = { AddFab({ editing = Goal(name = "", targetPaise = 0, targetDate = LocalDate.now().plusMonths(12)) }, label = "Add goal") },
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (goals.isEmpty()) item { EmptyState(Icons.Outlined.Flag, "No goals yet. Save toward a trip, a phone or an emergency fund.") }
+            if (goals.isEmpty()) item {
+                EmptyState(Icons.Outlined.Flag, "No goals yet. Save toward a trip, a phone or an emergency fund.") {
+                    SecondaryButton("Add a goal", { editing = Goal(name = "", targetPaise = 0, targetDate = LocalDate.now().plusMonths(12)) })
+                }
+            }
             items(goals, key = { it.goal.id }) { p ->
                 FinCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -96,8 +103,8 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
                     }
                     Text(line, style = MaterialTheme.typography.bodySmall, color = if (p.late || (!p.onTrack && !p.done)) Expense else if (p.done) Income else MaterialTheme.colorScheme.onSurfaceVariant)
                     Row {
-                        if (!p.done) TextButton(onClick = { adding = p }) { Text("Add money") }
-                        TextButton(onClick = { editing = p.goal }) { Text("Edit") }
+                        if (!p.done) TextAction("Add money", { adding = p }, alignStart = true)
+                        TextAction("Edit", { editing = p.goal }, alignStart = p.done)
                     }
                 }
             }
@@ -135,9 +142,9 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
             title = { Text(if (g.id == 0L) "New goal" else "Edit goal") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(name, { name = it }, label = { Text("What for") }, singleLine = true)
+                    OutlinedTextField(name, { name = it }, label = { Text("Goal name") }, placeholder = { Text("e.g. Goa trip") }, singleLine = true)
                     OutlinedTextField(target, { target = it }, label = { Text("Target (₹)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    OutlinedTextField(date, { date = it }, label = { Text("By (YYYY-MM-DD), blank for none") }, singleLine = true)
+                    DateField("Target date (optional)", d, { date = it.toString() }, onClear = { date = "" })
                 }
             },
             confirmButton = { TextButton(enabled = valid, onClick = { vm.saveGoal(g.copy(name = name.trim(), targetPaise = t!!, targetDate = d)); editing = null }) { Text("Save") } },

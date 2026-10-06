@@ -99,7 +99,7 @@ fun NetWorthScreen(vm: AppViewModel, onBack: () -> Unit) {
                 FinCard {
                     CapsLabel("Net worth")
                     Text(money(nw.totalPaise), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold, color = if (nw.totalPaise < 0) Expense else MaterialTheme.colorScheme.onSurface)
-                    Text("Own ${money(nw.ownPaise)} · owe ${money(nw.owePaise)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("You own ${money(nw.ownPaise)} · you owe ${money(nw.owePaise)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (history.size >= 2) {
                         val change = history.last().totalPaise - history[history.size - 2].totalPaise
                         Text((if (change >= 0) "Up " else "Down ") + money(kotlin.math.abs(change)) + " since last month", style = MaterialTheme.typography.bodySmall)

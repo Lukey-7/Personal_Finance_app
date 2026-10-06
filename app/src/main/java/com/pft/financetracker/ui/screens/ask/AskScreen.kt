@@ -37,6 +37,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.QuestionAnswer
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import com.pft.financetracker.ui.components.EmptyState
+import com.pft.financetracker.ui.components.TextAction
+import com.pft.financetracker.ui.components.countLabel
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.ask.AskAnswer
@@ -86,6 +92,9 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
                 item {
                     Text("Answers come from your transactions on this phone. Nothing is sent anywhere.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                if (turns.isEmpty()) item {
+                    EmptyState(Icons.Outlined.QuestionAnswer, "Ask about your spending in plain words, like \u201chow much on food this month\u201d, or tap a suggestion below.")
+                }
                 items(turns) { t -> TurnCard(t, byId, onOpenTransaction) }
             }
             ChipRow(Modifier.padding(vertical = 8.dp)) {
@@ -93,11 +102,21 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
                 AskEngine.examples.forEach { e -> PillChip(false, e) { send(e) } }
             }
             Row(Modifier.fillMaxWidth().padding(start = Gutter, end = 8.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                // The same filled pill as the search fields; the send button lights up once there is a question.
                 OutlinedTextField(
-                    input, { input = it }, Modifier.weight(1f), placeholder = { Text("e.g. food last month") }, singleLine = true,
+                    input, { input = it }, Modifier.weight(1f), placeholder = { Text("Ask, e.g. food last month") }, singleLine = true,
+                    shape = CircleShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        focusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    ),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send), keyboardActions = KeyboardActions(onSend = { send(input) }),
                 )
-                IconButton(onClick = { send(input) }, enabled = input.isNotBlank()) { Icon(Icons.AutoMirrored.Outlined.Send, "Ask") }
+                IconButton(onClick = { send(input) }, enabled = input.isNotBlank()) {
+                    Icon(Icons.AutoMirrored.Outlined.Send, "Ask", tint = if (input.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
@@ -112,7 +131,7 @@ private fun TurnCard(t: Turn, byId: Map<Long, com.pft.financetracker.domain.mode
             if (t.markdown) MarkdownText(t.answer.text) else Text(t.answer.text)
             if (t.answer.byAi) Text("Gemini Nano, on this phone. AI can get things wrong: check figures in Activity.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             val rows = t.answer.transactionIds.mapNotNull { byId[it] }
-            if (rows.isNotEmpty()) TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide payments" else "Show ${rows.size} payment${if (rows.size == 1) "" else "s"}") }
+            if (rows.isNotEmpty()) TextAction(if (expanded) "Hide payments" else "Show ${countLabel(rows.size, "payment")}", { expanded = !expanded }, alignStart = true)
             if (expanded) FinCard(padding = PaddingValues(vertical = 4.dp)) {
                 Column { rows.sortedByDescending { it.timestamp }.take(30).forEach { r -> TransactionRow(r) { onOpen(r.id) } } }
             }
