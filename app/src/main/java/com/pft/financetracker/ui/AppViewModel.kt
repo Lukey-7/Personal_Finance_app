@@ -44,6 +44,8 @@ sealed class ImportUiState {
     data object Idle : ImportUiState()
     data object Running : ImportUiState()
     data class Done(val stats: ImportStats) : ImportUiState()
+    /** The scan itself failed (permission revoked mid-scan, provider error): say so instead of "0 added". */
+    data object Failed : ImportUiState()
 }
 
 sealed class AiUiState {
@@ -123,6 +125,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val remindersEnabled: StateFlow<Boolean> = c.settings.remindersEnabled
     val recentPeople: StateFlow<List<String>> = c.splits.recentPeople.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** False until the database has answered for transactions, splits and budgets, so screens show a spinner, not "nothing yet". */
+    val loaded: StateFlow<Boolean> = combine(c.transactions.all.asLoadable(), c.splits.all.asLoadable(), c.budgets.all.asLoadable()) { a, b, d ->
+        a is Loadable.Ready && b is Loadable.Ready && d is Loadable.Ready
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val hasApiKey: StateFlow<Boolean> = c.settings.hasApiKey
     val apiKeyBuiltIn: StateFlow<Boolean> = c.settings.apiKeyBuiltIn
     val onboarded: StateFlow<Boolean> = c.settings.onboarded
@@ -162,8 +169,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _importState.value = ImportUiState.Running
         viewModelScope.launch {
             val since = if (full) 0L else lastImportAt.value
-            val stats = runCatching { c.importer.scanInbox(since) }.getOrElse { ImportStats(0, 0, 0, 0, 0, 0) }
-            _importState.value = ImportUiState.Done(stats)
+            val stats = runCatching { c.importer.scanInbox(since) }.getOrNull()
+            _importState.value = if (stats == null) ImportUiState.Failed else ImportUiState.Done(stats)
             withContext(Dispatchers.IO) { c.afterChange() }
         }
     }
