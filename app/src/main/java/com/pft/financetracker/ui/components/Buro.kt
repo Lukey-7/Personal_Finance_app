@@ -30,6 +30,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -54,6 +62,26 @@ val Gutter = 24.dp
 /** Inner padding for cards; the reference pads its cards by 24dp on every side. */
 val CardPadding = 24.dp
 
+/** The spacing scale. Every gap, padding and spacer in a screen comes from here (4dp grid). */
+object Space {
+    val xs = 4.dp
+    val sm = 8.dp
+    val md = 12.dp
+    val lg = 16.dp
+    val xl = 24.dp
+    val xxl = 32.dp
+}
+
+/** Card and panel corners. */
+val CardRadius = 22.dp
+val CardShape = RoundedCornerShape(CardRadius)
+
+/** Height of every pill button; tall enough for a 48dp touch target with room for a larger font. */
+val ButtonHeight = 52.dp
+
+/** What a text action does: the usual accent, or red for something that removes data. */
+enum class Tone { Accent, Danger }
+
 /**
  * Height of the floating nav pill (plus the system navigation bar) on the five tab screens, and zero on
  * every other screen. Tab content scrolls underneath the pill, so lists pad their end by this much and
@@ -73,7 +101,7 @@ fun FinCard(
     padding: PaddingValues = PaddingValues(CardPadding),
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val shape = RoundedCornerShape(22.dp)
+    val shape = CardShape
     val base = Modifier
         .fillMaxWidth()
         .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
@@ -99,7 +127,7 @@ fun SoftPanel(
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
+            .clip(CardShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(padding),
@@ -133,6 +161,8 @@ fun PillChip(selected: Boolean, label: String, modifier: Modifier = Modifier, ic
     val fg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier
+            // The pill stays 38dp to look like the reference; the touch area is the full 48dp.
+            .minimumInteractiveComponentSize()
             .clip(CircleShape)
             .background(bg)
             // Unselected pills keep a hairline edge, so a row reads as pills whichever one is selected
@@ -168,18 +198,20 @@ fun ChipRow(modifier: Modifier = Modifier, inset: Dp = Gutter, content: @Composa
     )
 }
 
-/** Full-width solid accent pill: the one primary action on a screen. */
+/** The primary action: solid accent pill. [fill] stretches it across its container (one main action per screen). */
 @Composable
-fun PrimaryPill(
+fun PrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    fill: Boolean = true,
+    icon: ImageVector? = null,
 ) {
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.fillMaxWidth().height(56.dp),
+        modifier = modifier.then(if (fill) Modifier.fillMaxWidth() else Modifier).heightIn(min = ButtonHeight),
         shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary,
@@ -188,32 +220,73 @@ fun PrimaryPill(
             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         ),
         elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp, 0.dp, 0.dp),
-    ) { Text(text, style = MaterialTheme.typography.titleMedium) }
+        contentPadding = PaddingValues(horizontal = Space.xl, vertical = Space.sm),
+    ) { ButtonContent(text, icon, MaterialTheme.typography.titleSmall) }
 }
 
-/** Quiet companion to [PrimaryPill]: tonal panel fill, accent text. */
+/** A supporting action next to or instead of a primary one: hairline pill, accent text. */
 @Composable
-fun SecondaryPill(
+fun SecondaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    fill: Boolean = false,
+    icon: ImageVector? = null,
 ) {
-    Button(
+    OutlinedButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.height(52.dp),
+        modifier = modifier.then(if (fill) Modifier.fillMaxWidth() else Modifier).heightIn(min = ButtonHeight),
         shape = CircleShape,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            contentColor = MaterialTheme.colorScheme.primary,
-            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        border = BorderStroke(1.dp, if (enabled) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.outlineVariant),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+        contentPadding = PaddingValues(horizontal = Space.lg + Space.xs, vertical = Space.sm),
+    ) { ButtonContent(text, icon, MaterialTheme.typography.labelLarge) }
+}
+
+@Composable
+private fun ButtonContent(text: String, icon: ImageVector?, style: androidx.compose.ui.text.TextStyle) {
+    if (icon != null) {
+        Icon(icon, null, Modifier.size(20.dp))
+        Spacer(Modifier.width(Space.sm))
+    }
+    Text(text, style = style, textAlign = TextAlign.Center)
+}
+
+/**
+ * A text-only action inside a card or row ("Edit", "See all"). [alignStart] drops the leading padding so the label
+ * lines up with the card's text edge when it is the first thing on its line. Always a 48dp touch target.
+ */
+@Composable
+fun TextAction(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    tone: Tone = Tone.Accent,
+    alignStart: Boolean = false,
+) {
+    TextButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 48.dp),
+        contentPadding = PaddingValues(start = if (alignStart) 0.dp else Space.md, end = Space.md),
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = if (tone == Tone.Danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
         ),
-        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp, 0.dp, 0.dp, 0.dp),
-        contentPadding = PaddingValues(horizontal = 20.dp),
     ) { Text(text, style = MaterialTheme.typography.labelLarge) }
 }
+
+/** Kept for screens not yet moved to [PrimaryButton]. */
+@Composable
+fun PrimaryPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
+    PrimaryButton(text, onClick, modifier, enabled)
+
+/** Kept for screens not yet moved to [SecondaryButton]. */
+@Composable
+fun SecondaryPill(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) =
+    SecondaryButton(text, onClick, modifier, enabled)
 
 /** Circular tinted avatar holding a single letter, as used in the reference's asset rows. */
 @Composable
@@ -248,18 +321,48 @@ fun CardTitle(title: String, icon: ImageVector? = null, modifier: Modifier = Mod
     }
 }
 
-/** A tappable settings-style row: icon, label, chevron. Lines up with the card's text edge. */
+/** A tappable settings-style row: icon, label (and an optional quiet second line), chevron. 48dp tall at least. */
 @Composable
-fun ActionRow(label: String, icon: ImageVector, onClick: () -> Unit, tint: Color = MaterialTheme.colorScheme.primary) {
+fun ActionRow(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    tint: Color = MaterialTheme.colorScheme.primary,
+    subtitle: String? = null,
+) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(vertical = 10.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(vertical = Space.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, Modifier.size(20.dp), tint = tint)
-        Spacer(Modifier.width(12.dp))
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = tint)
+        Spacer(Modifier.width(Space.md))
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = tint)
+            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/** While the database has not answered yet: a small spinner where the content will be, never an empty state. */
+@Composable
+fun LoadingState(modifier: Modifier = Modifier) {
+    Box(
+        modifier.fillMaxWidth().padding(vertical = Space.xxl).semantics { contentDescription = "Loading" },
+        contentAlignment = Alignment.Center,
+    ) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp) }
+}
+
+/**
+ * Lets text grow with the system font size only up to [max] times its design size. For labels in a fixed-size frame
+ * (the nav bar, chart axes); body text always scales fully.
+ */
+@Composable
+fun androidx.compose.ui.text.TextStyle.cappedScale(max: Float = 1.3f): androidx.compose.ui.text.TextStyle {
+    val scale = LocalDensity.current.fontScale
+    if (scale <= max) return this
+    val k = max / scale
+    return copy(fontSize = fontSize * k, lineHeight = if (lineHeight.isSp) lineHeight * k else lineHeight)
 }
 
 /** Empty state: an outline icon in a soft circle, one line of copy, and optionally the action to take. */
