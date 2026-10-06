@@ -60,13 +60,16 @@ fun scanResultLine(stats: ImportStats?, failed: Boolean): String {
 /** "1 payment", "3 payments", "2 people". */
 fun countLabel(n: Int, one: String, many: String = one + "s"): String = "$n ${if (n == 1) one else many}"
 
-/** True when [query] reads as (the start of) this amount, typed with or without commas or paise. */
+private val amountLike = Regex("""^[₹\s\d,.]*\d[₹\s\d,.]*$""")
+
+/**
+ * True when [query] is an amount (digits, with or without ₹, commas or paise) that appears in this figure. A query with
+ * letters in it ("1mg", "zomato 250") is a name, never an amount.
+ */
 fun matchesAmount(paise: Long, query: String): Boolean {
+    if (!amountLike.matches(query.trim())) return false
     val q = query.filter { it.isDigit() || it == '.' }
-    if (q.none { it.isDigit() }) return false
-    val plain = listOf(
-        Rupees.format(paise, Paise.WHEN_NONZERO),
-        Rupees.format(paise, Paise.ALWAYS),
-    ).map { it.filter { c -> c.isDigit() || c == '.' } }
-    return plain.any { it.startsWith(q) }
+    return listOf(Rupees.format(paise, Paise.WHEN_NONZERO), Rupees.format(paise, Paise.ALWAYS))
+        .map { it.filter { c -> c.isDigit() || c == '.' } }
+        .any { it.contains(q) }
 }

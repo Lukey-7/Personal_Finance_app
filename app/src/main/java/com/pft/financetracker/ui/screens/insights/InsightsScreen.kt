@@ -68,7 +68,10 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () 
 
     val periods = if (weekly) (5 downTo 0).map { Periods.week(-it) } else (5 downTo 0).map { Periods.month(-it) }
     val series = periods.mapIndexed { i, p -> shortLabel(p, weekly, i, periods) to InsightsEngine.summarize(txns, p).spend }
-    val trends = if (weekly) InsightsEngine.categoryTrends(txns, Periods.week(), Periods.week(-1)) else InsightsEngine.categoryTrends(txns, Periods.month(), Periods.month(-1))
+    // Category cards compare like with like, the same way as the trend line: this period so far against the same days before.
+    val trendNow = System.currentTimeMillis()
+    val trends = if (weekly) InsightsEngine.categoryTrends(txns, Periods.week(), Periods.sameSpanBefore(Periods.week(), Periods.week(-1), trendNow))
+    else InsightsEngine.categoryTrends(txns, Periods.month(), Periods.sameSpanBefore(Periods.month(), Periods.month(-1), trendNow))
     val suggestions = InsightsEngine.suggestions(txns, budgets)
 
     Scaffold(

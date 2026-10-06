@@ -106,13 +106,13 @@ sealed class PeriodChoice {
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val c = app.appContainer
 
-    val transactions: StateFlow<List<Transaction>> = c.transactions.all.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    val budgets: StateFlow<List<Budget>> = c.budgets.all.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val transactions: StateFlow<List<Transaction>> = c.transactions.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
+    val budgets: StateFlow<List<Budget>> = c.budgets.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     val reviewQueue: StateFlow<List<ReviewItemEntity>> = c.transactions.reviewQueue.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val reviewCount: StateFlow<Int> = c.transactions.reviewCount.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     val smsLog: StateFlow<List<SmsLogEntity>> = c.smsLog.recent.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val smsLogCounts: StateFlow<Map<String, Int>> = c.smsLog.counts.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
-    val splits: StateFlow<List<Split>> = c.splits.all.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val splits: StateFlow<List<Split>> = c.splits.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     /** Automatic splits waiting for a yes or no. */
     val splitSuggestions: StateFlow<List<Split>> = c.splits.all.map { l -> l.filter { it.isSuggestion } }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     /** Transaction id -> the applied automatic split it belongs to (for the "Auto-split" badge). */
@@ -126,9 +126,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val recentPeople: StateFlow<List<String>> = c.splits.recentPeople.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** False until the database has answered for transactions, splits and budgets, so screens show a spinner, not "nothing yet". */
-    val loaded: StateFlow<Boolean> = combine(c.transactions.all.asLoadable(), c.splits.all.asLoadable(), c.budgets.all.asLoadable()) { a, b, d ->
-        a is Loadable.Ready && b is Loadable.Ready && d is Loadable.Ready
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val loaded: StateFlow<Boolean> = combine(transactions, splits, budgets) { a, b, d -> isLoaded(a) && isLoaded(b) && isLoaded(d) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val hasApiKey: StateFlow<Boolean> = c.settings.hasApiKey
     val apiKeyBuiltIn: StateFlow<Boolean> = c.settings.apiKeyBuiltIn
@@ -499,8 +498,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** This month in a few written lines, worked out on the phone (no key, no network). */
     suspend fun monthInWords(): String = withContext(Dispatchers.Default) {
         val all = transactions.value
+        // A month still running is compared with the same days of the last one ("1–6 Sep"), as on Home.
+        val now = System.currentTimeMillis()
+        val before = Periods.sameSpanBefore(Periods.month(), Periods.month(-1), now)
         com.pft.financetracker.domain.ask.MonthlySummary.write(
-            InsightsEngine.summarize(all, Periods.month(), countCashAsSpend.value), InsightsEngine.summarize(all, Periods.month(-1), countCashAsSpend.value),
+            InsightsEngine.summarize(all, Periods.month(), countCashAsSpend.value), InsightsEngine.summarize(all, before, countCashAsSpend.value),
             budgets.value, c.recurring.book(),
         )
     }

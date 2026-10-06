@@ -76,4 +76,10 @@ class AskEngineTest {
         assertTrue(a.text.contains("Try"))
         assertTrue(a.transactionIds.isEmpty())
     }
+
+    @Test fun aNegativeFigurePutsTheSignBeforeTheRupee() {
+        val a = AskEngine.answer("what is my net worth", ctx.copy(netWorthPaise = -2_00_000_00))
+        assertTrue(a.text, a.text.contains("-₹2,00,000"))
+        assertTrue(a.text, !a.text.contains("₹-"))
+    }
 }

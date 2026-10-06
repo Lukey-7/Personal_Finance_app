@@ -27,7 +27,8 @@ object WidgetSnapshot {
         val start = ym.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val end = ym.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val summary = InsightsEngine.summarize(txns, Period(start, end, ""), includeCash)
-        fun rupees(p: Long) = if (hideAmounts) "₹••••" else "₹${InsightsEngine.fmt(p)}"
+        // Whole rupees: at 26sp on the smallest widget, paise pushed the figure off the edge.
+        fun rupees(p: Long) = if (hideAmounts) "₹••••" else com.pft.financetracker.domain.model.Rupees.format(p, com.pft.financetracker.domain.model.Paise.NEVER)
 
         val budgetLine = budgets.takeIf { it.isNotEmpty() }?.let { bs ->
             val spentInBudgeted = bs.sumOf { b -> summary.byCategory.firstOrNull { it.category == b.category }?.amountPaise ?: 0L }

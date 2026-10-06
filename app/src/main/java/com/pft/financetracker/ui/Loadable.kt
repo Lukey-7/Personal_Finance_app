@@ -1,13 +1,21 @@
 package com.pft.financetracker.ui
 
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
+import java.util.AbstractList
+import java.util.RandomAccess
 
-/** A value that may not have arrived yet, so "no rows" is never confused with "not loaded". */
-sealed interface Loadable<out T> {
-    data object Loading : Loadable<Nothing>
-    data class Ready<T>(val value: T) : Loadable<T>
+/*
+ * The lists the screens read start as this marker, not as an empty list, so a screen can tell "the database has not
+ * answered yet" (show a spinner) from "it answered: nothing" (show the empty state). Deciding it from the very list on
+ * screen means the two can never disagree, and no second query is needed.
+ */
+private object NotLoaded : AbstractList<Any?>(), RandomAccess {
+    override val size: Int get() = 0
+    override fun get(index: Int): Any? = throw IndexOutOfBoundsException("not loaded yet")
 }
 
-fun <T> Flow<T>.asLoadable(): Flow<Loadable<T>> = map<T, Loadable<T>> { Loadable.Ready(it) }.onStart { emit(Loadable.Loading) }
+/** The starting value of a list that comes from the database. Reads as empty. */
+@Suppress("UNCHECKED_CAST")
+fun <T> notLoaded(): List<T> = NotLoaded as List<T>
+
+/** False only for the [notLoaded] marker; any real answer, even an empty one, is loaded. */
+fun isLoaded(list: List<*>): Boolean = list !== NotLoaded

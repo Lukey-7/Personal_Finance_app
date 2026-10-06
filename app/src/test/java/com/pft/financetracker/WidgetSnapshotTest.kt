@@ -52,4 +52,9 @@ class WidgetSnapshotTest {
         assertFalse(s.budgetLine!!.any { it.isDigit() })
         assertTrue(s.budgetLine!!.contains("left"))
     }
+
+    @Test fun theWidgetShowsWholeRupeesSoTheFigureFitsTheSmallestWidget() {
+        val s = WidgetSnapshot.build(listOf(spend(1_23_456_78)), emptyList(), emptyList(), hideAmounts = false, now = now, zone = zone)
+        assertEquals("₹1,23,457", s.spent)
+    }
 }

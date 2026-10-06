@@ -215,13 +215,13 @@ object InsightsEngine {
             val p = prev.byCategory.firstOrNull { it.category == cs.category }?.amountPaise ?: 0L
             if (p < 20_000 && cs.amountPaise < 50_000) continue
             if (p == 0L) {
-                out += Insight("New spending: ${cs.category.label}", "₹${fmt(cs.amountPaise)} this period, nothing last period.", Insight.Severity.INFO, cs.category, 0)
+                out += Insight("New spending: ${cs.category.label}", "${rupees(cs.amountPaise)} this period, nothing last period.", Insight.Severity.INFO, cs.category, 0)
                 continue
             }
             val pct = ((cs.amountPaise - p).toDouble() / p * 100).roundToInt()
             if (abs(pct) < 10) continue
-            if (pct > 0) out += Insight("${cs.category.label} up $pct%", "You spent ₹${fmt(cs.amountPaise)} vs ₹${fmt(p)} last period.", Insight.Severity.WARN, cs.category, pct)
-            else out += Insight("${cs.category.label} down ${-pct}%", "₹${fmt(cs.amountPaise)} vs ₹${fmt(p)} last period. Nice.", Insight.Severity.GOOD, cs.category, -pct)
+            if (pct > 0) out += Insight("${cs.category.label} up $pct%", "You spent ${rupees(cs.amountPaise)} vs ${rupees(p)} last period.", Insight.Severity.WARN, cs.category, pct)
+            else out += Insight("${cs.category.label} down ${-pct}%", "${rupees(cs.amountPaise)} vs ${rupees(p)} last period. Nice.", Insight.Severity.GOOD, cs.category, -pct)
         }
         return out.sortedByDescending { it.magnitude }
     }
@@ -237,13 +237,13 @@ object InsightsEngine {
             r.priceRise?.let { p ->
                 out += Insight(
                     "${r.merchant} went up",
-                    "Now ₹${fmt(p.toPaise)} instead of ₹${fmt(p.fromPaise)} (${r.period.label.lowercase(Locale.ROOT)}). That is ₹${fmt(r.yearlyPaise - r.yearlyPaise * p.fromPaise / p.toPaise)} more a year.",
+                    "Now ${rupees(p.toPaise)} instead of ${rupees(p.fromPaise)} (${r.period.label.lowercase(Locale.ROOT)}). That is ${rupees(r.yearlyPaise - r.yearlyPaise * p.fromPaise / p.toPaise)} more a year.",
                     Insight.Severity.WARN, r.category
                 )
             }
             out += Insight(
                 "Recurring: ${r.merchant}",
-                "₹${fmt(r.amountPaise)} ${r.period.label.lowercase(Locale.ROOT)}, ₹${fmt(r.yearlyPaise)} a year. Still using it?",
+                "${rupees(r.amountPaise)} ${r.period.label.lowercase(Locale.ROOT)}, ${rupees(r.yearlyPaise)} a year. Still using it?",
                 Insight.Severity.WARN, r.category
             )
         }
@@ -256,7 +256,7 @@ object InsightsEngine {
             val total = small.sumOf { it.amountPaise }
             val topCat = small.groupBy { it.category }.maxByOrNull { it.value.size }?.key
             out += Insight(
-                "${small.size} small spends add up to ₹${fmt(total)}",
+                "${small.size} small spends add up to ${rupees(total)}",
                 "Purchases under ₹300 this month" + (topCat?.let { ", mostly ${it.label.lowercase(Locale.ROOT)}" } ?: "") + ". Batching them could cut this noticeably.",
                 Insight.Severity.WARN, topCat
             )
@@ -272,7 +272,7 @@ object InsightsEngine {
             if (monthTotal > 0 && total.toDouble() / monthTotal > 0.25 && list.size > 1) {
                 out += Insight(
                     "${list.first().merchant} is ${(total.toDouble() / monthTotal * 100).roundToInt()}% of this month",
-                    "${list.size} transactions totalling ₹${fmt(total)}. Worth a second look.",
+                    "${list.size} transactions totalling ${rupees(total)}. Worth a second look.",
                     Insight.Severity.INFO, list.first().category
                 )
             }
@@ -282,7 +282,7 @@ object InsightsEngine {
         budgetStatus(all, budgets, month).filter { it.over }.forEach {
             out += Insight(
                 "Over budget: ${it.budget.category.label}",
-                "₹${fmt(it.spentPaise)} spent of ₹${fmt(it.budget.monthlyLimitPaise)} budget (${(it.fraction * 100).roundToInt()}%).",
+                "${rupees(it.spentPaise)} spent of ${rupees(it.budget.monthlyLimitPaise)} budget (${(it.fraction * 100).roundToInt()}%).",
                 Insight.Severity.WARN, it.budget.category
             )
         }
@@ -313,6 +313,6 @@ object InsightsEngine {
     fun changePercent(now: Long, before: Long): Int? =
         if (now <= 0 || before <= 0) null else Math.round((now - before) * 100.0 / before).toInt()
 
-    /** A rupee figure without the ₹ (callers write "₹${fmt(p)}"): 1,05,000 or 1,234.50, as [Rupees.format]. */
-    fun fmt(paise: Long): String = (if (paise < 0) "-" else "") + Rupees.format(kotlin.math.abs(paise)).removePrefix("₹")
+    /** A rupee figure in the app's one format, sign before the ₹: ₹1,05,000, -₹500, ₹1,234.50. */
+    fun rupees(paise: Long): String = Rupees.format(paise)
 }

@@ -50,4 +50,11 @@ class CopyTest {
         assertFalse(matchesAmount(1_299_00, "1300"))
         assertFalse(matchesAmount(1_299_00, "food"))
     }
+
+    @Test fun amountSearchOnlyForQueriesThatLookLikeAnAmount() {
+        assertFalse(matchesAmount(1_00_00, "1mg"))
+        assertFalse(matchesAmount(250_00, "zomato 250"))
+        assertTrue(matchesAmount(1_299_00, "299"))       // anywhere in the figure, as the search did before
+        assertTrue(matchesAmount(1_299_00, "₹1,299"))
+    }
 }

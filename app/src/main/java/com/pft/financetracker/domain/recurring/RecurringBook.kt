@@ -27,7 +27,7 @@ class RecurringBook private constructor(val shown: List<RecurringView>) {
         val due = v.item.nextExpectedAt!!
         Reminder(
             key = v.item.key, title = "${v.item.merchant} renews soon",
-            body = "About ₹${InsightsEngine.fmt(v.item.amountPaise)} on ${SimpleDateFormat("d MMM", Locale.ENGLISH).format(Date(due))}",
+            body = "About ${InsightsEngine.rupees(v.item.amountPaise)} on ${SimpleDateFormat("d MMM", Locale.ENGLISH).format(Date(due))}",
             dueAt = due, leadDays = listOf(2),
         )
     }

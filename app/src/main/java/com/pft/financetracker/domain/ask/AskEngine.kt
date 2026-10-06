@@ -62,27 +62,27 @@ object AskEngine {
             has("subscription", "subscriptions", "recurring", "autopay") -> subscriptions(c)
             has("due", "emi", "emis", "upcoming") || (has("bill", "bills") && category == null && !has("spend", "spent")) -> bills(c)
             has("budget", "budgets") -> budget(c, s)
-            has("net worth", "worth") -> c.netWorthPaise?.let { AskAnswer("Your net worth is ₹${fmt(it)} (what you own minus what you owe).") }
+            has("net worth", "worth") -> c.netWorthPaise?.let { AskAnswer("Your net worth is ${rupees(it)} (what you own minus what you owe).") }
                 ?: AskAnswer("Set up Net worth in Money tools first: bank balances come from SMS, funds from a CAS statement.")
-            has("earn", "earned", "income", "salary") -> AskAnswer("You received ₹${fmt(s.incomePaise)} of income ${period.label}.")
+            has("earn", "earned", "income", "salary") -> AskAnswer("You received ${rupees(s.incomePaise)} of income ${period.label}.")
             has("save", "saved", "saving", "savings") -> AskAnswer(
-                "You saved ₹${fmt(s.savingsPaise)} ${period.label}: income ₹${fmt(s.incomePaise)} minus spend ₹${fmt(s.netSpendPaise)}."
+                "You saved ${rupees(s.savingsPaise)} ${period.label}: income ${rupees(s.incomePaise)} minus spend ${rupees(s.netSpendPaise)}."
             )
             has("most", "biggest", "top", "where did") -> s.byMerchant.firstOrNull()?.let { m ->
-                AskAnswer("Most went to ${m.merchant}: ₹${fmt(m.amountPaise)} of ₹${fmt(s.netSpendPaise)} ${period.label} (${m.count} payment${if (m.count == 1) "" else "s"}).")
+                AskAnswer("Most went to ${m.merchant}: ${rupees(m.amountPaise)} of ${rupees(s.netSpendPaise)} ${period.label} (${m.count} payment${if (m.count == 1) "" else "s"}).")
             } ?: AskAnswer("No spending ${period.label}.")
             category != null -> {
                 val list = spends(c, period).filter { it.category == category }
                 val net = s.byCategory.firstOrNull { it.category == category }?.amountPaise ?: 0L
-                AskAnswer("You spent ₹${fmt(net)} on ${category.label} ${period.label} (${list.size} payment${if (list.size == 1) "" else "s"}).", list.map { it.id })
+                AskAnswer("You spent ${rupees(net)} on ${category.label} ${period.label} (${list.size} payment${if (list.size == 1) "" else "s"}).", list.map { it.id })
             }
             merchant(q, c) != null -> {
                 val m = merchant(q, c)!!
                 val list = spends(c, period).filter { norm(it.merchant).contains(m) }
-                AskAnswer("You spent ₹${fmt(list.sumOf { it.amountPaise })} at ${list.firstOrNull()?.merchant ?: m} ${period.label} (${list.size} payment${if (list.size == 1) "" else "s"}).", list.map { it.id })
+                AskAnswer("You spent ${rupees(list.sumOf { it.amountPaise })} at ${list.firstOrNull()?.merchant ?: m} ${period.label} (${list.size} payment${if (list.size == 1) "" else "s"}).", list.map { it.id })
             }
             has("spend", "spent", "spending", "how much", "expenses", "cost") ->
-                AskAnswer("You spent ₹${fmt(s.netSpendPaise)} ${period.label}.", spends(c, period).map { it.id })
+                AskAnswer("You spent ${rupees(s.netSpendPaise)} ${period.label}.", spends(c, period).map { it.id })
             else -> AskAnswer("I can answer questions about your own numbers. Try: " + examples.take(4).joinToString(" · ") { "\"$it\"" }, understood = false)
         }
     }
@@ -90,8 +90,8 @@ object AskEngine {
     private fun subscriptions(c: AskContext): AskAnswer {
         val counted = c.recurring.shown.filter { it.counted }
         if (counted.isEmpty()) return AskAnswer("No repeating charges found yet. They show up after a service has charged you twice.")
-        val list = counted.joinToString("; ") { v -> "${v.item.merchant} ₹${fmt(v.item.amountPaise)} ${v.item.period.label.lowercase(Locale.ROOT)}" }
-        return AskAnswer("${counted.size} repeating charge${if (counted.size == 1) "" else "s"}, ₹${fmt(c.recurring.monthlyPaise)} a month: $list.",
+        val list = counted.joinToString("; ") { v -> "${v.item.merchant} ${rupees(v.item.amountPaise)} ${v.item.period.label.lowercase(Locale.ROOT)}" }
+        return AskAnswer("${counted.size} repeating charge${if (counted.size == 1) "" else "s"}, ${rupees(c.recurring.monthlyPaise)} a month: $list.",
             counted.flatMap { it.item.transactionIds })
     }
 
@@ -100,7 +100,7 @@ object AskEngine {
             .sortedBy { (_, s) -> (s as? BillState.Upcoming)?.daysLeft ?: -1L }
         if (open.isEmpty()) return AskAnswer(if (c.bills.isEmpty()) "No bills set up. Add them in Money tools > Bills & EMIs." else "Nothing due: every bill is paid for now.")
         return AskAnswer(open.joinToString("; ") { (b, s) ->
-            val amount = (b.amountPaise ?: com.pft.financetracker.domain.bills.BillTracker.amountDue(b))?.let { " ₹${fmt(it)}" } ?: ""
+            val amount = (b.amountPaise ?: com.pft.financetracker.domain.bills.BillTracker.amountDue(b))?.let { " ${rupees(it)}" } ?: ""
             when (s) {
                 is BillState.Overdue -> "${b.name}$amount was due ${s.due.format(dayFmt)} (overdue)"
                 is BillState.Upcoming -> "${b.name}$amount due ${s.due.format(dayFmt)}"
@@ -113,7 +113,7 @@ object AskEngine {
         if (c.budgets.isEmpty()) return AskAnswer("No budgets set. Set them in Insights > Budgets.")
         val spent = c.budgets.sumOf { b -> s.byCategory.firstOrNull { it.category == b.category }?.amountPaise ?: 0L }
         val left = c.budgets.sumOf { it.monthlyLimitPaise } - spent
-        return AskAnswer(if (left >= 0) "₹${fmt(left)} left of your budgets this month." else "₹${fmt(-left)} over your budgets this month.")
+        return AskAnswer(if (left >= 0) "${rupees(left)} left of your budgets this month." else "${rupees(-left)} over your budgets this month.")
     }
 
     private fun spends(c: AskContext, p: Period) = c.txns.filter { it.timestamp in p && !it.needsReview && InsightsEngine.isSpend(it, c.includeCash) }
@@ -159,6 +159,6 @@ object AskEngine {
         }
     }
 
-    private fun fmt(p: Long) = InsightsEngine.fmt(p)
+    private fun rupees(p: Long) = InsightsEngine.rupees(p)
 
 }

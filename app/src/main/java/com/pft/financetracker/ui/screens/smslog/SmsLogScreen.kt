@@ -60,6 +60,7 @@ import com.pft.financetracker.ui.components.RowIconGap
 import com.pft.financetracker.ui.components.RowTextInset
 import com.pft.financetracker.ui.components.Space
 import com.pft.financetracker.ui.components.reasonLabel
+import com.pft.financetracker.ui.components.matchesAmount
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,7 +100,7 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
     val list = all.filter { e ->
         (outcome == null || (if (outcome == MISSES) isMiss(e) else e.outcome == outcome)) &&
             (!onlyThisRun || runId == null || e.runId == runId) &&
-            (query.isBlank() || e.sender.contains(query, true) || e.reason.contains(query, true) || (e.amountPaise?.let { money(it) } ?: "").contains(query))
+            (query.isBlank() || e.sender.contains(query, true) || reasonLabel(e.reason).contains(query, true) || e.reason.contains(query, true) || (e.amountPaise?.let { matchesAmount(it, query) } ?: false))
     }
 
     Scaffold(

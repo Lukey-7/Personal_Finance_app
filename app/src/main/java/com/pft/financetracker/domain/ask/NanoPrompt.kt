@@ -25,23 +25,23 @@ object NanoPrompt {
         val lines = mutableListOf<String>()
         for ((name, m) in listOf("This month" to ym, "Last month" to ym.minusMonths(1), "Two months ago" to ym.minusMonths(2))) {
             val s = InsightsEngine.summarize(c.txns, period(m), c.includeCash)
-            lines += "$name (${s.period.label}): spent ₹${fmt(s.netSpendPaise)}, income ₹${fmt(s.incomePaise)}, saved ₹${fmt(s.savingsPaise)}."
-            if (s.byCategory.isNotEmpty()) lines += "  By category: " + s.byCategory.sortedByDescending { it.amountPaise }.take(8).joinToString(", ") { "${it.category.label} ₹${fmt(it.amountPaise)}" } + "."
-            if (s.byMerchant.isNotEmpty()) lines += "  Top payees: " + s.byMerchant.take(6).joinToString(", ") { "${it.merchant} ₹${fmt(it.amountPaise)} (${it.count}x)" } + "."
+            lines += "$name (${s.period.label}): spent ${rupees(s.netSpendPaise)}, income ${rupees(s.incomePaise)}, saved ${rupees(s.savingsPaise)}."
+            if (s.byCategory.isNotEmpty()) lines += "  By category: " + s.byCategory.sortedByDescending { it.amountPaise }.take(8).joinToString(", ") { "${it.category.label} ${rupees(it.amountPaise)}" } + "."
+            if (s.byMerchant.isNotEmpty()) lines += "  Top payees: " + s.byMerchant.take(6).joinToString(", ") { "${it.merchant} ${rupees(it.amountPaise)} (${it.count}x)" } + "."
         }
-        c.budgets.takeIf { it.isNotEmpty() }?.let { b -> lines += "Monthly budgets: " + b.joinToString(", ") { "${it.category.label} ₹${fmt(it.monthlyLimitPaise)}" } + "." }
+        c.budgets.takeIf { it.isNotEmpty() }?.let { b -> lines += "Monthly budgets: " + b.joinToString(", ") { "${it.category.label} ${rupees(it.monthlyLimitPaise)}" } + "." }
         c.recurring.shown.filter { it.counted }.takeIf { it.isNotEmpty() }?.let { r ->
-            lines += "Subscriptions (₹${fmt(c.recurring.monthlyPaise)} a month): " + r.joinToString(", ") { "${it.item.merchant} ₹${fmt(it.item.amountPaise)} ${it.item.period.label.lowercase(Locale.ROOT)}" } + "."
+            lines += "Subscriptions (${rupees(c.recurring.monthlyPaise)} a month): " + r.joinToString(", ") { "${it.item.merchant} ${rupees(it.item.amountPaise)} ${it.item.period.label.lowercase(Locale.ROOT)}" } + "."
         }
         c.bills.mapNotNull { (b, s) ->
-            val amount = BillTracker.amountDue(b)?.let { " ₹${fmt(it)}" } ?: ""
+            val amount = BillTracker.amountDue(b)?.let { " ${rupees(it)}" } ?: ""
             when (s) {
                 is BillState.Upcoming -> "${b.name}$amount due ${s.due.format(dayFmt)}"
                 is BillState.Overdue -> "${b.name}$amount overdue since ${s.due.format(dayFmt)}"
                 else -> null
             }
         }.takeIf { it.isNotEmpty() }?.let { lines += "Bills: " + it.joinToString(", ") + "." }
-        c.netWorthPaise?.let { lines += "Net worth: ₹${fmt(it)}." }
+        c.netWorthPaise?.let { lines += "Net worth: ${rupees(it)}." }
         return lines.joinToString("\n")
     }
 
@@ -53,5 +53,5 @@ object NanoPrompt {
     /** The model's reply, trimmed; null when there is nothing usable. */
     fun clean(reply: String?): String? = reply?.trim()?.takeIf { it.isNotEmpty() }?.take(MAX_REPLY)
 
-    private fun fmt(p: Long) = InsightsEngine.fmt(p)
+    private fun rupees(p: Long) = InsightsEngine.rupees(p)
 }
