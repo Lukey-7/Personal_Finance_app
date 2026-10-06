@@ -156,7 +156,15 @@ fun CapsLabel(text: String, modifier: Modifier = Modifier, color: Color = Materi
 
 /** Selected chips fill with the soft accent tint; unselected ones are plain text. */
 @Composable
-fun PillChip(selected: Boolean, label: String, modifier: Modifier = Modifier, icon: ImageVector? = null, onClick: () -> Unit) {
+fun PillChip(
+    selected: Boolean,
+    label: String,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    trailingIcon: ImageVector? = null,
+    trailingLabel: String? = null,
+    onClick: () -> Unit,
+) {
     val bg = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
     val fg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
@@ -177,6 +185,10 @@ fun PillChip(selected: Boolean, label: String, modifier: Modifier = Modifier, ic
             Spacer(Modifier.width(6.dp))
         }
         Text(label, style = MaterialTheme.typography.labelLarge, color = fg, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
+        if (trailingIcon != null) {
+            Spacer(Modifier.width(6.dp))
+            Icon(trailingIcon, trailingLabel, Modifier.size(16.dp), tint = fg)
+        }
     }
 }
 

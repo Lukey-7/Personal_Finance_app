@@ -74,6 +74,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.CapsLabel
+import com.pft.financetracker.ui.components.SecondaryButton
+import com.pft.financetracker.ui.components.TextAction
+import com.pft.financetracker.ui.components.countLabel
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -231,13 +235,13 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
             // ---- 1. Source ----
             Section("1 · The bill") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { launchCamera() }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp)) { Icon(Icons.Outlined.PhotoCamera, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Photo", maxLines = 1, softWrap = false) }
-                    OutlinedButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 12.dp)) { Icon(Icons.Outlined.Image, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Gallery", maxLines = 1, softWrap = false) }
+                    SecondaryButton("Photo", { launchCamera() }, Modifier.weight(1f), icon = Icons.Outlined.PhotoCamera)
+                    SecondaryButton("Gallery", { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, Modifier.weight(1f), icon = Icons.Outlined.Image)
                 }
                 when (val s = ocr) {
                     OcrUiState.Running -> Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.height(18.dp).width(18.dp)); Spacer(Modifier.width(8.dp)); Text("Reading the bill on-device…", style = MaterialTheme.typography.bodySmall) }
                     is OcrUiState.Error -> Text(s.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    is OcrUiState.Done -> Text("Read ${s.bill.items.size} items" + (s.bill.totalPaise?.let { ", total ${money(it, true)}" } ?: ", no total found") + ". Check and correct below.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    is OcrUiState.Done -> Text("Read ${s.bill.items.size} items" + (s.bill.totalPaise?.let { ", total ${money(it)}" } ?: ", no total found") + ". Check and correct below.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                     OcrUiState.Idle -> Text("Or just type the total. Photos are processed on this phone and not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 OutlinedTextField(title, { title = it }, label = { Text("What was it?") }, placeholder = { Text("e.g. Dinner at Truffles") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -255,7 +259,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                         DateField(date, Modifier.fillMaxWidth()) { showDate = true }
                     }
                 }
-                Text("Category for your share", style = MaterialTheme.typography.labelLarge)
+                CapsLabel("Category for your share")
                 ChipRow(Modifier.edgeToEdge(CardPadding), inset = CardPadding) {
                     Category.spendCategories.forEach { c -> PillChip(category == c, c.label, icon = categoryIcon(c)) { category = c } }
                 }
@@ -290,16 +294,16 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                 if (billItems.isNotEmpty()) {
                     // Each part on its own terms, so a discount never reads as "− discount -₹50".
                     val parts = listOfNotNull(
-                        "Items ${money(itemsSum, true)}",
-                        (extras.taxPaise + extras.servicePaise + extras.tipPaise).takeIf { it != 0L }?.let { "+ tax & charges ${money(it, true)}" },
-                        extras.discountPaise.takeIf { it != 0L }?.let { "− discount ${money(it, true)}" },
+                        "Items ${money(itemsSum)}",
+                        (extras.taxPaise + extras.servicePaise + extras.tipPaise).takeIf { it != 0L }?.let { "+ tax & charges ${money(it)}" },
+                        extras.discountPaise.takeIf { it != 0L }?.let { "− discount ${money(it)}" },
                     )
-                    Text("${parts.joinToString(" ")} = ${money(itemsSum + extras.netPaise, true)}", style = MaterialTheme.typography.bodySmall)
+                    Text("${parts.joinToString(" ")} = ${money(itemsSum + extras.netPaise)}", style = MaterialTheme.typography.bodySmall)
                     if (gap != null && gap != 0L) Text(
-                        if (gap > 0) "Bill total is ${money(gap, true)} more than the items add up to. Fix an item, or the difference is shared like a service charge." else "Items add up to ${money(-gap, true)} more than the bill total. Check the prices or the total.",
+                        if (gap > 0) "Bill total is ${money(gap)} more than the items add up to. Fix an item, or the difference is shared like a service charge." else "Items add up to ${money(-gap)} more than the bill total. Check the prices or the total.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary
                     )
-                    if (total == null) TextButton(onClick = { totalInput = paiseToInput(itemsSum + extras.netPaise) }) { Text("Use ${money(itemsSum + extras.netPaise, true)} as total") }
+                    if (total == null) TextAction("Use ${money(itemsSum + extras.netPaise)} as the total", { totalInput = paiseToInput(itemsSum + extras.netPaise) }, alignStart = true)
                 }
             }
 
@@ -308,30 +312,28 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                 // FlowRows, not fixed Rows: a fixed Row squeezed its last chip into a one-letter-wide column.
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     people.forEachIndexed { i, name ->
-                        AssistChip(
-                            onClick = { if (i > 0) { people.removeAt(i); syncPerPersonLists() } },
-                            label = { Text(name) },
-                            leadingIcon = { Icon(Icons.Outlined.Person, null, Modifier.size(18.dp)) },
-                            trailingIcon = { if (i > 0) Icon(Icons.Outlined.Close, "Remove $name", Modifier.size(16.dp)) },
-                        )
+                        PillChip(
+                            selected = false, label = name, icon = Icons.Outlined.Person,
+                            trailingIcon = if (i > 0) Icons.Outlined.Close else null, trailingLabel = "Remove $name",
+                        ) { if (i > 0) { people.removeAt(i); syncPerPersonLists() } }
                     }
                 }
                 // Placeholder rather than a floating label, so the field and the button share a centre line.
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(newPerson, { newPerson = it }, placeholder = { Text("Add a name") }, singleLine = true, modifier = Modifier.weight(1f))
-                    Button(enabled = newPerson.isNotBlank(), onClick = { people += newPerson.trim(); newPerson = ""; syncPerPersonLists() }, modifier = Modifier.height(56.dp)) { Text("Add") }
+                    SecondaryButton("Add", { people += newPerson.trim(); newPerson = ""; syncPerPersonLists() }, enabled = newPerson.isNotBlank())
                 }
                 val suggestions = recent.filter { r -> people.none { it.equals(r, true) } }
                 if (suggestions.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    suggestions.take(10).forEach { r -> AssistChip(onClick = { people += r; syncPerPersonLists() }, label = { Text(r) }, leadingIcon = { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)) }) }
+                    suggestions.take(10).forEach { r -> PillChip(false, r, icon = Icons.Outlined.Add) { people += r; syncPerPersonLists() } }
                 }
-                Text("Quick add", style = MaterialTheme.typography.labelLarge)
+                CapsLabel("Quick add")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(2, 3, 4, 5).forEach { n ->
-                        AssistChip(onClick = { while (people.size < n) people += "Person ${people.size + 1}"; syncPerPersonLists() }, label = { Text("$n people") })
+                        PillChip(false, "$n people") { while (people.size < n) people += "Person ${people.size + 1}"; syncPerPersonLists() }
                     }
                 }
-                Text("Who paid the bill?", style = MaterialTheme.typography.labelLarge)
+                CapsLabel("Who paid")
                 ChipRow(Modifier.edgeToEdge(CardPadding), inset = CardPadding) {
                     people.forEachIndexed { i, name -> PillChip(payer == i, name) { payer = i } }
                 }
@@ -345,7 +347,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                     SplitMode.entries.forEach { m -> PillChip(mode == m, m.label) { mode = m } }
                 }
                 when (mode) {
-                    SplitMode.EQUAL -> Text("Total ÷ ${people.size}. Any leftover paise go to the payer.", style = MaterialTheme.typography.bodySmall)
+                    SplitMode.EQUAL -> Text("Split equally between ${countLabel(people.size, "person", "people")}. Any odd paisa goes to whoever paid.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     SplitMode.SHARES -> people.forEachIndexed { i, name ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(name, Modifier.weight(1f))
@@ -361,7 +363,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                         }
                         total?.let { t ->
                             val diff = SplitCalculator.customDifference(t, customAmounts.map { Money.parsePaise(it) ?: 0L })
-                            Text(if (diff == 0L) "Adds up." else if (diff > 0) "${money(diff, true)} still to assign" else "${money(-diff, true)} over the total", color = if (diff == 0L) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+                            Text(if (diff == 0L) "Adds up." else if (diff > 0) "${money(diff)} still to assign" else "${money(-diff)} over the total", color = if (diff == 0L) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                     SplitMode.BY_ITEM -> Text(if (billItems.isEmpty()) "Add items above and tap the names under each item." else "Each item is shared by the people tagged on it (or everyone). Tax, service and discount are spread in proportion.", style = MaterialTheme.typography.bodySmall)
@@ -376,17 +378,17 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                     result.shares.forEach { sh ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(people[sh.personIndex] + if (sh.personIndex == payer) " (paid)" else "")
-                            Text(money(sh.amountPaise, true), fontWeight = FontWeight.SemiBold)
+                            Text(money(sh.amountPaise), fontWeight = FontWeight.SemiBold)
                         }
                     }
                     HorizontalDivider()
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Total", fontWeight = FontWeight.Bold); Text(money(result.totalPaise, true), fontWeight = FontWeight.Bold)
+                        Text("Total", fontWeight = FontWeight.Bold); Text(money(result.totalPaise), fontWeight = FontWeight.Bold)
                     }
                     val mine = result.shares.first().amountPaise
                     Text(
-                        if (payer == 0) "You paid ${money(result.totalPaise, true)}. Only your ${money(mine, true)} counts as spend; ${money(result.totalPaise - mine, true)} is tracked as owed to you."
-                        else "${people[payer]} paid. Your ${money(mine, true)} is added as an expense you owe them.",
+                        if (payer == 0) "You paid ${money(result.totalPaise)}. Only your ${money(mine)} counts as spend; ${money(result.totalPaise - mine)} is tracked as owed to you."
+                        else "${people[payer]} paid. Your ${money(mine)} is added as an expense you owe them.",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
