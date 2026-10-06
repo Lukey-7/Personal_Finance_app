@@ -37,6 +37,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.FlowRow
+import com.pft.financetracker.ui.components.DateField
+import com.pft.financetracker.ui.components.SecondaryButton
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -90,13 +94,17 @@ fun BillsScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () 
         },
         floatingActionButton = { AddFab({ editing = Bill(name = "", amountPaise = null, dueDay = LocalDate.now().dayOfMonth, keyword = null) }, label = "Add bill") },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             item {
                 Text("Paid automatically when a matching payment shows up near the due date. Card bills appear by themselves from statement SMS.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (sorted.isEmpty()) item { EmptyState(Icons.Outlined.ReceiptLong, "No bills yet. Add rent, phone, insurance or a loan EMI.") }
+            if (sorted.isEmpty()) item {
+                EmptyState(Icons.Outlined.ReceiptLong, "No bills yet. Add rent, phone, insurance or a loan EMI, and FinTrack marks each one paid when the payment comes in.") {
+                    SecondaryButton("Add a bill", { editing = Bill(name = "", amountPaise = null, dueDay = LocalDate.now().dayOfMonth, keyword = null) })
+                }
+            }
             else item {
-                FinCard(padding = PaddingValues(vertical = 8.dp)) {
+                FinCard(padding = PaddingValues(vertical = Space.sm)) {
                     Column {
                         sorted.forEachIndexed { i, (b, s) ->
                             if (i > 0) Hairline(startInset = 20.dp + RowIconSize + RowIconGap, endInset = 20.dp)
@@ -114,7 +122,7 @@ fun BillsScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () 
             onDismissRequest = { selected = null },
             title = { Text(b.name) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text(statusText(b, s))
                     BillTracker.loanProgress(b, LocalDate.now())?.let { p ->
                         Text("EMI ${p.paidInstalments} of ${p.totalInstalments} · ${money(p.outstandingPaise)} still owed", style = MaterialTheme.typography.bodySmall)
@@ -148,7 +156,7 @@ private fun statusText(b: Bill, s: BillState): String {
 
 @Composable
 private fun BillRow(b: Bill, s: BillState, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = Space.md), verticalAlignment = Alignment.CenterVertically) {
         LetterAvatar(b.name, colorFor(Category.entries.indexOf(b.category)), size = RowIconSize)
         Spacer(Modifier.width(RowIconGap))
         Column(Modifier.weight(1f)) {
@@ -168,6 +176,7 @@ private fun BillRow(b: Bill, s: BillState, onClick: () -> Unit) {
 
 /** Add or change a bill. A loan needs its amount, rate and length; its EMI is worked out. */
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun BillEditor(start: Bill, onSave: (Bill) -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(start.name) }
     var amount by remember { mutableStateOf(start.amountPaise?.let { (it / 100).toString() } ?: "") }
@@ -201,12 +210,13 @@ private fun BillEditor(start: Bill, onSave: (Bill) -> Unit, onDismiss: () -> Uni
                     OutlinedTextField(principal, { principal = it }, label = { Text("Loan amount (₹)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     OutlinedTextField(rate, { rate = it }, label = { Text("Interest rate (% a year)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     OutlinedTextField(tenure, { tenure = it }, label = { Text("Length (months)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                    OutlinedTextField(first, { first = it }, label = { Text("First EMI date (YYYY-MM-DD)") }, singleLine = true)
+                    DateField("First EMI date", runCatching { LocalDate.parse(first) }.getOrNull(), { first = it.toString() })
                     loan?.let { Text("EMI ${money(BillTracker.amountDue(Bill(name = "", amountPaise = null, dueDay = 1, keyword = null, loan = it))!!)}", style = MaterialTheme.typography.bodySmall) }
                 } else {
                     OutlinedTextField(amount, { amount = it }, label = { Text("Amount (₹), blank if it varies") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     CapsLabel("Repeats")
-                    ChipRow(inset = 0.dp) {
+                    // Wrapping pills: a scrolling row was cut off at the dialog's edge ("Half-yearl…").
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
                         listOf(1 to "Monthly", 3 to "Quarterly", 6 to "Half-yearly", 12 to "Yearly").forEach { (m, l) -> PillChip(every == m, l) { every = m } }
                     }
                 }

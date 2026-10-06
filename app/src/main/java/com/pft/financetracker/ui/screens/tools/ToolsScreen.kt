@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.tools
 
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,12 +54,12 @@ fun ToolsScreen(tools: List<Tool>, onBack: () -> Unit) {
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             item {
                 Text("Everything here is worked out on this phone from your transactions.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             item {
-                FinCard(padding = PaddingValues(vertical = 8.dp)) {
+                FinCard(padding = PaddingValues(vertical = Space.sm)) {
                     Column {
                         tools.forEachIndexed { i, t ->
                             if (i > 0) Hairline(startInset = 20.dp + RowIconSize + RowIconGap, endInset = 20.dp)

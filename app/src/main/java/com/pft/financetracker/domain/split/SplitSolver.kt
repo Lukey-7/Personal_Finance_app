@@ -311,12 +311,7 @@ object SplitSolver {
         return SplitProposal(p.id, kind, alloc, share?.paise, k, c, reasons, SplitSource.AUTO_LOCAL)
     }
 
-    fun rupees(paise: Long): String {
-        val r = paise / 100
-        val p = paise % 100
-        val s = java.text.NumberFormat.getIntegerInstance(java.util.Locale("en", "IN")).format(r)
-        return "₹$s" + if (p != 0L) ".%02d".format(p) else ""
-    }
+    fun rupees(paise: Long): String = com.pft.financetracker.domain.model.Rupees.format(paise)
 
     private fun plural(n: Int, one: String, many: String) = "$n ${if (n == 1) one else many}"
 }

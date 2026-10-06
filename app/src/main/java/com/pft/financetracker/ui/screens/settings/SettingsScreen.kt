@@ -51,6 +51,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.AdaptiveRow
+import com.pft.financetracker.ui.components.PrimaryButton
+import com.pft.financetracker.ui.components.SecondaryButton
+import com.pft.financetracker.ui.components.Space
+import com.pft.financetracker.ui.components.TextAction
+import com.pft.financetracker.ui.components.countLabel
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -180,14 +186,14 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
-                .padding(start = Gutter, top = 8.dp, end = Gutter, bottom = bottomPadding()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(start = Gutter, top = Space.sm, end = Gutter, bottom = bottomPadding()),
+            verticalArrangement = Arrangement.spacedBy(Space.lg),
         ) {
 
             Section("SMS import", Icons.Outlined.Sms) {
                 if (!smsGranted) {
-                    Text("SMS permission not granted. Transactions can still be added manually.", style = MaterialTheme.typography.bodyMedium)
-                    Button(onClick = { permLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) }) { Text("Grant SMS permission") }
+                    Text("FinTrack can't read your SMS yet. You can still add transactions yourself.", style = MaterialTheme.typography.bodyMedium)
+                    PrimaryButton("Allow SMS access", { permLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) }, fill = false)
                 } else {
                     // The whole row is the toggle, so TalkBack reads "Auto-import new SMS, switch, on" rather
                     // than an unnamed switch, and the label is a tap target too.
@@ -205,7 +211,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         ActionRow("Scan for new SMS", Icons.Outlined.Sync, { vm.scanInbox(full = false) })
                         ActionRow("Rescan the last 12 months", Icons.Outlined.ManageHistory, { vm.scanInbox(full = true) })
                     }
-                    ActionRow("SMS log: every message scanned and what happened to it", Icons.Outlined.History, onOpenSmsLog)
+                    ActionRow("SMS log", Icons.Outlined.History, onOpenSmsLog, subtitle = "Every message scanned and what happened to it")
                     // Shapes learned from Review. Only the bank's fixed wording is kept: amounts, names and numbers are masked.
                     if (templates.isNotEmpty()) {
                         Text("Learned from Review (${templates.size})", style = MaterialTheme.typography.labelLarge)
@@ -233,17 +239,15 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
 
             Section("Clean up duplicates", Icons.Outlined.CleaningServices) {
                 Text(
-                    "Looks for the same payment stored twice - usually rows imported by an older version, before the app could spot a bank and a UPI app reporting one payment. Nothing is deleted until you confirm.",
+                    "Looks for the same payment stored twice, usually by an older version that couldn't yet tell a bank and a UPI app were reporting one payment. Nothing is deleted until you confirm.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 val dupes by vm.duplicates.collectAsState()
                 val scanning by vm.scanningDuplicates.collectAsState()
                 val scanned by vm.duplicatesScanned.collectAsState()
-                OutlinedButton(onClick = { vm.findDuplicates() }, enabled = !scanning) {
-                    Text(if (scanning) "Scanning…" else "Find duplicates")
-                }
+                SecondaryButton(if (scanning) "Looking…" else "Find duplicates", { vm.findDuplicates() }, enabled = !scanning)
                 if (scanned && dupes.isEmpty() && !scanning) {
-                    Text("No duplicates found - every transaction looks distinct.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+                    Text("No duplicates found.", style = MaterialTheme.typography.bodyMedium)
                 }
                 if (dupes.isNotEmpty()) {
                     val total = dupes.sumOf { it.amountPaise }
@@ -253,16 +257,16 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                     )
                     dupes.take(8).forEach { d ->
                         Text(
-                            "• ${money(d.amountPaise)} ${d.keep.merchant} — keeping the ${d.keep.bankName ?: "first"} record, removing the ${d.drop.bankName ?: "other"} one",
+                            "• ${money(d.amountPaise)} ${d.keep.merchant}: keeps the ${d.keep.bankName ?: "first"} record, removes the ${d.drop.bankName ?: "other"} one",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
                     if (dupes.size > 8) Text("…and ${dupes.size - 8} more", style = MaterialTheme.typography.bodySmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                            vm.mergeDuplicates { n -> scope.launch { snackbar.showSnackbar("Removed $n duplicate transaction${if (n == 1) "" else "s"}") } }
-                        }) { Text("Remove ${dupes.size}") }
-                        TextButton(onClick = { vm.clearDuplicates() }) { Text("Cancel") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        PrimaryButton("Remove ${dupes.size}", {
+                            vm.mergeDuplicates { n -> scope.launch { snackbar.showSnackbar("Removed ${countLabel(n, "duplicate")}") } }
+                        }, fill = false)
+                        TextAction("Cancel", { vm.clearDuplicates() })
                     }
                 }
             }
@@ -276,7 +280,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         Text("Count ATM cash as spend")
                         Text("Off: cash withdrawals are shown separately and left out of spend totals.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.md))
                     Switch(checked = cashAsSpend, onCheckedChange = null)
                 }
                 Text("Spend = expenses minus refunds. Transfers between your accounts, credit-card bill payments, investments and split settlements are never counted. Tap any number on the Home tab to see the transactions behind it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -286,7 +290,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                 OutlinedTextField(nameInput, { nameInput = it }, label = { Text("Your name in splits") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 // Only offered once there is something to save; a disabled pill just looked broken.
                 if (nameInput.trim().isNotEmpty() && nameInput.trim() != myName) {
-                    Button(onClick = { vm.setMyName(nameInput) }) { Text("Save name") }
+                    PrimaryButton("Save name", { vm.setMyName(nameInput) }, fill = false)
                 }
                 ActionRow("Export splits as CSV", Icons.Outlined.FileDownload, {
                     exportingSplits = true
@@ -308,7 +312,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         Text("Remind me before bills and renewals")
                         Text("A notification a few days before a bill, EMI or subscription is due. Worked out on this phone; amounts are hidden on the lock screen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.md))
                     Switch(checked = remindersOn, onCheckedChange = null)
                 }
             }
@@ -338,7 +342,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         Text("Hide amounts on the widget")
                         Text("Shows ₹•••• instead of figures, since anyone can see your home screen. Long-press the app icon or use the widget to note a purchase quickly.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.md))
                     Switch(checked = widgetHide, onCheckedChange = null)
                 }
                 // Launchers that support it show their own "Add to home screen" sheet; others need a long-press on the home screen.
@@ -370,7 +374,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(Space.md))
                     Switch(checked = splitAi && hasKey, onCheckedChange = null, enabled = hasKey)
                 }
                 ActionRow("Check again now", Icons.Outlined.Sync, { vm.refreshSplits() })
@@ -399,23 +403,23 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
 
             Section("AI monthly summary (optional)", Icons.Outlined.AutoAwesome) {
                 Text(
-                    "Uses your own OpenAI API key. Only aggregated category totals for this and last month are sent, never SMS text, merchant names, or account numbers. Nothing is sent until you tap Generate.",
-                    style = MaterialTheme.typography.bodySmall
+                    "Uses your own OpenAI API key. Only category totals for this month and last are sent, never SMS text, merchant names or account numbers. Nothing is sent until you tap Generate.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (hasKey) {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(Space.sm))
                         Text(
                             if (keyBuiltIn) "Using the key built into this app, encrypted with Android Keystore"
                             else "Using your own key, encrypted with Android Keystore",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val pad = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
-                        Button(onClick = { vm.generateAiSummary() }, Modifier.weight(1f), enabled = aiState !is AiUiState.Loading, contentPadding = pad) { Text("Generate", maxLines = 1) }
-                        OutlinedButton(onClick = { showPayload = true }, Modifier.weight(1f), contentPadding = pad) { Text("What is sent?", maxLines = 1) }
+                    // Side by side where they fit, stacked at a large font.
+                    AdaptiveRow(count = 2, minItemWidth = 140.dp) { m ->
+                        PrimaryButton("Generate", { vm.generateAiSummary() }, m, enabled = aiState !is AiUiState.Loading)
+                        SecondaryButton("What is sent?", { showPayload = true }, m)
                     }
                     // Change replaces the key in place; either action makes the key yours, so the built-in
                     // one is not restored on the next launch.
@@ -428,9 +432,9 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                                Button(onClick = { vm.setApiKey(keyInput); keyInput = ""; changingKey = false; vm.clearAi() }, enabled = keyInput.trim().length > 20) { Text("Save new key") }
-                                TextButton(onClick = { keyInput = ""; changingKey = false }) { Text("Cancel") }
+                            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), modifier = Modifier.padding(top = Space.sm)) {
+                                PrimaryButton("Save new key", { vm.setApiKey(keyInput); keyInput = ""; changingKey = false; vm.clearAi() }, enabled = keyInput.trim().length > 20, fill = false)
+                                TextAction("Cancel", { keyInput = ""; changingKey = false })
                             }
                         } else {
                             ActionRow("Change key", Icons.Outlined.Key, { changingKey = true })
@@ -438,7 +442,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         ActionRow("Remove key", Icons.Outlined.KeyOff, { vm.setApiKey(null); vm.clearAi(); changingKey = false })
                     }
                 } else {
-                    OutlinedButton(onClick = { showPayload = true }) { Text("What would be sent?") }
+                    SecondaryButton("What would be sent?", { showPayload = true })
                     OutlinedTextField(
                         keyInput, { keyInput = it },
                         label = { Text("OpenAI API key (sk-...)") }, singleLine = true,
@@ -446,12 +450,12 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Button(onClick = { vm.setApiKey(keyInput); keyInput = "" }, enabled = keyInput.trim().length > 20) { Text("Save key") }
+                    PrimaryButton("Save key", { vm.setApiKey(keyInput); keyInput = "" }, enabled = keyInput.trim().length > 20, fill = false)
                 }
                 when (val s = aiState) {
-                    is AiUiState.Loading -> Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { CircularProgressIndicator(Modifier.height(20.dp).padding(end = 8.dp)); Text("Asking the model…") }
+                    is AiUiState.Loading -> Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(Space.sm)); Text("Writing your summary…") }
                     is AiUiState.Result -> SoftPanel { MarkdownText(s.text) }
-                    is AiUiState.Error -> Text("Error: ${s.message}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    is AiUiState.Error -> Text("Couldn't get a summary. ${s.message}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     AiUiState.Idle -> {}
                 }
             }
@@ -483,7 +487,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
         onDismissRequest = { confirmClear = false },
         title = { Text("Delete everything?") },
         text = { Text("All transactions, budgets, splits, the SMS log, review items and the saved API key will be permanently erased from this device.") },
-        confirmButton = { TextButton(onClick = { confirmClear = false; vm.clearAllData { scope.launch { snackbar.showSnackbar("All data cleared") } } }) { Text("Delete all") } },
+        confirmButton = { TextButton(onClick = { confirmClear = false; vm.clearAllData { scope.launch { snackbar.showSnackbar("All data cleared") } } }) { Text("Delete everything", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
     )
 }

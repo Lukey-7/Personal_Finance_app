@@ -24,6 +24,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /** Row avatar/icon size and the gap after it, from the reference's list rows. */
@@ -116,6 +122,34 @@ fun Modifier.edgeToEdge(gutter: Dp = Gutter): Modifier = layout { measurable, co
     }
     val p = measurable.measure(constraints.copy(minWidth = constraints.maxWidth + extra, maxWidth = constraints.maxWidth + extra))
     layout(constraints.maxWidth, p.height) { p.place(-extra / 2, 0) }
+}
+
+/**
+ * A label and a figure on one line: the label takes the flexible space and wraps, the figure never does (at a large
+ * font a squeezed amount broke into one digit per line). Tappable rows are a full 48dp touch target.
+ */
+@Composable
+fun AmountRow(
+    label: String,
+    paise: Long,
+    color: Color,
+    modifier: Modifier = Modifier,
+    sign: String = "",
+    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    onClick: (() -> Unit)? = null,
+) {
+    Row(
+        modifier.fillMaxWidth()
+            .then(if (onClick != null) Modifier.heightIn(min = 48.dp).clickable(onClick = onClick) else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = labelColor)
+        Spacer(Modifier.width(Space.md))
+        Text(
+            if (sign.isEmpty()) money(paise) else "$sign ${money(paise)}",
+            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = color, softWrap = false,
+        )
+    }
 }
 
 /**

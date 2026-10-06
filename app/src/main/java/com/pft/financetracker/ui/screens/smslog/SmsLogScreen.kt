@@ -52,6 +52,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.pft.financetracker.ui.components.Hairline
+import com.pft.financetracker.ui.components.RowIconGap
+import com.pft.financetracker.ui.components.RowTextInset
+import com.pft.financetracker.ui.components.Space
+import com.pft.financetracker.ui.components.reasonLabel
+import com.pft.financetracker.ui.components.matchesAmount
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -91,7 +100,7 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
     val list = all.filter { e ->
         (outcome == null || (if (outcome == MISSES) isMiss(e) else e.outcome == outcome)) &&
             (!onlyThisRun || runId == null || e.runId == runId) &&
-            (query.isBlank() || e.sender.contains(query, true) || e.reason.contains(query, true) || (e.amountPaise?.let { money(it) } ?: "").contains(query))
+            (query.isBlank() || e.sender.contains(query, true) || reasonLabel(e.reason).contains(query, true) || e.reason.contains(query, true) || (e.amountPaise?.let { matchesAmount(it, query) } ?: false))
     }
 
     Scaffold(
@@ -108,21 +117,31 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
         Column(Modifier.fillMaxSize().padding(padding)) {
             Text(
                 "Every bank/UPI SMS scanned, and what the app did with it. Message text is not stored; tap a row to read it from your inbox.",
-                Modifier.padding(horizontal = Gutter, vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                Modifier.padding(horizontal = Gutter, vertical = Space.sm), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            SearchField(query, { query = it }, "Search sender, reason, amount", Modifier.padding(horizontal = Gutter, vertical = 8.dp))
-            ChipRow(Modifier.padding(bottom = 8.dp)) {
-                if (runId != null) PillChip(onlyThisRun, "This import") { onlyThisRun = !onlyThisRun }
+            SearchField(query, { query = it }, "Search sender, reason, amount", Modifier.padding(horizontal = Gutter, vertical = Space.sm))
+            ChipRow(Modifier.padding(bottom = Space.sm)) {
+                if (runId != null) PillChip(onlyThisRun, "This scan only") { onlyThisRun = !onlyThisRun }
                 PillChip(outcome == null, "All (${all.size})") { outcome = null }
-                listOf(Outcomes.SAVED to "Saved", Outcomes.REVIEW to "Review", Outcomes.DUPLICATE to "Duplicate", Outcomes.IGNORED to "Ignored").forEach { (k, label) ->
+                listOf(Outcomes.SAVED to "Saved", Outcomes.REVIEW to "To review", Outcomes.DUPLICATE to "Duplicate", Outcomes.IGNORED to "Skipped").forEach { (k, label) ->
                     PillChip(outcome == k, "$label (${counts[k] ?: 0})") { outcome = if (outcome == k) null else k }
                 }
                 // Skipped messages that still carry an amount and an account: worth a look, one tap sends them to Review.
                 if (misses > 0) PillChip(outcome == MISSES, "Possible misses ($misses)") { outcome = if (outcome == MISSES) null else MISSES }
             }
-            if (list.isEmpty()) EmptyState(Icons.Outlined.SearchOff, if (all.isEmpty()) "No SMS scanned yet." else "No log entries match.")
+            if (list.isEmpty()) EmptyState(
+                Icons.Outlined.SearchOff,
+                when {
+                    all.isEmpty() -> "No SMS scanned yet. Scan from Home or Settings and every message shows up here."
+                    onlyThisRun && runId != null -> "Nothing new in this scan. Turn off \u201cThis scan only\u201d to see earlier messages."
+                    else -> "Nothing matches this search or filter."
+                },
+            )
             LazyColumn(contentPadding = PaddingValues(bottom = bottomPadding())) {
-                items(list, key = { it.id }) { e -> LogRow(e) { selected = e } }
+                itemsIndexed(list, key = { _, e -> e.id }) { i, e ->
+                    if (i > 0) Hairline(startInset = RowTextInset, endInset = Gutter)
+                    LogRow(e) { selected = e }
+                }
             }
         }
     }
@@ -135,11 +154,11 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
             onDismissRequest = { selected = null },
             title = { Text(e.sender) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text(fullDate(e.receivedAt), style = MaterialTheme.typography.labelMedium)
-                    Text("${outcomeLabel(e.outcome)} · ${e.reason.replace('_', ' ')}", style = MaterialTheme.typography.bodyMedium, color = outcomeColor(e.outcome), fontWeight = FontWeight.SemiBold)
-                    e.amountPaise?.let { Text("Amount read: ${money(it, decimals = true)}" + (e.type?.let { t -> " ($t)" } ?: "")) }
-                    Spacer(Modifier.height(4.dp))
+                    Text("${outcomeLabel(e.outcome)} · ${reasonLabel(e.reason)}", style = MaterialTheme.typography.bodyMedium, color = outcomeColor(e.outcome), fontWeight = FontWeight.SemiBold)
+                    e.amountPaise?.let { Text("Amount read: ${money(it)}" + when (e.type) { "DEBIT" -> ", going out"; "CREDIT" -> ", coming in"; else -> "" }) }
+                    Spacer(Modifier.height(Space.xs))
                     Text("Message", style = MaterialTheme.typography.labelLarge)
                     Text(
                         when { !loaded -> "Reading from inbox…"; body == null -> "Not found in the inbox (deleted, or SMS permission revoked)."; else -> body!! },
@@ -153,7 +172,7 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
                     Outcomes.REVIEW -> TextButton(onClick = { selected = null; onOpenReview() }) { Text("Open review") }
                     Outcomes.DUPLICATE -> e.transactionId?.let { id -> TextButton(onClick = { selected = null; onOpenTransaction(id) }) { Text("Open kept record") } }
                     else -> TextButton(enabled = body != null, onClick = {
-                        vm.flagLogEntry(e.id) { ok -> scope.launch { snackbar.showSnackbar(if (ok) "Sent to review queue" else "Could not read message") } }
+                        vm.flagLogEntry(e.id) { ok -> scope.launch { snackbar.showSnackbar(if (ok) "Sent to Review" else "Couldn't read that message from your inbox") } }
                         selected = null
                     }) { Text("This was a transaction") }
                 }
@@ -165,15 +184,16 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
 
 @Composable
 private fun LogRow(e: SmsLogEntity, onClick: () -> Unit) {
-    FinCard(Modifier.padding(horizontal = Gutter, vertical = 4.dp), onClick = onClick, padding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
+    // A list row like Activity's, not a bordered card per message.
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Gutter, vertical = Space.md)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // Status shown by an icon as well as its colour, so it survives colour blindness and greyscale.
             val c = outcomeColor(e.outcome)
             IconCircle(outcomeIcon(e.outcome), tint = c, background = c.copy(alpha = 0.12f))
-            Spacer(Modifier.width(14.dp))
+            Spacer(Modifier.width(RowIconGap))
             Column(Modifier.weight(1f)) {
                 Text(e.sender, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(outcomeLabel(e.outcome) + " · " + e.reason.replace('_', ' '), style = MaterialTheme.typography.labelMedium, color = c, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(outcomeLabel(e.outcome) + " · " + reasonLabel(e.reason), style = MaterialTheme.typography.labelMedium, color = c, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(fullDate(e.receivedAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
             e.amountPaise?.let {
@@ -193,12 +213,12 @@ private fun outcomeIcon(o: String): ImageVector = when (o) {
 
 private const val MISSES = "MISSES"
 
-private fun outcomeLabel(o: String) = when (o) { Outcomes.SAVED -> "Saved"; Outcomes.REVIEW -> "Needs review"; Outcomes.DUPLICATE -> "Duplicate"; else -> "Ignored" }
+private fun outcomeLabel(o: String) = when (o) { Outcomes.SAVED -> "Saved"; Outcomes.REVIEW -> "To review"; Outcomes.DUPLICATE -> "Duplicate"; else -> "Skipped" }
 
 @Composable
 private fun outcomeColor(o: String): Color = when (o) {
     Outcomes.SAVED -> Income
-    Outcomes.REVIEW -> MaterialTheme.colorScheme.tertiary
+    Outcomes.REVIEW -> Expense
     Outcomes.DUPLICATE -> Neutral
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }

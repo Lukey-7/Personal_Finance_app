@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.split
 
+import com.pft.financetracker.ui.components.Space
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -74,9 +75,9 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                     IconButton(onClick = {
                         // Plain-text summary through the system share sheet. You pick the app; FinTrack sends nothing itself.
                         val text = buildString {
-                            append("${split.title} · ${dateOnly(split.date)} · total ${money(split.totalPaise, true)}\n")
+                            append("${split.title} · ${dateOnly(split.date)} · total ${money(split.totalPaise)}\n")
                             append("Paid by ${split.people.getOrNull(split.payerIndex)?.name}\n")
-                            split.shares.forEach { sh -> append("${split.people.getOrNull(sh.personIndex)?.name}: ${money(sh.amountPaise, true)}${if (sh.settledPaise >= sh.amountPaise && sh.personIndex != split.payerIndex) " ✓" else ""}\n") }
+                            split.shares.forEach { sh -> append("${split.people.getOrNull(sh.personIndex)?.name}: ${money(sh.amountPaise)}${if (sh.settledPaise >= sh.amountPaise && sh.personIndex != split.payerIndex) " ✓" else ""}\n") }
                         }
                         ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Share split"))
                     }) { Icon(Icons.Outlined.Share, "Share") }
@@ -86,12 +87,12 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
         )
     }) { padding ->
         if (split == null) { Text("Split not found.", Modifier.padding(padding).padding(16.dp)); return@Scaffold }
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(start = com.pft.financetracker.ui.components.Gutter, top = 8.dp, end = com.pft.financetracker.ui.components.Gutter, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(start = com.pft.financetracker.ui.components.Gutter, top = Space.sm, end = com.pft.financetracker.ui.components.Gutter, bottom = Space.xl), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             FinCard {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(money(split.totalPaise, true), style = MaterialTheme.typography.displaySmall)
+                Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                    Text(money(split.totalPaise), style = MaterialTheme.typography.displaySmall)
                     Text("${dateOnly(split.date)} · ${split.mode.label} · paid by ${split.people.getOrNull(split.payerIndex)?.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    split.myShare?.let { Text(if (split.isSuggestion) "Your share would be ${money(it.amountPaise, true)} (not applied yet)" else "Your share: ${money(it.amountPaise, true)} (counted as your spend)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold) }
+                    split.myShare?.let { Text(if (split.isSuggestion) "Your share would be ${money(it.amountPaise)} (not applied yet)" else "Your share: ${money(it.amountPaise)} (counted as your spend)", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold) }
                     split.linkedTransactionId?.let { txId -> TextButton(onClick = { onOpenTransaction(txId) }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) { Text("Open linked transaction") } }
                     split.note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 }
@@ -114,11 +115,11 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                 split.reasons.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
                 split.confidence?.let { Text("Confidence $it%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 if (split.isSuggestion) {
-                    com.pft.financetracker.ui.components.PrimaryPill("Yes, split it", { vm.acceptSplit(split.id) })
-                    TextButton(onClick = { vm.rejectSplit(split.id); onBack() }, modifier = Modifier.fillMaxWidth()) { Text("Not a split") }
+                    com.pft.financetracker.ui.components.PrimaryButton("Split it", { vm.acceptSplit(split.id) })
+                    com.pft.financetracker.ui.components.TextAction("Not shared", { vm.rejectSplit(split.id); onBack() }, Modifier.fillMaxWidth())
                 } else {
                     Text("Your spend counts only your share; your friends' transfers are marked as settlements, not income.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedButton(onClick = { vm.rejectSplit(split.id); onBack() }, modifier = Modifier.fillMaxWidth()) { Text("Undo: this wasn't a split") }
+                    com.pft.financetracker.ui.components.TextAction("Undo: this wasn't shared", { vm.rejectSplit(split.id); onBack() }, tone = com.pft.financetracker.ui.components.Tone.Danger, alignStart = true)
                 }
             }
 
@@ -134,23 +135,23 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                                 if (!isPayer) Text(
                                     when {
                                         sh.remainingPaise <= 0 -> "Settled"
-                                        sh.settledPaise > 0 -> "${money(sh.settledPaise, true)} paid · ${money(sh.remainingPaise, true)} left"
-                                        else -> "Owes ${money(sh.remainingPaise, true)}"
+                                        sh.settledPaise > 0 -> "${money(sh.settledPaise)} paid · ${money(sh.remainingPaise)} left"
+                                        else -> "Owes ${money(sh.remainingPaise)}"
                                     },
-                                    style = MaterialTheme.typography.bodySmall, color = if (sh.remainingPaise <= 0) Income else MaterialTheme.colorScheme.tertiary
+                                    style = MaterialTheme.typography.bodySmall, color = if (sh.remainingPaise <= 0) Income else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Text(money(sh.amountPaise, true), fontWeight = FontWeight.SemiBold)
+                            Text(money(sh.amountPaise), fontWeight = FontWeight.SemiBold)
                             if (!isPayer && sh.remainingPaise > 0 && !split.isAuto) {
                                 Spacer(Modifier.padding(4.dp))
-                                OutlinedButton(onClick = { settling = sh; settleInput = paiseToInput(sh.remainingPaise) }) { Text("Settle") }
+                                com.pft.financetracker.ui.components.SecondaryButton("Settle", { settling = sh; settleInput = paiseToInput(sh.remainingPaise) })
                             }
                         }
                     }
                     HorizontalDivider()
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Total", fontWeight = FontWeight.Bold)
-                        Text(money(split.shares.sumOf { it.amountPaise }, true), fontWeight = FontWeight.Bold)
+                        Text(money(split.shares.sumOf { it.amountPaise }), fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -166,13 +167,13 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                                     val who = it.assignedTo.mapNotNull { i -> split.people.getOrNull(i)?.name }
                                     Text(if (who.isEmpty()) "everyone" else who.joinToString(", "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                Text(money(it.pricePaise * it.quantity, true))
+                                Text(money(it.pricePaise * it.quantity))
                             }
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(Space.xl))
         }
     }
 
@@ -181,7 +182,7 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
             onDismissRequest = { settling = null },
             title = { Text("Record payment from ${split?.people?.getOrNull(sh.personIndex)?.name}") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     // Their transfer is already in the app: pick it, and it stops counting as income.
                     val s = split
                     val matches = if (s != null) vm.settleCandidates(s, sh.remainingPaise).take(4) else emptyList()
@@ -191,12 +192,12 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
                             TextButton(onClick = {
                                 vm.settleWithTransaction(s!!.id, sh.id, (sh.settledPaise + t.amountPaise).coerceAtMost(sh.amountPaise), t); settling = null
                             }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-                                Text("${money(t.amountPaise, true)} from ${t.merchant} · ${dateOnly(t.timestamp)}")
+                                Text("${money(t.amountPaise)} from ${t.merchant} · ${dateOnly(t.timestamp)}")
                             }
                         }
                         Text("Or enter an amount (cash, or paid elsewhere):", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
-                        Text("Outstanding: ${money(sh.remainingPaise, true)}. Enter what they paid you (partial is fine).")
+                        Text("Outstanding: ${money(sh.remainingPaise)}. Enter what they paid you (partial is fine).")
                     }
                     OutlinedTextField(settleInput, { settleInput = it }, label = { Text("Amount (₹)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
                 }
@@ -215,7 +216,7 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
         onDismissRequest = { confirmDelete = false },
         title = { Text("Delete this split?") },
         text = { Text(if (split?.isAuto == true) "Your numbers go back to how the bank reported them, and this payment won't be split automatically again." else "The split and its balances are removed. Any transaction it created or adjusted is left as it is; transfers you linked to it count as income again.") },
-        confirmButton = { TextButton(onClick = { vm.deleteSplit(id); confirmDelete = false; onBack() }) { Text("Delete") } },
+        confirmButton = { TextButton(onClick = { vm.deleteSplit(id); confirmDelete = false; onBack() }) { Text("Delete split", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
     )
 }

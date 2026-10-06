@@ -6,6 +6,7 @@ import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.recurring.Period as RecurringPeriod
 import com.pft.financetracker.domain.recurring.RecurringDetector
 import com.pft.financetracker.domain.model.Money
+import com.pft.financetracker.domain.model.Rupees
 import com.pft.financetracker.domain.model.Transaction
 import java.util.Calendar
 import java.util.Locale
@@ -45,6 +46,20 @@ object Periods {
         c.timeInMillis = endInclusive; zero(c); c.add(Calendar.DAY_OF_MONTH, 1)
         val label = String.format(Locale.ENGLISH, "%1\$td %1\$tb – %2\$td %2\$tb", Calendar.getInstance().apply { timeInMillis = s }, Calendar.getInstance().apply { timeInMillis = endInclusive })
         return Period(s, c.timeInMillis, label)
+    }
+
+    /**
+     * The stretch of [previous] that matches how far [current] has run at [now]: six days into October compares with
+     * 1–6 Sep, not all of September. A finished [current] compares with the whole of [previous].
+     */
+    fun sameSpanBefore(current: Period, previous: Period, now: Long): Period {
+        if (now !in current) return previous
+        val end = minOf(previous.end, previous.start + (now - current.start))
+        val from = Calendar.getInstance().apply { timeInMillis = previous.start }
+        val to = Calendar.getInstance().apply { timeInMillis = end - 1 }
+        val label = if (from.get(Calendar.MONTH) == to.get(Calendar.MONTH)) String.format(Locale.ENGLISH, "%1\$te–%2\$te %2\$tb", from, to)
+        else String.format(Locale.ENGLISH, "%1\$te %1\$tb – %2\$te %2\$tb", from, to)
+        return Period(previous.start, end, label)
     }
 
     private fun zero(c: Calendar) {
@@ -200,13 +215,13 @@ object InsightsEngine {
             val p = prev.byCategory.firstOrNull { it.category == cs.category }?.amountPaise ?: 0L
             if (p < 20_000 && cs.amountPaise < 50_000) continue
             if (p == 0L) {
-                out += Insight("New spending: ${cs.category.label}", "₹${fmt(cs.amountPaise)} this period, nothing last period.", Insight.Severity.INFO, cs.category, 0)
+                out += Insight("New spending: ${cs.category.label}", "${rupees(cs.amountPaise)} this period, nothing last period.", Insight.Severity.INFO, cs.category, 0)
                 continue
             }
             val pct = ((cs.amountPaise - p).toDouble() / p * 100).roundToInt()
             if (abs(pct) < 10) continue
-            if (pct > 0) out += Insight("${cs.category.label} up $pct%", "You spent ₹${fmt(cs.amountPaise)} vs ₹${fmt(p)} last period.", Insight.Severity.WARN, cs.category, pct)
-            else out += Insight("${cs.category.label} down ${-pct}%", "₹${fmt(cs.amountPaise)} vs ₹${fmt(p)} last period. Nice.", Insight.Severity.GOOD, cs.category, -pct)
+            if (pct > 0) out += Insight("${cs.category.label} up $pct%", "You spent ${rupees(cs.amountPaise)} vs ${rupees(p)} last period.", Insight.Severity.WARN, cs.category, pct)
+            else out += Insight("${cs.category.label} down ${-pct}%", "${rupees(cs.amountPaise)} vs ${rupees(p)} last period. Nice.", Insight.Severity.GOOD, cs.category, -pct)
         }
         return out.sortedByDescending { it.magnitude }
     }
@@ -222,13 +237,13 @@ object InsightsEngine {
             r.priceRise?.let { p ->
                 out += Insight(
                     "${r.merchant} went up",
-                    "Now ₹${fmt(p.toPaise)} instead of ₹${fmt(p.fromPaise)} (${r.period.label.lowercase(Locale.ROOT)}). That is ₹${fmt(r.yearlyPaise - r.yearlyPaise * p.fromPaise / p.toPaise)} more a year.",
+                    "Now ${rupees(p.toPaise)} instead of ${rupees(p.fromPaise)} (${r.period.label.lowercase(Locale.ROOT)}). That is ${rupees(r.yearlyPaise - r.yearlyPaise * p.fromPaise / p.toPaise)} more a year.",
                     Insight.Severity.WARN, r.category
                 )
             }
             out += Insight(
                 "Recurring: ${r.merchant}",
-                "₹${fmt(r.amountPaise)} ${r.period.label.lowercase(Locale.ROOT)}, ₹${fmt(r.yearlyPaise)} a year. Still using it?",
+                "${rupees(r.amountPaise)} ${r.period.label.lowercase(Locale.ROOT)}, ${rupees(r.yearlyPaise)} a year. Still using it?",
                 Insight.Severity.WARN, r.category
             )
         }
@@ -241,14 +256,14 @@ object InsightsEngine {
             val total = small.sumOf { it.amountPaise }
             val topCat = small.groupBy { it.category }.maxByOrNull { it.value.size }?.key
             out += Insight(
-                "${small.size} small spends add up to ₹${fmt(total)}",
+                "${small.size} small spends add up to ${rupees(total)}",
                 "Purchases under ₹300 this month" + (topCat?.let { ", mostly ${it.label.lowercase(Locale.ROOT)}" } ?: "") + ". Batching them could cut this noticeably.",
                 Insight.Severity.WARN, topCat
             )
         }
 
         // 3. Categories trending up vs previous month.
-        out += categoryTrends(all, month, Periods.month(-1, now)).filter { it.severity == Insight.Severity.WARN }.take(3)
+        out += categoryTrends(all, month, Periods.sameSpanBefore(month, Periods.month(-1, now), now)).filter { it.severity == Insight.Severity.WARN }.take(3)
 
         // 4. Biggest single merchant this month.
         thisMonth.groupBy { normalizeMerchant(it.merchant) }.maxByOrNull { e -> e.value.sumOf { it.amountPaise } }?.let { (_, list) ->
@@ -257,7 +272,7 @@ object InsightsEngine {
             if (monthTotal > 0 && total.toDouble() / monthTotal > 0.25 && list.size > 1) {
                 out += Insight(
                     "${list.first().merchant} is ${(total.toDouble() / monthTotal * 100).roundToInt()}% of this month",
-                    "${list.size} transactions totalling ₹${fmt(total)}. Worth a second look.",
+                    "${list.size} transactions totalling ${rupees(total)}. Worth a second look.",
                     Insight.Severity.INFO, list.first().category
                 )
             }
@@ -267,7 +282,7 @@ object InsightsEngine {
         budgetStatus(all, budgets, month).filter { it.over }.forEach {
             out += Insight(
                 "Over budget: ${it.budget.category.label}",
-                "₹${fmt(it.spentPaise)} spent of ₹${fmt(it.budget.monthlyLimitPaise)} budget (${(it.fraction * 100).roundToInt()}%).",
+                "${rupees(it.spentPaise)} spent of ${rupees(it.budget.monthlyLimitPaise)} budget (${(it.fraction * 100).roundToInt()}%).",
                 Insight.Severity.WARN, it.budget.category
             )
         }
@@ -294,10 +309,10 @@ object InsightsEngine {
         return d == Calendar.SATURDAY || d == Calendar.SUNDAY
     }
 
-    /** Compact rupee formatting from paise: 1,234 or 1.2L. */
-    fun fmt(paise: Long): String {
-        val r = Math.round(paise / 100.0)
-        return if (r >= 100000) String.format(Locale.ENGLISH, "%.1fL", r / 100000.0)
-        else String.format(Locale.ENGLISH, "%,d", r)
-    }
+    /** Whole-number change from [before] to [now]; null when either is nothing, since "100% less" says nothing. */
+    fun changePercent(now: Long, before: Long): Int? =
+        if (now <= 0 || before <= 0) null else Math.round((now - before) * 100.0 / before).toInt()
+
+    /** A rupee figure in the app's one format, sign before the ₹: ₹1,05,000, -₹500, ₹1,234.50. */
+    fun rupees(paise: Long): String = Rupees.format(paise)
 }

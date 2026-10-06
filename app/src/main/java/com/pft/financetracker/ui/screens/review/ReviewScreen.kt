@@ -32,6 +32,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.PrimaryButton
+import com.pft.financetracker.ui.components.Space
+import com.pft.financetracker.ui.components.TextAction
+import com.pft.financetracker.ui.components.reasonLabel
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.fullDate
@@ -58,13 +62,13 @@ fun ReviewScreen(vm: AppViewModel, onEnter: (Long) -> Unit, onBack: () -> Unit) 
             EmptyState(Icons.Outlined.TaskAlt, "Nothing to review. Messages the parser is unsure about will appear here.", Modifier.padding(padding))
             return@Scaffold
         }
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             items(queue, key = { it.id }) { r ->
                 FinCard {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             IconCircle(Icons.Outlined.Sms, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(Space.md))
                             Column(Modifier.weight(1f)) {
                                 Text(r.sender, style = MaterialTheme.typography.labelLarge)
                                 Text(fullDate(r.receivedAt), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -72,12 +76,17 @@ fun ReviewScreen(vm: AppViewModel, onEnter: (Long) -> Unit, onBack: () -> Unit) 
                         }
                         Text(r.body, style = MaterialTheme.typography.bodySmall)
                         Text(
-                            "Reason: ${r.reason.replace('_', ' ')}" + (r.guessedAmountPaise?.let { " · guessed ${money(it)}" } ?: "") + (r.guessedType?.let { " · $it" } ?: ""),
-                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                            listOfNotNull(
+                                reasonLabel(r.reason),
+                                r.guessedAmountPaise?.let { a ->
+                                    "looks like ${money(a)}" + when (r.guessedType) { "DEBIT" -> " going out"; "CREDIT" -> " coming in"; else -> "" }
+                                },
+                            ).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = { vm.dismissReview(r.id) }) { Text("Dismiss") }
-                            Button(onClick = { onEnter(r.id) }) { Text("Enter details") }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                            TextAction("Not a transaction", { vm.dismissReview(r.id) })
+                            PrimaryButton("Enter details", { onEnter(r.id) }, fill = false)
                         }
                     }
                 }

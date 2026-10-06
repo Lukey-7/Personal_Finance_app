@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.settings
 
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
@@ -31,7 +32,7 @@ fun BackupPassphraseDialog(restoring: Boolean, onConfirm: (CharArray) -> Unit, o
         onDismissRequest = onDismiss,
         title = { Text(if (restoring) "Restore a backup" else "Lock your backup") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 if (restoring) Text("Everything on this phone is replaced by the backup. This cannot be undone.", color = Expense, style = MaterialTheme.typography.bodySmall)
                 else Text("Choose a passphrase of at least 8 characters. Write it down: if it is lost, the backup cannot be opened.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(pw, { pw = it }, label = { Text("Passphrase") }, singleLine = true, visualTransformation = PasswordVisualTransformation())

@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.insights.InsightsEngine
@@ -56,13 +57,13 @@ fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: C
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(bottom = Space.xl)) {
             item {
                 FinCard(Modifier.padding(Gutter)) {
                     Column {
-                        CapsLabel("${list.size} transactions")
+                        CapsLabel(com.pft.financetracker.ui.components.countLabel(list.size, "payment"))
                         Row(Modifier.fillMaxWidth()) {
-                            Text(money(total, decimals = true), style = MaterialTheme.typography.displaySmall)
+                            Text(money(total), style = MaterialTheme.typography.displaySmall)
                         }
                         Text("Sum of the amounts below. Tap any row to correct it; totals update immediately.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

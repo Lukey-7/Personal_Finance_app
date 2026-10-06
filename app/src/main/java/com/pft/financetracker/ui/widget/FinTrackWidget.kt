@@ -15,7 +15,8 @@ import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
-import androidx.glance.background
+import androidx.glance.appwidget.background
+import androidx.glance.layout.Box
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
@@ -28,7 +29,8 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
-import androidx.glance.unit.ColorProvider
+import androidx.glance.color.ColorProvider
+import androidx.glance.unit.ColorProvider as UnitColorProvider
 import com.pft.financetracker.MainActivity
 import com.pft.financetracker.appContainer
 import com.pft.financetracker.data.bills.toDomain
@@ -57,12 +59,14 @@ class FinTrackWidget : GlanceAppWidget() {
 
     @Composable
     private fun Content(context: Context, t: WidgetText) {
-        val ink = ColorProvider(Color(0xFF14171A))
-        val soft = ColorProvider(Color(0xFF5B6168))
-        val accent = ColorProvider(Color(0xFF0E4F3E))
+        // The app's own tokens, with a night variant: Buro blue for actions, never the old green.
+        val ink = ColorProvider(day = Color(0xFF101112), night = Color(0xFFF2F2F3))
+        val soft = ColorProvider(day = Color(0xFF6A6F77), night = Color(0xFFA8ABB0))
+        val accent = ColorProvider(day = Color(0xFF0000FF), night = Color(0xFF9DA8FF))
         Column(
-            GlanceModifier.fillMaxSize().background(Color(0xFFFFFFFF)).cornerRadius(20.dp).padding(16.dp)
+            GlanceModifier.fillMaxSize().background(day = Color(0xFFFFFFFF), night = Color(0xFF121314)).cornerRadius(22.dp).padding(16.dp)
                 .clickable(actionStartActivity(Intent(context, MainActivity::class.java))),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Spent this month", style = TextStyle(color = soft, fontSize = 12.sp))
             Text(t.spent, style = TextStyle(color = ink, fontSize = 26.sp, fontWeight = FontWeight.Bold))
@@ -70,13 +74,22 @@ class FinTrackWidget : GlanceAppWidget() {
             t.nextBill?.let { Text("Next: $it", style = TextStyle(color = soft, fontSize = 12.sp)) }
             Spacer(GlanceModifier.height(8.dp))
             Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("+ Expense", style = TextStyle(color = accent, fontWeight = FontWeight.Bold, fontSize = 14.sp),
-                    modifier = GlanceModifier.clickable(actionStartActivity(QuickAddActivity.intent(context, cash = false))).padding(4.dp))
-                Spacer(GlanceModifier.width(16.dp))
-                Text("+ Cash", style = TextStyle(color = accent, fontWeight = FontWeight.Bold, fontSize = 14.sp),
-                    modifier = GlanceModifier.clickable(actionStartActivity(QuickAddActivity.intent(context, cash = true))).padding(4.dp))
+                Action(context, "+ Expense", cash = false, accent)
+                Spacer(GlanceModifier.width(8.dp))
+                Action(context, "+ Cash", cash = true, accent)
             }
         }
+    }
+
+    /** A pill-shaped action at least 48dp tall, so it is easy to hit on a home screen. */
+    @Composable
+    private fun Action(context: Context, label: String, cash: Boolean, accent: UnitColorProvider) {
+        Box(
+            GlanceModifier.height(48.dp).background(day = Color(0xFFF0EFFB), night = Color(0xFF1B1F3B)).cornerRadius(24.dp)
+                .padding(horizontal = 16.dp)
+                .clickable(actionStartActivity(QuickAddActivity.intent(context, cash = cash))),
+            contentAlignment = Alignment.Center,
+        ) { Text(label, style = TextStyle(color = accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)) }
     }
 
     companion object {

@@ -24,6 +24,8 @@ import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.domain.model.Paise
+import com.pft.financetracker.domain.model.Rupees
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -56,7 +58,7 @@ fun DonutChart(slices: List<Slice>, modifier: Modifier = Modifier, centerText: S
             }
         }
         if (centerText != null) {
-            Text(centerText, style = MaterialTheme.typography.titleMedium)
+            Text(centerText, style = MaterialTheme.typography.titleMedium.cappedScale(1.2f), maxLines = 1, softWrap = false)
         }
     }
 }
@@ -76,13 +78,15 @@ fun Legend(slices: List<Slice>, modifier: Modifier = Modifier, onClick: ((com.pf
                     }
                 } else Box(Modifier.padding(horizontal = 11.dp).size(10.dp).background(s.color, CircleShape))
                 Spacer(Modifier.width(12.dp))
-                Text(s.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // The name wraps to a second line before it is cut; the figures never wrap.
+                Text(s.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
                     "${(s.value / total * 100).roundToInt()}%",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.width(48.dp),
+                    softWrap = false,
+                    modifier = Modifier.widthIn(min = 48.dp),
                 )
                 Text(
                     money(s.value),
@@ -105,7 +109,11 @@ fun BarChart(bars: List<Pair<String, Double>>, modifier: Modifier = Modifier, co
         Row(Modifier.fillMaxWidth().height(140.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             bars.forEachIndexed { i, (_, v) ->
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (v > 0) money(v) else "", style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // Whole rupees and a capped font: a bar is about 50dp wide, and "₹…" told nobody anything.
+                    Text(
+                        if (v > 0) Rupees.format(Math.round(v * 100), Paise.NEVER) else "",
+                        style = MaterialTheme.typography.labelSmall.cappedScale(1.15f), maxLines = 1, softWrap = false,
+                    )
                     val h = (v / max * 110).dp
                     val c = if (highlightLast && i == bars.lastIndex) color else color.copy(alpha = 0.45f)
                     // An empty period is a baseline hairline, not a tinted stub that reads as a small value.
@@ -116,7 +124,7 @@ fun BarChart(bars: List<Pair<String, Double>>, modifier: Modifier = Modifier, co
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             bars.forEach { (label, _) ->
-                Text(label, style = MaterialTheme.typography.labelSmall, color = labelColor, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+                Text(label, style = MaterialTheme.typography.labelSmall.cappedScale(), color = labelColor, modifier = Modifier.weight(1f), maxLines = 1, softWrap = false, textAlign = TextAlign.Center)
             }
         }
     }

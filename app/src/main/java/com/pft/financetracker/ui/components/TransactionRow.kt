@@ -25,6 +25,7 @@ import com.pft.financetracker.ui.theme.Income
 import com.pft.financetracker.ui.theme.Neutral
 
 /** Money colour by meaning: red = spend, green = income/refund, grey = moved between your own pockets. */
+@Composable
 fun flowColor(t: Transaction) = when (t.flow) {
     Flow.EXPENSE, Flow.CASH -> Expense
     Flow.INCOME, Flow.REFUND -> Income

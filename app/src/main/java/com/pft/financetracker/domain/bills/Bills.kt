@@ -146,7 +146,7 @@ object BillTracker {
     /** A heads-up 3 days and 1 day before an unpaid bill is due. */
     fun reminder(b: Bill, today: LocalDate, txns: List<Transaction>, markedPaid: Set<LocalDate>, zone: ZoneId = ZoneId.systemDefault()): Reminder? {
         val s = state(b, today, txns, markedPaid, zone) as? BillState.Upcoming ?: return null
-        val amount = amountDue(b)?.let { "₹${InsightsEngine.fmt(it)} " } ?: ""
+        val amount = amountDue(b)?.let { "${InsightsEngine.rupees(it)} " } ?: ""
         return Reminder(
             key = "bill:${b.id}", title = "${b.name} is due soon",
             body = "${amount}due ${s.due.dayOfMonth} ${s.due.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)}",

@@ -45,6 +45,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.CardShape
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.insights.Insight
 import com.pft.financetracker.domain.insights.InsightsEngine
@@ -66,7 +68,10 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () 
 
     val periods = if (weekly) (5 downTo 0).map { Periods.week(-it) } else (5 downTo 0).map { Periods.month(-it) }
     val series = periods.mapIndexed { i, p -> shortLabel(p, weekly, i, periods) to InsightsEngine.summarize(txns, p).spend }
-    val trends = if (weekly) InsightsEngine.categoryTrends(txns, Periods.week(), Periods.week(-1)) else InsightsEngine.categoryTrends(txns, Periods.month(), Periods.month(-1))
+    // Category cards compare like with like, the same way as the trend line: this period so far against the same days before.
+    val trendNow = System.currentTimeMillis()
+    val trends = if (weekly) InsightsEngine.categoryTrends(txns, Periods.week(), Periods.sameSpanBefore(Periods.week(), Periods.week(-1), trendNow))
+    else InsightsEngine.categoryTrends(txns, Periods.month(), Periods.sameSpanBefore(Periods.month(), Periods.month(-1), trendNow))
     val suggestions = InsightsEngine.suggestions(txns, budgets)
 
     Scaffold(
@@ -83,7 +88,7 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () 
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(top = Space.sm, bottom = bottomPadding()), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             item {
                 ChipRow {
                     PillChip(!weekly, "Monthly") { weekly = false }
@@ -95,27 +100,29 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () 
                     Column {
                         Text("Net spending trend", style = MaterialTheme.typography.titleMedium)
                         Text("Expenses minus refunds. Transfers and investments excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(Space.md))
                         BarChart(series)
-                        val cur = series.last().second
-                        val prev = series[series.lastIndex - 1].second
-                        // With nothing to compare against, the bar's own label already states the value.
-                        if (prev > 0.0) {
-                            Spacer(Modifier.height(12.dp))
+                        // The current period is still running, so it is compared with the same days of the one before.
+                        val now = System.currentTimeMillis()
+                        val cur = InsightsEngine.summarize(txns, periods.last()).netSpendPaise
+                        val span = Periods.sameSpanBefore(periods.last(), periods[periods.lastIndex - 1], now)
+                        val before = InsightsEngine.summarize(txns, span).netSpendPaise
+                        val change = InsightsEngine.changePercent(cur, before)
+                        if (change != null) {
+                            Spacer(Modifier.height(Space.md))
                             Text(
-                                if (cur > prev) "Up ${((cur - prev) / prev * 100).toInt()}% vs previous (${money(prev)})"
-                                else "Down ${((prev - cur) / prev * 100).toInt()}% vs previous (${money(prev)})",
-                                style = MaterialTheme.typography.bodyMedium
+                                (if (change >= 0) "$change% more" else "${-change}% less") + " than ${span.label} (${money(before)})",
+                                style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                     }
                 }
             }
-            item { SectionHeader("Category changes", Modifier.padding(top = 16.dp)) }
+            item { SectionHeader("Category changes", Modifier.padding(top = Space.lg)) }
             if (trends.isEmpty()) item { Hint("Not enough data for comparisons yet.") }
             items(trends.size) { i -> InsightCard(trends[i]) }
 
-            item { SectionHeader("Reduce spending", Modifier.padding(top = 16.dp)) }
+            item { SectionHeader("Reduce spending", Modifier.padding(top = Space.lg)) }
             if (suggestions.isEmpty()) item { Hint("Suggestions appear once there are a few weeks of transactions.") }
             items(suggestions.size) { i -> InsightCard(suggestions[i]) }
         }
@@ -136,14 +143,14 @@ fun InsightCard(i: Insight) {
     }
     Card(
         Modifier.fillMaxWidth().padding(horizontal = Gutter),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+        shape = CardShape,
         colors = CardDefaults.cardColors(containerColor = container),
         elevation = CardDefaults.cardElevation(0.dp),
     ) {
         Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
             Icon(icon, null, Modifier.size(22.dp), tint = tint)
             Spacer(Modifier.width(14.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Text(i.title, style = MaterialTheme.typography.titleMedium)
                 Text(i.body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

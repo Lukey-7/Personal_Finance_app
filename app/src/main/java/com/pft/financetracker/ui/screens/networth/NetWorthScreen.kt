@@ -40,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -94,12 +95,12 @@ fun NetWorthScreen(vm: AppViewModel, onBack: () -> Unit) {
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             item {
                 FinCard {
                     CapsLabel("Net worth")
                     Text(money(nw.totalPaise), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold, color = if (nw.totalPaise < 0) Expense else MaterialTheme.colorScheme.onSurface)
-                    Text("Own ${money(nw.ownPaise)} · owe ${money(nw.owePaise)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("You own ${money(nw.ownPaise)} · you owe ${money(nw.owePaise)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (history.size >= 2) {
                         val change = history.last().totalPaise - history[history.size - 2].totalPaise
                         Text((if (change >= 0) "Up " else "Down ") + money(kotlin.math.abs(change)) + " since last month", style = MaterialTheme.typography.bodySmall)
@@ -151,7 +152,7 @@ fun NetWorthScreen(vm: AppViewModel, onBack: () -> Unit) {
             onDismissRequest = { vm.resetCas() },
             title = { Text("This statement is locked") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Text(if (s.wrong) "That password did not open it. CAS passwords are usually your PAN in capitals." else "CAS passwords are usually your PAN in capitals. Used once on this phone, never stored.", style = MaterialTheme.typography.bodySmall)
                     OutlinedTextField(pw, { pw = it }, label = { Text("Password") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
                 }
@@ -171,7 +172,7 @@ fun NetWorthScreen(vm: AppViewModel, onBack: () -> Unit) {
             onDismissRequest = { editing = null },
             title = { Text(if (a.id == 0L) "Add" else "Edit") },
             text = {
-                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     Row(verticalAlignment = Alignment.CenterVertically) { Text("This is a debt", Modifier.weight(1f)); Switch(liability, { liability = it }) }
                     OutlinedTextField(name, { name = it }, label = { Text(if (liability) "e.g. Card dues, money borrowed" else "e.g. SBI FD, gold, EPF") }, singleLine = true)
                     OutlinedTextField(value, { value = it }, label = { Text("Value (₹)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))

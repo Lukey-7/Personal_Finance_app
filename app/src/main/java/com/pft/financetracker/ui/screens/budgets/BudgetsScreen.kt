@@ -44,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.insights.InsightsEngine
@@ -76,11 +77,11 @@ fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
             item { Text("Tap a category to set a monthly limit. Alerts show when you cross it.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             // One card holding a row per category, as in the reference's lists, rather than a stack of cards.
             item {
-                FinCard(padding = PaddingValues(vertical = 8.dp)) {
+                FinCard(padding = PaddingValues(vertical = Space.sm)) {
                     Column {
                         Category.spendCategories.forEachIndexed { i, cat ->
                             if (i > 0) Hairline(startInset = 20.dp + RowIconSize + RowIconGap, endInset = 20.dp)
@@ -104,12 +105,12 @@ private fun BudgetRow(cat: Category, limit: Long?, spent: Long, onClick: (Long?)
     val frac = if (limit != null && limit > 0) (spent.toDouble() / limit).toFloat() else 0f
     val over = limit != null && spent > limit
     Row(
-        Modifier.fillMaxWidth().clickable { onClick(limit) }.padding(horizontal = 20.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().clickable { onClick(limit) }.padding(horizontal = 20.dp, vertical = Space.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconCircle(categoryIcon(cat), tint = colorFor(Category.entries.indexOf(cat)))
         Spacer(Modifier.width(RowIconGap))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(cat.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(

@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import com.pft.financetracker.ui.components.ChipRow
 import com.pft.financetracker.ui.components.Gutter
-import com.pft.financetracker.ui.components.PrimaryPill
 import com.pft.financetracker.ui.components.categoryIcon
 import com.pft.financetracker.ui.components.edgeToEdge
 import androidx.compose.material3.AlertDialog
@@ -51,6 +50,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
+import androidx.compose.material.icons.outlined.AccountBalance
+import com.pft.financetracker.ui.components.ActionRow
+import com.pft.financetracker.ui.components.PickerField
+import com.pft.financetracker.ui.components.PrimaryButton
+import com.pft.financetracker.ui.components.TextAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.categorize.Categorizer
@@ -153,8 +158,8 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
         if (!loaded) return@Scaffold
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
-                .padding(start = Gutter, top = 8.dp, end = Gutter, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl),
+            verticalArrangement = Arrangement.spacedBy(Space.lg),
         ) {
             val autoSplit = id?.let { vm.autoSplitOf.collectAsState().value[it] }
             existing?.takeIf { it.originalAmountPaise != null || autoSplit != null }?.let { t ->
@@ -167,8 +172,8 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
                     )
                     autoSplit?.reasons?.take(3)?.forEach { Text("• $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     if (autoSplit != null) Row {
-                        TextButton(onClick = { onOpenSplit(autoSplit.id) }) { Text("Open split") }
-                        TextButton(onClick = { vm.rejectSplit(autoSplit.id); onBack() }) { Text("Not a split") }
+                        TextAction("Open split", { onOpenSplit(autoSplit.id) }, alignStart = true)
+                        TextAction("Not shared", { vm.rejectSplit(autoSplit.id); onBack() })
                     }
                 }
             }
@@ -187,20 +192,10 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Row {
-                        if (other != null) TextButton(onClick = { onOpenTransaction(other.id) }) { Text("Open the other one") }
-                        TextButton(onClick = { vm.undoRefund(p.linkId) }) { Text("Not a refund") }
+                        if (other != null) TextAction("Open the other one", { onOpenTransaction(other.id) }, alignStart = true)
+                        TextAction("Not a refund", { vm.undoRefund(p.linkId) }, alignStart = other == null)
                     }
                 }
-            }
-            // Tax section: the rule's guess, or the person's own tag, changeable here for any payment out.
-            existing?.takeIf { it.type == TransactionType.DEBIT }?.let { t ->
-                val tags by vm.taxTags.collectAsState()
-                var picking by remember { mutableStateOf(false) }
-                val section = if (tags.containsKey(t.id)) tags[t.id] else com.pft.financetracker.domain.tax.TaxTagger.suggest(t)
-                androidx.compose.material3.TextButton(onClick = { picking = true }) {
-                    Text("Tax: " + (section?.let { "${it.code} · ${it.label}" } ?: "not a deduction") + if (tags.containsKey(t.id)) " (yours)" else "")
-                }
-                if (picking) com.pft.financetracker.ui.screens.tax.TaxTagDialog(t.merchant, onPick = { vm.tagTax(t.id, it); picking = false }, onRule = { vm.clearTaxTag(t.id); picking = false }, onDismiss = { picking = false })
             }
             reviewBody?.let {
                 SoftPanel {
@@ -218,13 +213,13 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
             }
             OutlinedTextField(amount, { amount = it }, label = { Text("Amount (₹)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(merchant, { merchant = it }, label = { Text("Merchant / payee") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text("Category", style = MaterialTheme.typography.labelLarge)
+            CapsLabel("Category")
             ChipRow(Modifier.edgeToEdge(), inset = Gutter) {
                 Category.entries.forEach { c ->
                     PillChip(category == c, c.label, icon = categoryIcon(c)) { category = c; categoryTouched = true }
                 }
             }
-            Text("Counts as", style = MaterialTheme.typography.labelLarge)
+            CapsLabel("Counts as")
             ChipRow(Modifier.edgeToEdge(), inset = Gutter) {
                 val options = if (type == TransactionType.DEBIT) listOf(Flow.EXPENSE, Flow.TRANSFER, Flow.INVESTMENT, Flow.CASH, Flow.SETTLEMENT) else listOf(Flow.INCOME, Flow.REFUND, Flow.TRANSFER, Flow.INVESTMENT, Flow.SETTLEMENT)
                 options.forEach { f -> PillChip(flow == f, f.label) { flow = f; flowTouched = true } }
@@ -241,13 +236,23 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
                 },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            OutlinedButton(onClick = { showDate = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Icon(Icons.Outlined.CalendarToday, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(dateOnly(timestamp))
-            }
+            PickerField("Date", dateOnly(timestamp), { showDate = true })
             OutlinedTextField(bank, { bank = it }, label = { Text("Bank / app (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(account, { account = it.filter { ch -> ch.isDigit() }.take(4) }, label = { Text("Account last 4 (optional)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") }, modifier = Modifier.fillMaxWidth())
-            PrimaryPill(
+            // Tax section: the rule's guess, or the person's own tag, changeable here for any payment out. A row below
+            // the form, not a link above it: it is a detail of the payment, not the first thing to read.
+            existing?.takeIf { it.type == TransactionType.DEBIT }?.let { t ->
+                val tags by vm.taxTags.collectAsState()
+                var picking by remember { mutableStateOf(false) }
+                val section = if (tags.containsKey(t.id)) tags[t.id] else com.pft.financetracker.domain.tax.TaxTagger.suggest(t)
+                ActionRow(
+                    "Tax section", Icons.Outlined.AccountBalance, { picking = true },
+                    subtitle = (section?.let { "${it.code} · ${it.label}" } ?: "Not a deduction") + if (tags.containsKey(t.id)) " (set by you)" else "",
+                )
+                if (picking) com.pft.financetracker.ui.screens.tax.TaxTagDialog(t.merchant, onPick = { vm.tagTax(t.id, it); picking = false }, onRule = { vm.clearTaxTag(t.id); picking = false }, onDismiss = { picking = false })
+            }
+            PrimaryButton(
                 text = "Save",
                 enabled = valid,
                 onClick = {
@@ -255,7 +260,7 @@ fun EditTransactionScreen(vm: AppViewModel, id: Long?, reviewId: Long?, onOpenSp
                     if (reviewId != null) vm.resolveReview(reviewId, t) { onBack() } else vm.save(t) { onBack() }
                 },
             )
-            if (reviewId != null) TextButton(onClick = { vm.dismissReview(reviewId); onBack() }, modifier = Modifier.fillMaxWidth()) { Text("Not a transaction, dismiss") }
+            if (reviewId != null) TextAction("Not a transaction", { vm.dismissReview(reviewId); onBack() }, Modifier.fillMaxWidth())
         }
     }
 

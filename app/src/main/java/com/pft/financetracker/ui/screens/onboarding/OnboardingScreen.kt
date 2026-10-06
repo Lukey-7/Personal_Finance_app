@@ -26,10 +26,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.Space
+import com.pft.financetracker.ui.components.PrimaryButton
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.FinCard
-import com.pft.financetracker.ui.components.PrimaryPill
 
 @Composable
 fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
@@ -45,9 +46,9 @@ fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Space.md))
         Text("Your money, on your phone only", style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.sm))
         Text(
             "FinTrack reads bank, UPI and card alert SMS to log transactions automatically. Everything stays in an encrypted database on this device.",
             style = MaterialTheme.typography.bodyLarge
@@ -62,11 +63,9 @@ fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
                 Bullet("You can revoke the permission any time; the app keeps working with manual entry.")
             }
         }
-        Spacer(Modifier.height(24.dp))
-        PrimaryPill("Allow SMS access & import", onClick = { launcher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) })
-        TextButton(onClick = { vm.setOnboarded(true); onDone() }, modifier = Modifier.fillMaxWidth()) {
-            Text("Skip, I will add transactions manually")
-        }
+        Spacer(Modifier.height(Space.xl))
+        PrimaryButton("Allow SMS and import", onClick = { launcher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) })
+        com.pft.financetracker.ui.components.TextAction("Skip – I'll add them myself", { vm.setOnboarded(true); onDone() }, Modifier.fillMaxWidth())
     }
 }
 
@@ -74,7 +73,7 @@ fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
 private fun Bullet(text: String) {
     Row(verticalAlignment = Alignment.Top) {
         Icon(Icons.Outlined.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(Space.sm))
         Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }

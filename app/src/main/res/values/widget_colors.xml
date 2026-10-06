@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget picker's preview, in the app's own tokens (FinTrackWidget draws the live widget with the same values). -->
+<resources>
+    <color name="widget_surface">#FFFFFF</color>
+    <color name="widget_ink">#101112</color>
+    <color name="widget_soft">#6A6F77</color>
+    <color name="widget_accent">#0000FF</color>
+</resources>
