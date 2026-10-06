@@ -117,7 +117,7 @@ release build). Recognised text is logged only in debug builds, never in release
 
 ## Design
 
-The interface follows the Buro reference kept in `stitch_buro_fintech_app/`: a warm off-white page,
+The interface follows the Buro design reference (the mockups are no longer kept in the repo): a warm off-white page,
 white cards separated by hairlines rather than shadows, a single saturated blue for anything actionable,
 and figures treated as the hero element with tight tracking. Colours were sampled from those screens.
 [Inter](https://rsms.me/inter/) is bundled under the SIL Open Font License (`licenses/Inter-OFL.txt`).
