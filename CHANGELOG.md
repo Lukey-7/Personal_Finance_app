@@ -3,6 +3,36 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [1.3.1] - 2026-10-06
+
+Focus: **polish**. No new features and no database change (still version 7); a few visible bugs fixed on the way.
+
+### Changed
+- **One money format everywhere**, Indian grouping: ₹1,05,000, paise only when an amount has them (₹2,400.50), the
+  sign before the ₹ (-₹500). Ask answers, reminders and the widget no longer write "1.1L" or "₹-5,000". Daily
+  averages and projections are whole rupees.
+- **Fair comparisons.** A month (or week) still running is compared with the same days of the one before
+  ("20% less than 1–6 Sep"), on Home, Insights, the category cards, "Reduce spending" and "This month in words".
+  No more "100% less" at the start of a month.
+- **Colours and contrast.** Money colours have a dark-mode set and meet 4.5:1 in both themes; ₹0 is never green or
+  red. The widget uses the app's blue (it was still green) and follows dark mode.
+- **One style per kind of button**, 48dp touch targets on rows, chips and the widget's actions, and white dialogs.
+- **Large text.** At the biggest system font the nav labels stay on one line and the Split header, balances, chart
+  labels and legends fit.
+- **Plain words.** Review and the SMS log explain why a message was skipped or needs a look ("A one-time code",
+  "Couldn't tell if money came in or went out"); "payment" instead of "txn"; clearer empty states with the next
+  step; dates are picked from a calendar instead of typed as 2027-10-06.
+
+### Fixed
+- The SMS-scan message on Home stayed on screen until tapped; it now goes away by itself and says what happened
+  ("12 added · 1 to review · 4 skipped", or "No new transactions").
+- A scan that cannot read the inbox (permission missing) said "Scanned 0 SMS"; it now says why.
+- Screens briefly showed "No transactions yet" and ₹0 while the database opened; they now show a spinner.
+- Activity search found "₹1,299" only when typed with the comma; "1299" works now, and names with digits ("1mg") are
+  no longer read as amounts.
+- When refunds outweigh spending, Home no longer says "Nothing spent yet".
+- Date fields can be opened with TalkBack and a keyboard.
+
 ## [1.3.0] - 2026-10-05
 
 Focus: **everyday money beyond the SMS**: subscriptions, bills and EMIs, cards, goals, tax, net worth, a widget,
