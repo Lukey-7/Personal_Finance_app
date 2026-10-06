@@ -24,6 +24,7 @@ import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.widthIn
 import com.pft.financetracker.domain.model.Paise
 import com.pft.financetracker.domain.model.Rupees
 import androidx.compose.ui.geometry.Offset
@@ -78,13 +79,15 @@ fun Legend(slices: List<Slice>, modifier: Modifier = Modifier, onClick: ((com.pf
                     }
                 } else Box(Modifier.padding(horizontal = 11.dp).size(10.dp).background(s.color, CircleShape))
                 Spacer(Modifier.width(12.dp))
-                Text(s.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // The name wraps to a second line before it is cut; the figures never wrap.
+                Text(s.label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
                     "${(s.value / total * 100).roundToInt()}%",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.width(48.dp),
+                    softWrap = false,
+                    modifier = Modifier.widthIn(min = 48.dp),
                 )
                 Text(
                     money(s.value),

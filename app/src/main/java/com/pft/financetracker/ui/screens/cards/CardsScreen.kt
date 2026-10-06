@@ -113,7 +113,7 @@ private fun CardTile(s: CardSummary, onClick: () -> Unit) {
         Text("Day ${gone.toInt().coerceAtLeast(1)} of ${total.toInt()} in this cycle", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text("${s.cycle.start.format(dayFmt)} – ${s.cycle.end.format(dayFmt)} · statement ${s.cycle.end.format(dayFmt)}", style = MaterialTheme.typography.bodySmall)
         Text(
-            "Pay by ${s.cycle.due.format(dayFmt)} (in ${s.daysToDue} days)" + if (s.card.rewardBp > 0) " · about ${money(s.rewardPaise)} back" else "",
+            "Pay by ${s.cycle.due.format(dayFmt)} (in ${s.daysToDue} days)" + if (s.card.rewardBp > 0) " · about ${com.pft.financetracker.ui.components.approxMoney(s.rewardPaise)} back" else "",
             style = MaterialTheme.typography.bodySmall, color = if (s.daysToDue <= 3) Expense else MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }

@@ -98,7 +98,7 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
                     val line = when {
                         p.done -> "Reached. Well done."
                         p.late -> "The date has passed: ${money(p.remainingPaise)} still to go."
-                        p.monthlyNeededPaise != null -> "Put ${money(p.monthlyNeededPaise)} a month aside for ${p.monthsLeft} month${if (p.monthsLeft == 1) "" else "s"}" + if (p.onTrack) " · on track" else " · behind"
+                        p.monthlyNeededPaise != null -> "Put ${com.pft.financetracker.ui.components.approxMoney(p.monthlyNeededPaise)} a month aside for ${p.monthsLeft} month${if (p.monthsLeft == 1) "" else "s"}" + if (p.onTrack) " · on track" else " · behind"
                         else -> "${money(p.remainingPaise)} to go"
                     }
                     Text(line, style = MaterialTheme.typography.bodySmall, color = if (p.late || (!p.onTrack && !p.done)) Expense else if (p.done) Income else MaterialTheme.colorScheme.onSurfaceVariant)

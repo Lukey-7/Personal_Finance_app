@@ -105,10 +105,12 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             balances.forEach { b ->
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    // Both sides share the width, so at a large font neither squeezes the other to a sliver.
                                     Text(b.name, Modifier.weight(1f))
                                     Spacer(Modifier.width(Space.md))
                                     Text(
                                         if (b.netPaise > 0) "Owes you ${money(b.netPaise)}" else "You owe ${money(-b.netPaise)}",
+                                        Modifier.weight(1f, fill = false),
                                         color = moneyTone(b.netPaise), fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End,
                                     )
                                 }

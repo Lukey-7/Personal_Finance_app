@@ -69,6 +69,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.SnackbarDuration
 import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.ui.components.AmountRow
+import com.pft.financetracker.ui.components.approxMoney
 import com.pft.financetracker.ui.components.LoadingState
 import com.pft.financetracker.ui.components.PrimaryButton
 import com.pft.financetracker.ui.components.Space
@@ -213,8 +214,8 @@ fun DashboardScreen(
                         if (summary.netSpendPaise <= 0) (if (running) "Nothing spent yet" else "Nothing spent in this period")
                         else listOfNotNull(
                             change?.let { if (it >= 0) "$it% more than ${comparedWith.label}" else "${-it}% less than ${comparedWith.label}" },
-                            if (daysIn >= 3) "about ${money(summary.dailyAveragePaise(now))} a day" else null,
-                            if (running && daysIn >= 3) summary.projectedPaise(now)?.let { "on track for ${money(it)}" } else null,
+                            if (daysIn >= 3) "about ${approxMoney(summary.dailyAveragePaise(now))} a day" else null,
+                            if (running && daysIn >= 3) summary.projectedPaise(now)?.let { "on track for ${approxMoney(it)}" } else null,
                         ).joinToString("  ·  "),
                         style = MaterialTheme.typography.bodyMedium,
                         color = when {
@@ -355,9 +356,10 @@ fun DashboardScreen(
                     }
                     budgetStatus.take(4).forEach { b ->
                         Column(Modifier.heightIn(min = 48.dp).clickable { onDrill(Bucket.SPEND, b.budget.category) }, verticalArrangement = Arrangement.Center) {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(b.budget.category.label, style = MaterialTheme.typography.bodyMedium)
-                                Text("${money(b.spentPaise)} / ${money(b.budget.monthlyLimitPaise)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(b.budget.category.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                Spacer(Modifier.width(Space.md))
+                                Text("${money(b.spentPaise)} of ${money(b.budget.monthlyLimitPaise)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, softWrap = false)
                             }
                             Spacer(Modifier.height(6.dp))
                             LinearProgressIndicator(
