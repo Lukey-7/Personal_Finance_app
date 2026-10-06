@@ -187,6 +187,12 @@ fun DashboardScreen(
                 }
             }
 
+            // Until the database answers, every figure below would read ₹0: show a spinner instead.
+            if (!loaded) {
+                item { LoadingState() }
+                return@LazyColumn
+            }
+
             // ---- The hero: one number, stated plainly, with the arithmetic underneath ----
             item {
                 Column(Modifier.padding(horizontal = Gutter)) {
@@ -373,8 +379,7 @@ fun DashboardScreen(
                     TextAction("See all", onOpenTransactions)
                 }
             }
-            if (!loaded) item { LoadingState() }
-            else if (recent.isEmpty()) item {
+            if (recent.isEmpty()) item {
                 EmptyState(Icons.AutoMirrored.Outlined.ReceiptLong, "No transactions yet. Scan your SMS with the sync button above, or add one with +.")
             }
             itemsIndexed(recent) { i, t ->

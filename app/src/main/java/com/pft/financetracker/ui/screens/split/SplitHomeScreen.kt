@@ -78,6 +78,11 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
         floatingActionButton = { if (splits.isNotEmpty()) AddFabExtended("New split", onNew, Modifier.padding(bottom = barPad)) }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(start = Gutter, top = 8.dp, end = Gutter, bottom = bottomPadding(FabClearance)), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Until the database answers, the balances would read ₹0: show a spinner instead.
+            if (!loaded) {
+                item { LoadingState() }
+                return@LazyColumn
+            }
             item {
                 SoftPanel {
                     // Two equal halves: at a large font the labels wrap inside their half instead of running together.
@@ -112,8 +117,7 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
                     }
                 }
             }
-            if (!loaded) item { LoadingState() }
-            else if (splits.isEmpty()) item {
+            if (splits.isEmpty()) item {
                 EmptyState(
                     Icons.AutoMirrored.Outlined.CallSplit,
                     "No splits yet. Snap a bill or type an amount, add the people, and FinTrack works out who pays what. Only your share counts as your spending.",
