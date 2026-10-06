@@ -46,4 +46,17 @@ class PeriodCompareTest {
         assertEquals(-81, InsightsEngine.changePercent(800_00, 4_218_00))
         assertEquals(90, InsightsEngine.changePercent(800_00, 420_00))
     }
+
+    @Test fun reduceSpendingComparesTheSameDaysToo() {
+        // 6 Oct: ₹1,000 on food so far, against ₹300 in 1–6 Sep (and ₹5,300 in all of September).
+        fun food(paise: Long, y: Int, m: Int, d: Int) = com.pft.financetracker.domain.model.Transaction(
+            amountPaise = paise, type = com.pft.financetracker.domain.model.TransactionType.DEBIT, merchant = "Swiggy",
+            category = com.pft.financetracker.domain.model.Category.FOOD,
+            timestamp = Calendar.getInstance().apply { set(y, m, d, 12, 0, 0) }.timeInMillis,
+            bankName = null, accountRef = null, source = com.pft.financetracker.domain.model.Transaction.Source.SMS,
+            flow = com.pft.financetracker.domain.model.Flow.EXPENSE)
+        val txns = listOf(food(300_00, 2026, Calendar.SEPTEMBER, 2), food(5_000_00, 2026, Calendar.SEPTEMBER, 20), food(1_000_00, 2026, Calendar.OCTOBER, 3))
+        val tips = InsightsEngine.suggestions(txns, emptyList(), now)
+        org.junit.Assert.assertTrue(tips.joinToString { it.title }, tips.any { it.title.startsWith("Food & Dining up") })
+    }
 }

@@ -24,7 +24,6 @@ import kotlin.math.roundToInt
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.widthIn
 import com.pft.financetracker.domain.model.Paise
 import com.pft.financetracker.domain.model.Rupees
 import androidx.compose.ui.geometry.Offset

@@ -73,3 +73,38 @@ fun matchesAmount(paise: Long, query: String): Boolean {
         .map { it.filter { c -> c.isDigit() || c == '.' } }
         .any { it.contains(q) }
 }
+
+/** Which way spending moved: up is drawn as spend, down as income, flat in plain grey. */
+enum class Trend { UP, DOWN, FLAT }
+
+/**
+ * The line under Home's figure: how it compares, the daily rate and where the month is heading. Never blank, never
+ * "0% more", and never "nothing spent" when refunds simply outweigh spending.
+ */
+fun heroLine(
+    spendPaise: Long,
+    change: Int?,
+    comparedWith: String,
+    running: Boolean,
+    daysIn: Int,
+    dailyPaise: Long,
+    projectedPaise: Long?,
+): Pair<String, Trend> {
+    if (spendPaise < 0) return (if (running) "Refunds are more than you've spent so far" else "Refunds were more than you spent") to Trend.FLAT
+    if (spendPaise == 0L) return (if (running) "Nothing spent yet" else "Nothing spent in this period") to Trend.FLAT
+    // Averages over one or two days say more about the calendar than about spending.
+    val settled = daysIn >= 3
+    val parts = listOfNotNull(
+        change?.let {
+            when {
+                it == 0 -> "About the same as $comparedWith"
+                it > 0 -> "$it% more than $comparedWith"
+                else -> "${-it}% less than $comparedWith"
+            }
+        },
+        if (settled) "about ${approxMoney(dailyPaise)} a day" else null,
+        if (running && settled) projectedPaise?.let { "on track for ${approxMoney(it)}" } else null,
+    )
+    val trend = when { change == null || change == 0 -> Trend.FLAT; change > 0 -> Trend.UP; else -> Trend.DOWN }
+    return (parts.joinToString(" · ").ifEmpty { "Too early to compare" }) to trend
+}

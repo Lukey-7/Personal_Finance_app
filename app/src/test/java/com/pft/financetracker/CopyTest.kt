@@ -8,6 +8,8 @@ import com.pft.financetracker.ui.components.scanResultLine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import com.pft.financetracker.ui.components.Trend
+import com.pft.financetracker.ui.components.heroLine
 import org.junit.Test
 
 /** Words people see instead of internal codes and counts. */
@@ -56,5 +58,31 @@ class CopyTest {
         assertFalse(matchesAmount(250_00, "zomato 250"))
         assertTrue(matchesAmount(1_299_00, "299"))       // anywhere in the figure, as the search did before
         assertTrue(matchesAmount(1_299_00, "₹1,299"))
+    }
+
+    @Test fun heroLineWhenRefundsAreMoreThanSpending() {
+        assertEquals("Refunds are more than you've spent so far" to Trend.FLAT, heroLine(-500_00, null, "1–6 Sep", running = true, daysIn = 6, dailyPaise = -83_33, projectedPaise = null))
+        assertEquals("Refunds were more than you spent" to Trend.FLAT, heroLine(-500_00, null, "Aug 2026", running = false, daysIn = 30, dailyPaise = 0, projectedPaise = null))
+    }
+
+    @Test fun heroLineWithNothingSpent() {
+        assertEquals("Nothing spent yet" to Trend.FLAT, heroLine(0, null, "1–6 Sep", running = true, daysIn = 6, dailyPaise = 0, projectedPaise = null))
+        assertEquals("Nothing spent in this period" to Trend.FLAT, heroLine(0, null, "Aug 2026", running = false, daysIn = 30, dailyPaise = 0, projectedPaise = null))
+    }
+
+    @Test fun heroLineSaysTheSameRatherThanZeroPercentMore() {
+        assertEquals("About the same as 1–6 Sep · about ₹133 a day · on track for ₹4,133" to Trend.FLAT,
+            heroLine(800_00, 0, "1–6 Sep", running = true, daysIn = 6, dailyPaise = 133_33, projectedPaise = 4_133_23))
+    }
+
+    @Test fun heroLineWithAChange() {
+        assertEquals("20% more than 1–6 Sep · about ₹133 a day · on track for ₹4,133" to Trend.UP,
+            heroLine(800_00, 20, "1–6 Sep", running = true, daysIn = 6, dailyPaise = 133_33, projectedPaise = 4_133_23))
+        assertEquals("15% less than Aug 2026 · about ₹50 a day" to Trend.DOWN,
+            heroLine(1_500_00, -15, "Aug 2026", running = false, daysIn = 30, dailyPaise = 50_00, projectedPaise = null))
+    }
+
+    @Test fun heroLineIsNeverBlank() {
+        assertEquals("Too early to compare" to Trend.FLAT, heroLine(800_00, null, "1–2 Sep", running = true, daysIn = 2, dailyPaise = 400_00, projectedPaise = 24_800_00))
     }
 }

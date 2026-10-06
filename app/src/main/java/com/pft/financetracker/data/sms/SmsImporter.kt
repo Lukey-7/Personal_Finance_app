@@ -59,7 +59,8 @@ class SmsImporter(
     /** Scans the inbox for messages newer than [sinceMillis] (0 = everything, capped by [maxAgeDays]). */
     suspend fun scanInbox(sinceMillis: Long = 0L, maxAgeDays: Int = 365): ImportStats = withContext(Dispatchers.IO) {
         val runId = System.currentTimeMillis()
-        if (!hasSmsPermission()) return@withContext ImportStats(runId, 0, 0, 0, 0, 0)
+        // Fail rather than report "nothing new": the screen then says the inbox could not be read, and why.
+        if (!hasSmsPermission()) throw SecurityException("READ_SMS not granted")
         val floor = maxOf(sinceMillis, runId - maxAgeDays.toLong() * 24 * 3600 * 1000)
         val messages = SmsReader.read(context, floor)
         var inserted = 0; var review = 0; var ignored = 0; var dup = 0
@@ -271,7 +272,7 @@ object SmsReader {
             "${Telephony.Sms.DATE} >= ?",
             arrayOf(sinceMillis.toString()),
             "${Telephony.Sms.DATE} ASC"
-        ) ?: return out
+        ) ?: throw IllegalStateException("SMS inbox unavailable")
         cursor.use { c ->
             val ia = c.getColumnIndex(Telephony.Sms.ADDRESS)
             val ib = c.getColumnIndex(Telephony.Sms.BODY)

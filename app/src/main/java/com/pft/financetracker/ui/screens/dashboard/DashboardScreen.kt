@@ -69,7 +69,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.SnackbarDuration
 import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.ui.components.AmountRow
-import com.pft.financetracker.ui.components.approxMoney
+import com.pft.financetracker.ui.components.Trend
+import com.pft.financetracker.ui.components.heroLine
 import com.pft.financetracker.ui.components.LoadingState
 import com.pft.financetracker.ui.components.PrimaryButton
 import com.pft.financetracker.ui.components.Space
@@ -166,7 +167,7 @@ fun DashboardScreen(
                 actions = {
                     IconButton(onClick = onOpenTools) { Icon(Icons.Outlined.Apps, "Money tools") }
                     if (importState is ImportUiState.Running) CircularProgressIndicator(Modifier.padding(14.dp).size(22.dp), strokeWidth = 2.dp)
-                    else IconButton(onClick = { if (vm.hasSmsPermission()) vm.scanInbox() }) { Icon(Icons.Outlined.Sync, "Scan SMS") }
+                    else IconButton(onClick = { vm.scanInbox() }) { Icon(Icons.Outlined.Sync, "Scan SMS") }
                 }
             )
         },
@@ -206,22 +207,23 @@ fun DashboardScreen(
                         modifier = Modifier.clickable { onDrill(Bucket.SPEND, null) },
                     )
                     Spacer(Modifier.height(6.dp))
-                    val change = InsightsEngine.changePercent(summary.netSpendPaise, prev.netSpendPaise)
                     val running = now in period
-                    // Averages over one or two days say more about the calendar than about spending.
-                    val daysIn = if (running) ((now - period.start) / 86_400_000L).toInt() + 1 else period.days
+                    val (line, trend) = heroLine(
+                        spendPaise = summary.netSpendPaise,
+                        change = InsightsEngine.changePercent(summary.netSpendPaise, prev.netSpendPaise),
+                        comparedWith = comparedWith.label,
+                        running = running,
+                        daysIn = if (running) ((now - period.start) / 86_400_000L).toInt() + 1 else period.days,
+                        dailyPaise = summary.dailyAveragePaise(now),
+                        projectedPaise = summary.projectedPaise(now),
+                    )
                     Text(
-                        if (summary.netSpendPaise <= 0) (if (running) "Nothing spent yet" else "Nothing spent in this period")
-                        else listOfNotNull(
-                            change?.let { if (it >= 0) "$it% more than ${comparedWith.label}" else "${-it}% less than ${comparedWith.label}" },
-                            if (daysIn >= 3) "about ${approxMoney(summary.dailyAveragePaise(now))} a day" else null,
-                            if (running && daysIn >= 3) summary.projectedPaise(now)?.let { "on track for ${approxMoney(it)}" } else null,
-                        ).joinToString("  ·  "),
+                        line,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = when {
-                            change == null || summary.netSpendPaise <= 0 -> MaterialTheme.colorScheme.onSurfaceVariant
-                            change > 0 -> Expense
-                            else -> Income
+                        color = when (trend) {
+                            Trend.UP -> Expense
+                            Trend.DOWN -> Income
+                            Trend.FLAT -> MaterialTheme.colorScheme.onSurfaceVariant
                         },
                     )
                 }
@@ -231,7 +233,7 @@ fun DashboardScreen(
                 // The rows are 48dp touch targets already; extra gaps between them made the sum read as a list.
                 SoftPanel(Modifier.padding(horizontal = Gutter), padding = PaddingValues(horizontal = CardPadding, vertical = Space.md), spacing = 0.dp) {
                     AmountRow("Income", summary.incomePaise, moneyTone(summary.incomePaise), sign = "+") { onDrill(Bucket.INCOME, null) }
-                    AmountRow("Gross spend", summary.grossSpendPaise, MaterialTheme.colorScheme.onSurface, sign = "−") { onDrill(Bucket.SPEND, null) }
+                    AmountRow("Gross spend", summary.grossSpendPaise, MaterialTheme.colorScheme.onSurface, sign = "-") { onDrill(Bucket.SPEND, null) }
                     if (summary.refundsPaise > 0) AmountRow("Refunds & cashback", summary.refundsPaise, Income, sign = "+") { onDrill(Bucket.REFUNDS, null) }
                     Hairline()
                     Spacer(Modifier.height(Space.md))

@@ -263,7 +263,7 @@ object InsightsEngine {
         }
 
         // 3. Categories trending up vs previous month.
-        out += categoryTrends(all, month, Periods.month(-1, now)).filter { it.severity == Insight.Severity.WARN }.take(3)
+        out += categoryTrends(all, month, Periods.sameSpanBefore(month, Periods.month(-1, now), now)).filter { it.severity == Insight.Severity.WARN }.take(3)
 
         // 4. Biggest single merchant this month.
         thisMonth.groupBy { normalizeMerchant(it.merchant) }.maxByOrNull { e -> e.value.sumOf { it.amountPaise } }?.let { (_, list) ->

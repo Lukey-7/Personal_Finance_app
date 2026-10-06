@@ -1,10 +1,10 @@
 # UI polish 2: report
 
-**Branch:** `ui-polish` (from `main` @ ef89566), 22 commits, not pushed. **Date:** 6 Oct 2026.
+**Branch:** `ui-polish` (from `main` @ ef89566), 23 commits, not pushed. **Date:** 6 Oct 2026.
 **Plan:** [`docs/PLAN-ui-polish-2.md`](../PLAN-ui-polish-2.md) · **Audit:** [`AUDIT.md`](AUDIT.md) ·
 **Before/after pairs:** [`pairs/`](pairs/) (62 pairs; `dark-*` dark mode, `big-*` 200% font).
 
-**Tests:** `bash build.sh testDebugUnitTest` → **531 tests, 0 failures** (baseline 510, plus 21 new).
+**Tests:** `bash build.sh testDebugUnitTest` → **538 tests, 0 failures** (baseline 510, plus 28 new).
 **Device:** emulator `fintest`, 393dp wide, as `com.pft.financetracker.debug.polish`, light, dark and 200% font.
 
 Decisions applied (approved): D1 paise only when present · D2 new money colours with dark variants · D3 part periods
@@ -58,14 +58,21 @@ compared with the same days of the previous one · D4 nav labels one line, cappe
 - New date fields could not be opened with TalkBack or a keyboard (verified on device: a clickable "Date: 06 Oct
   2026" button node; no Compose UI-test dependency to unit-test it).
 
+## Follow-up: the deferred minors, now fixed
+
+- "Reduce spending" compares the same days of last month, like the cards above it (`PeriodCompareTest.reduceSpendingComparesTheSameDaysToo`).
+- Home's line under the figure comes from one tested function (`CopyTest.heroLine*`): "Refunds are more than you've
+  spent so far" instead of "-₹500 · Nothing spent yet"; "About the same as 1–6 Sep" instead of "0% more"; "Too early
+  to compare" instead of a blank line.
+- One minus glyph: the formatter's "-" everywhere, sums included.
+- A scan without SMS permission, or with the inbox unreadable, now fails and says so instead of "No new transactions";
+  the Home sync button always scans, so it reports the missing permission rather than doing nothing
+  (`SmsScanPermissionTest`).
+- The widget preview uses generic text ("Next: your next bill") and has a night version (`values-night/widget_colors.xml`).
+- `Charts.kt` duplicate import removed.
+
 ## Not done, and why
 
 - **Off-grid spacing (2/6/10/14/18dp)** left as it is; only on-grid values moved to tokens. Moving them would shift
   many text gaps with no reported problem.
-- **"Reduce spending" suggestions** still compare whole months (a separate engine from the category cards).
-- **Insights' "not enough data" hints** stay plain text; there is no small `EmptyState` variant.
-- **Deferred minors from the final review:** the hero can show "-₹500" with "Nothing spent yet" when refunds exceed
-  spend; a 0% change reads "0% more"; two minus glyphs (ASCII "-₹50" vs "− ₹500" in sums); Activity's empty message
-  when only hidden reversals remain; missing SMS permission reads as "No new transactions"; static sample text in the
-  widget preview; a duplicate import in `Charts.kt`.
 - **No onboarding "before" at the same data** and no `14-split-empty` after (the split exists in the after data).
