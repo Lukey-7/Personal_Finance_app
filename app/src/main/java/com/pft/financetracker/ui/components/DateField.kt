@@ -30,6 +30,21 @@ import java.util.Locale
 
 private val shown = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH)
 
+/** A read-only field that opens something when tapped (a date or time picker), shaped like the text fields around it. */
+@Composable
+fun PickerField(label: String, text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val taps = remember { MutableInteractionSource() }
+    LaunchedEffect(taps) {
+        taps.interactions.collect { if (it is PressInteraction.Release) onClick() }
+    }
+    OutlinedTextField(
+        value = text, onValueChange = {}, readOnly = true, singleLine = true,
+        label = { Text(label) }, interactionSource = taps,
+        leadingIcon = { Icon(Icons.Outlined.CalendarMonth, null) },
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
 /**
  * A date as a field of the same shape as the text fields around it; tapping it opens the date picker. Nobody types
  * "2027-10-06". [onClear] adds a clear button for dates that are optional.

@@ -60,9 +60,9 @@ fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: C
             item {
                 FinCard(Modifier.padding(Gutter)) {
                     Column {
-                        CapsLabel("${list.size} transactions")
+                        CapsLabel(com.pft.financetracker.ui.components.countLabel(list.size, "payment"))
                         Row(Modifier.fillMaxWidth()) {
-                            Text(money(total, decimals = true), style = MaterialTheme.typography.displaySmall)
+                            Text(money(total), style = MaterialTheme.typography.displaySmall)
                         }
                         Text("Sum of the amounts below. Tap any row to correct it; totals update immediately.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }

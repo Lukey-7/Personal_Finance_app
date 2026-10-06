@@ -26,6 +26,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.pft.financetracker.ui.components.PrimaryButton
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.FinCard
@@ -63,10 +64,8 @@ fun OnboardingScreen(vm: AppViewModel, onDone: () -> Unit) {
             }
         }
         Spacer(Modifier.height(24.dp))
-        PrimaryPill("Allow SMS access & import", onClick = { launcher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) })
-        TextButton(onClick = { vm.setOnboarded(true); onDone() }, modifier = Modifier.fillMaxWidth()) {
-            Text("Skip, I will add transactions manually")
-        }
+        PrimaryButton("Allow SMS and import", onClick = { launcher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) })
+        com.pft.financetracker.ui.components.TextAction("Skip – I'll add them myself", { vm.setOnboarded(true); onDone() }, Modifier.fillMaxWidth())
     }
 }
 
