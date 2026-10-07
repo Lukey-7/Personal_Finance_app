@@ -3,7 +3,7 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
-## [Unreleased] - redesign
+## [1.4.0] - 2026-10-07
 
 Focus: **a new look**, "Quiet ledger". Every feature and every number is unchanged; no database change (still
 version 7). Before and after: `docs/redesign/index.html`.

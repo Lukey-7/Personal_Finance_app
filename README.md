@@ -274,5 +274,5 @@ Never commit the keystore or this file. `*.jks`, `*.keystore` and `keystore.prop
 Enable installing from unknown sources on your phone, then copy the APK over, or run:
 
 ```bash
-adb install app/build/outputs/apk/release/FinTrack-v1.3.1-arm64-v8a-release.apk
+adb install app/build/outputs/apk/release/FinTrack-v1.4.0-arm64-v8a-release.apk
 ```
