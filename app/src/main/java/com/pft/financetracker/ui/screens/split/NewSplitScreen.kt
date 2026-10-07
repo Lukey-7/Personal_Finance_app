@@ -1,67 +1,48 @@
 package com.pft.financetracker.ui.screens.split
 
-import com.pft.financetracker.ui.components.Space
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.PaddingValues
-import com.pft.financetracker.ui.components.AdaptiveRow
-import androidx.compose.material3.TopAppBarDefaults
-import com.pft.financetracker.ui.components.ChipRow
-import com.pft.financetracker.ui.components.CardPadding
-import com.pft.financetracker.ui.components.edgeToEdge
-import com.pft.financetracker.ui.components.Gutter
-import com.pft.financetracker.ui.components.categoryIcon
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -74,18 +55,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.pft.financetracker.ui.components.CapsLabel
-import com.pft.financetracker.ui.components.SecondaryButton
-import com.pft.financetracker.ui.components.TextAction
-import com.pft.financetracker.ui.components.countLabel
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.pft.financetracker.domain.model.Category
@@ -100,13 +78,35 @@ import com.pft.financetracker.domain.split.SplitResult
 import com.pft.financetracker.domain.split.SplitShare
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.OcrUiState
+import com.pft.financetracker.ui.components.AdaptiveRow
+import com.pft.financetracker.ui.components.CapsLabel
+import com.pft.financetracker.ui.components.CardPadding
+import com.pft.financetracker.ui.components.ChipFlow
+import com.pft.financetracker.ui.components.ControlShape
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.Hairline
+import com.pft.financetracker.ui.components.LedgerAmount
+import com.pft.financetracker.ui.components.LedgerAmountMinWidth
+import com.pft.financetracker.ui.components.PickerField
+import com.pft.financetracker.ui.components.PillChip
+import com.pft.financetracker.ui.components.PrimaryButton
+import com.pft.financetracker.ui.components.SecondaryButton
+import com.pft.financetracker.ui.components.SegmentedControl
+import com.pft.financetracker.ui.components.SoftPanel
+import com.pft.financetracker.ui.components.Space
+import com.pft.financetracker.ui.components.TextAction
+import com.pft.financetracker.ui.components.bottomPadding
+import com.pft.financetracker.ui.components.cappedScale
+import com.pft.financetracker.ui.components.categoryIcon
+import com.pft.financetracker.ui.components.countLabel
 import com.pft.financetracker.ui.components.dateOnly
 import com.pft.financetracker.ui.components.money
 import com.pft.financetracker.ui.components.paiseToInput
+import com.pft.financetracker.ui.theme.Expense
+import com.pft.financetracker.ui.theme.Income
+import com.pft.financetracker.ui.theme.MoneyType
+import com.pft.financetracker.ui.theme.rememberHaptics
 import java.io.File
-import com.pft.financetracker.ui.components.FinCard
-import com.pft.financetracker.ui.components.PillChip
-import com.pft.financetracker.ui.components.PrimaryButton
 
 /** Editable item row state. Strings so the user can type freely; parsed on use. */
 private class ItemState(name: String, qty: Int, price: Long, assigned: Set<Int>) {
@@ -120,10 +120,23 @@ private class ItemState(name: String, qty: Int, price: Long, assigned: Set<Int>)
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/** Short names for the split modes, sized for a four-way segmented control. */
+private fun SplitMode.shortLabel(): String = when (this) {
+    SplitMode.EQUAL -> "Equal"
+    SplitMode.SHARES -> "Shares"
+    SplitMode.CUSTOM -> "Amounts"
+    SplitMode.BY_ITEM -> "By item"
+}
+
+/**
+ * A new split: the total as the hero, then the bill (photo read on the phone, what it was, when), its items, the
+ * people, how to split, who paid and the category for your share, and finally who pays what before saving.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit) {
     val ctx = LocalContext.current
+    val haptics = rememberHaptics()
     val ocr by vm.ocrState.collectAsState()
     val recent by vm.recentPeople.collectAsState()
     val myName by vm.myName.collectAsState()
@@ -145,6 +158,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
     var showDate by remember { mutableStateOf(false) }
     var ocrApplied by remember { mutableStateOf(false) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    var triedSave by remember { mutableStateOf(false) }
 
     fun syncPerPersonLists() {
         while (shareWeights.size < people.size) shareWeights += "1"
@@ -154,6 +168,11 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
         if (payer >= people.size) payer = 0
     }
     syncPerPersonLists()
+
+    fun addPerson() {
+        if (newPerson.isBlank()) { haptics.reject(); return }
+        people += newPerson.trim(); newPerson = ""; syncPerPersonLists()
+    }
 
     // ---- image sources ----
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) { ocrApplied = false; vm.runOcr(uri) } }
@@ -215,6 +234,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
             }
         }
     }.getOrNull()
+    val canSave = result != null && people.size >= 2
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -228,58 +248,60 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
-                .padding(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xl),
+                .padding(start = Gutter, top = Space.sm, end = Gutter, bottom = bottomPadding()),
             verticalArrangement = Arrangement.spacedBy(Space.lg),
         ) {
 
-            // ---- 1. Source ----
-            Section("1 · The bill") {
-                Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    SecondaryButton("Photo", { launchCamera() }, Modifier.weight(1f), icon = Icons.Outlined.PhotoCamera)
-                    SecondaryButton("Gallery", { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, Modifier.weight(1f), icon = Icons.Outlined.Image)
+            // ---- The amount, as the hero ----
+            AmountHero(totalInput, { totalInput = it }, total)
+
+            // ---- The bill: photo or gallery, what it was, when ----
+            FormSection("The bill") {
+                // Side by side where each button has room, stacked at a large font so neither label breaks.
+                AdaptiveRow(count = 2, minItemWidth = 150.dp) { m ->
+                    SecondaryButton("Take photo", { launchCamera() }, m, icon = Icons.Outlined.PhotoCamera)
+                    SecondaryButton("Choose photo", { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, m, icon = Icons.Outlined.Image)
                 }
                 when (val s = ocr) {
-                    OcrUiState.Running -> Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.height(18.dp).width(18.dp)); Spacer(Modifier.width(Space.sm)); Text("Reading the bill on-device…", style = MaterialTheme.typography.bodySmall) }
-                    is OcrUiState.Error -> Text(s.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    is OcrUiState.Done -> Text("Read ${s.bill.items.size} items" + (s.bill.totalPaise?.let { ", total ${money(it)}" } ?: ", no total found") + ". Check and correct below.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
-                    OcrUiState.Idle -> Text("Or just type the total. Photos are processed on this phone and not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                OutlinedTextField(title, { title = it }, label = { Text("What was it?") }, placeholder = { Text("e.g. Dinner at Truffles") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                // Total and date share a shape and height; the date is a read-only field that opens the picker.
-                // Side by side when "23 Sep 2026" and its calendar glyph fit, stacked on a small phone.
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val total: @Composable (Modifier) -> Unit = { m ->
-                        OutlinedTextField(totalInput, { totalInput = it }, label = { Text("Total") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
+                    OcrUiState.Running -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(Space.sm))
+                        Text("Reading the bill on this phone…", style = MaterialTheme.typography.bodySmall)
                     }
-                    if (maxWidth >= 290.dp) Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                        total(Modifier.weight(1f))
-                        DateField(date, Modifier.weight(1.4f)) { showDate = true }
-                    } else Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                        total(Modifier.fillMaxWidth())
-                        DateField(date, Modifier.fillMaxWidth()) { showDate = true }
-                    }
+                    is OcrUiState.Error -> Text(s.message, color = Expense, style = MaterialTheme.typography.bodySmall)
+                    is OcrUiState.Done -> Text(
+                        "Read ${countLabel(s.bill.items.size, "item")}" + (s.bill.totalPaise?.let { ", total ${money(it)}" } ?: ", no total found") + ". Check and correct below.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    OcrUiState.Idle -> Text("Or just type the total. Photos are read on this phone and not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                CapsLabel("Category for your share")
-                ChipRow(Modifier.edgeToEdge(CardPadding), inset = CardPadding) {
-                    Category.spendCategories.forEach { c -> PillChip(category == c, c.label, icon = categoryIcon(c)) { category = c } }
-                }
+                OutlinedTextField(title, { title = it }, label = { Text("What was it?") }, placeholder = { Text("e.g. Dinner at Truffles") }, singleLine = true, shape = ControlShape, modifier = Modifier.fillMaxWidth())
+                PickerField("Date", dateOnly(date), { showDate = true })
             }
 
-            // ---- 2. Items (optional) ----
-            Section("2 · Items", subtitle = "Optional · needed to split by item") {
-                items.forEachIndexed { idx, it ->
-                    Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            OutlinedTextField(it.name, { v -> it.name = v }, label = { Text("Item") }, singleLine = true, modifier = Modifier.weight(2f))
-                            OutlinedTextField(it.qty, { v -> it.qty = v.filter { ch -> ch.isDigit() } }, label = { Text("Qty") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.weight(0.7f))
-                            OutlinedTextField(it.price, { v -> it.price = v }, label = { Text("₹ each") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.weight(1.1f))
-                            IconButton(onClick = { items.removeAt(idx) }) { Icon(Icons.Outlined.Close, "Remove item") }
+            // ---- Items (optional) ----
+            FormSection("Items", subtitle = "Optional · needed to split by item") {
+                items.forEachIndexed { idx, item ->
+                    if (idx > 0) Hairline()
+                    Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(item.name, { v -> item.name = v }, label = { Text("Item") }, singleLine = true, shape = ControlShape, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { items.removeAt(idx) }) { Icon(Icons.Outlined.Close, "Remove ${item.name.ifBlank { "item" }}") }
                         }
-                        if (mode == SplitMode.BY_ITEM) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.xs), verticalAlignment = Alignment.CenterVertically) {
-                            people.forEachIndexed { pi, name ->
-                                PillChip(pi in it.assigned, name) { if (pi in it.assigned) it.assigned.remove(pi) else it.assigned.add(pi) }
+                        AdaptiveRow(count = 2, minItemWidth = 110.dp) { m ->
+                            OutlinedTextField(item.qty, { v -> item.qty = v.filter { ch -> ch.isDigit() } }, label = { Text("Qty") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, shape = ControlShape, modifier = m)
+                            OutlinedTextField(item.price, { v -> item.price = v }, label = { Text("Each") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = ControlShape, modifier = m)
+                        }
+                        if (mode == SplitMode.BY_ITEM) {
+                            Text(
+                                if (item.assigned.isEmpty()) "Shared by everyone. Tap names to choose who had it." else "Shared by ${countLabel(item.assigned.size, "person", "people")}",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            ChipFlow {
+                                people.forEachIndexed { pi, name ->
+                                    PillChip(pi in item.assigned, name) { if (pi in item.assigned) item.assigned.remove(pi) else item.assigned.add(pi) }
+                                }
                             }
-                            if (it.assigned.isEmpty()) Text("everyone", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -287,9 +309,9 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                 // One-word labels, ₹ as a prefix, three to a line where each gets 90dp and stacked where not,
                 // so no label is ever cut short.
                 AdaptiveRow(count = 3, minItemWidth = 90.dp) { m ->
-                    OutlinedTextField(taxInput, { taxInput = it }, label = { Text("Tax", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
-                    OutlinedTextField(serviceInput, { serviceInput = it }, label = { Text("Tip", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
-                    OutlinedTextField(discountInput, { discountInput = it }, label = { Text("Discount", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = m)
+                    OutlinedTextField(taxInput, { taxInput = it }, label = { Text("Tax", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = ControlShape, modifier = m)
+                    OutlinedTextField(serviceInput, { serviceInput = it }, label = { Text("Tip", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = ControlShape, modifier = m)
+                    OutlinedTextField(discountInput, { discountInput = it }, label = { Text("Discount", maxLines = 1, style = MaterialTheme.typography.bodyMedium) }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = ControlShape, modifier = m)
                 }
                 if (billItems.isNotEmpty()) {
                     // Each part on its own terms, so a discount never reads as "− discount -₹50".
@@ -301,16 +323,16 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                     Text("${parts.joinToString(" ")} = ${money(itemsSum + extras.netPaise)}", style = MaterialTheme.typography.bodySmall)
                     if (gap != null && gap != 0L) Text(
                         if (gap > 0) "Bill total is ${money(gap)} more than the items add up to. Fix an item, or the difference is shared like a service charge." else "Items add up to ${money(-gap)} more than the bill total. Check the prices or the total.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary
+                        style = MaterialTheme.typography.bodySmall, color = Expense,
                     )
                     if (total == null) TextAction("Use ${money(itemsSum + extras.netPaise)} as the total", { totalInput = paiseToInput(itemsSum + extras.netPaise) }, alignStart = true)
                 }
             }
 
-            // ---- 3. People ----
-            Section("3 · People") {
-                // FlowRows, not fixed Rows: a fixed Row squeezed its last chip into a one-letter-wide column.
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+            // ---- People ----
+            FormSection("People") {
+                // Chips wrap onto new lines, so a long list of names is never cut at the card's edge.
+                ChipFlow {
                     people.forEachIndexed { i, name ->
                         PillChip(
                             selected = false, label = name, icon = Icons.Outlined.Person,
@@ -320,83 +342,125 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                 }
                 // Placeholder rather than a floating label, so the field and the button share a centre line.
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    OutlinedTextField(newPerson, { newPerson = it }, placeholder = { Text("Add a name") }, singleLine = true, modifier = Modifier.weight(1f))
-                    SecondaryButton("Add", { people += newPerson.trim(); newPerson = ""; syncPerPersonLists() }, enabled = newPerson.isNotBlank())
+                    OutlinedTextField(
+                        newPerson, { newPerson = it }, placeholder = { Text("Add a name") }, singleLine = true, shape = ControlShape,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { addPerson() }),
+                        modifier = Modifier.weight(1f),
+                    )
+                    SecondaryButton("Add", { addPerson() }, enabled = newPerson.isNotBlank())
                 }
                 val suggestions = recent.filter { r -> people.none { it.equals(r, true) } }
-                if (suggestions.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    suggestions.take(10).forEach { r -> PillChip(false, r, icon = Icons.Outlined.Add) { people += r; syncPerPersonLists() } }
+                if (suggestions.isNotEmpty()) {
+                    CapsLabel("Recent")
+                    ChipFlow {
+                        suggestions.take(10).forEach { r -> PillChip(false, r, icon = Icons.Outlined.Add) { people += r; syncPerPersonLists() } }
+                    }
                 }
                 CapsLabel("Quick add")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                ChipFlow {
                     listOf(2, 3, 4, 5).forEach { n ->
                         PillChip(false, "$n people") { while (people.size < n) people += "Person ${people.size + 1}"; syncPerPersonLists() }
                     }
                 }
-                CapsLabel("Who paid")
-                ChipRow(Modifier.edgeToEdge(CardPadding), inset = CardPadding) {
-                    people.forEachIndexed { i, name -> PillChip(payer == i, name) { payer = i } }
-                }
             }
 
-            // ---- 4. How to split ----
-            Section("4 · How to split") {
-                // Pills that wrap, not a four-way segmented bar: at a small phone's width the segments were
-                // too narrow for "Shares" and "Custom amounts".
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    SplitMode.entries.forEach { m -> PillChip(mode == m, m.label) { mode = m } }
+            // ---- How to split ----
+            FormSection("How to split") {
+                val modes = SplitMode.entries
+                val fontScale = LocalDensity.current.fontScale
+                // Four short segments where they fit; wrapping chips with the full names on a narrow card or at a
+                // large font, where a segment would break "Amounts" mid-word.
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    if (maxWidth >= 300.dp && fontScale <= 1.15f) {
+                        SegmentedControl(options = modes.map { it.shortLabel() }, selected = modes.indexOf(mode), onSelect = { mode = modes[it] })
+                    } else {
+                        ChipFlow { modes.forEach { m -> PillChip(mode == m, m.label) { mode = m } } }
+                    }
                 }
                 when (mode) {
-                    SplitMode.EQUAL -> Text("Split equally between ${countLabel(people.size, "person", "people")}. Any odd paisa goes to whoever paid.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    SplitMode.EQUAL -> Text("Split equally between ${countLabel(people.size, "person", "people")}. Anything that doesn't divide evenly goes to whoever paid.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     SplitMode.SHARES -> people.forEachIndexed { i, name ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(name, Modifier.weight(1f))
-                            OutlinedTextField(shareWeights[i], { v -> shareWeights[i] = v.filter { it.isDigit() } }, label = { Text("Shares") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.width(110.dp))
+                        PersonInputRow(name) {
+                            OutlinedTextField(shareWeights[i], { v -> shareWeights[i] = v.filter { it.isDigit() } }, label = { Text("Shares") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, shape = ControlShape, modifier = Modifier.width(110.dp))
                         }
                     }
                     SplitMode.CUSTOM -> {
                         people.forEachIndexed { i, name ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(name, Modifier.weight(1f))
-                                OutlinedTextField(customAmounts[i], { v -> customAmounts[i] = v }, label = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, modifier = Modifier.width(130.dp))
+                            PersonInputRow(name) {
+                                OutlinedTextField(customAmounts[i], { v -> customAmounts[i] = v }, label = { Text("Amount") }, prefix = { Text("₹") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, shape = ControlShape, modifier = Modifier.width(130.dp))
                             }
                         }
                         total?.let { t ->
                             val diff = SplitCalculator.customDifference(t, customAmounts.map { Money.parsePaise(it) ?: 0L })
-                            Text(if (diff == 0L) "Adds up." else if (diff > 0) "${money(diff)} still to assign" else "${money(-diff)} over the total", color = if (diff == 0L) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+                            if (diff == 0L) Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.CheckCircle, null, Modifier.size(16.dp), tint = Income)
+                                Spacer(Modifier.width(Space.xs))
+                                Text("Adds up", color = Income, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                            } else Text(
+                                if (diff > 0) "${money(diff)} still to assign" else "${money(-diff)} over the total",
+                                color = Expense, style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
-                    SplitMode.BY_ITEM -> Text(if (billItems.isEmpty()) "Add items above and tap the names under each item." else "Each item is shared by the people tagged on it (or everyone). Tax, service and discount are spread in proportion.", style = MaterialTheme.typography.bodySmall)
+                    SplitMode.BY_ITEM -> Text(if (billItems.isEmpty()) "Add items above and tap the names under each item." else "Each item is shared by the people tagged on it (or everyone). Tax, service and discount are spread in proportion.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
-            // ---- 5. Result ----
-            Section("5 · Who pays what") {
+            // ---- Who paid ----
+            FormSection("Who paid") {
+                ChipFlow { people.forEachIndexed { i, name -> PillChip(payer == i, name) { payer = i } } }
+            }
+
+            // ---- Category ----
+            FormSection("Category for your share") {
+                ChipFlow { Category.spendCategories.forEach { c -> PillChip(category == c, c.label, icon = categoryIcon(c)) { category = c } } }
+            }
+
+            // ---- Who pays what, then save ----
+            FormSection("Who pays what", raised = true) {
                 if (result == null) {
-                    Text(if (total == null && mode != SplitMode.BY_ITEM) "Enter the total to see the split." else "Fill in the fields above until the numbers add up.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        if (total == null && mode != SplitMode.BY_ITEM) "Enter the total to see the split." else "Fill in the fields above until the numbers add up.",
+                        style = MaterialTheme.typography.bodyMedium, color = if (triedSave) Expense else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 } else {
-                    result.shares.forEach { sh ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(people[sh.personIndex] + if (sh.personIndex == payer) " (paid)" else "")
-                            Text(money(sh.amountPaise), fontWeight = FontWeight.SemiBold)
+                    Column {
+                        result.shares.forEachIndexed { i, sh ->
+                            if (i > 0) Hairline(startInset = 32.dp + Space.md)
+                            Row(Modifier.fillMaxWidth().padding(vertical = Space.sm), verticalAlignment = Alignment.CenterVertically) {
+                                PersonAvatar(people[sh.personIndex], 32.dp)
+                                Spacer(Modifier.width(Space.md))
+                                Text(
+                                    people[sh.personIndex] + if (sh.personIndex == payer) " · paid" else "",
+                                    Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                )
+                                Spacer(Modifier.width(Space.md))
+                                Box(Modifier.widthIn(min = LedgerAmountMinWidth), contentAlignment = Alignment.CenterEnd) {
+                                    LedgerAmount(money(sh.amountPaise), MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
                         }
-                    }
-                    HorizontalDivider()
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Total", fontWeight = FontWeight.Bold); Text(money(result.totalPaise), fontWeight = FontWeight.Bold)
+                        TearLine(Modifier.padding(vertical = Space.sm))
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("Total", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                            LedgerAmount(money(result.totalPaise), MaterialTheme.colorScheme.onSurface)
+                        }
                     }
                     val mine = result.shares.first().amountPaise
                     Text(
                         if (payer == 0) "You paid ${money(result.totalPaise)}. Only your ${money(mine)} counts as spend; ${money(result.totalPaise - mine)} is tracked as owed to you."
                         else "${people[payer]} paid. Your ${money(mine)} is added as an expense you owe them.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                if (triedSave && people.size < 2) Text("Add at least one more person to split with.", style = MaterialTheme.typography.bodyMedium, color = Expense)
                 PrimaryButton(
                     text = "Save split",
-                    enabled = result != null && people.size >= 2,
                     onClick = onClick@{
-                        val r = result ?: return@onClick
+                        val r = result
+                        if (r == null || !canSave) { triedSave = true; haptics.reject(); return@onClick }
+                        haptics.confirm()
                         val split = Split(
                             title = title.trim().ifBlank { "Split ${dateOnly(date)}" },
                             totalPaise = r.totalPaise, date = date, mode = mode, payerIndex = payer,
@@ -415,40 +479,52 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
         DatePickerDialog(
             onDismissRequest = { showDate = false },
             confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { date = it + 12 * 3600 * 1000 }; showDate = false }) { Text("OK") } },
-            dismissButton = { TextButton(onClick = { showDate = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showDate = false }) { Text("Cancel") } },
         ) { DatePicker(state) }
     }
 }
 
+/**
+ * The total as the screen's hero: a large figure typed straight into a sunken well, the ₹ smaller beside it. Grows
+ * with the font size up to a point, then scrolls sideways rather than wrap.
+ */
 @Composable
-private fun Section(title: String, subtitle: String? = null, content: @Composable () -> Unit) {
-    FinCard {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun AmountHero(value: String, onChange: (String) -> Unit, parsed: Long?) {
+    val style = MoneyType.large.cappedScale(1.5f).copy(color = MaterialTheme.colorScheme.onSurface)
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    SoftPanel(padding = PaddingValues(horizontal = CardPadding, vertical = Space.lg), spacing = Space.xs) {
+        CapsLabel("Total")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("₹", style = style.copy(fontSize = style.fontSize * 0.62f, color = muted))
+            Spacer(Modifier.width(Space.xs))
+            BasicTextField(
+                value = value,
+                onValueChange = onChange,
+                modifier = Modifier.weight(1f).semantics { contentDescription = "Total amount" },
+                textStyle = style,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isEmpty()) Text("0", style = style.copy(color = muted))
+                        inner()
+                    }
+                },
+            )
         }
-        content()
+        if (value.isNotBlank() && parsed == null) Text("That doesn't look like an amount", style = MaterialTheme.typography.bodySmall, color = Expense)
     }
 }
 
-/**
- * A read-only field showing the date, the same shape and height as the text field beside it. A clickable layer on
- * top opens the picker, so a tap, TalkBack's double-tap, a keyboard or switch access all work (a field that only
- * watched for a press missed the click-only ones).
- */
+/** A person's name with their avatar on the left and an input on the right (shares, a custom amount). */
 @Composable
-private fun DateField(date: Long, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(modifier) {
-        OutlinedTextField(
-            value = dateOnly(date), onValueChange = {}, readOnly = true, singleLine = true,
-            label = { Text("Date") },
-            trailingIcon = { Icon(Icons.Outlined.CalendarToday, null, Modifier.size(20.dp)) },
-            modifier = Modifier.fillMaxWidth().focusProperties { canFocus = false }.clearAndSetSemantics {},
-        )
-        Box(
-            Modifier.matchParentSize()
-                .clickable(onClickLabel = "Pick date", role = Role.Button, onClick = onClick)
-                .semantics { contentDescription = "Date: ${dateOnly(date)}" }
-        )
+private fun PersonInputRow(name: String, input: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        PersonAvatar(name, 32.dp)
+        Spacer(Modifier.width(Space.md))
+        Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.width(Space.sm))
+        input()
     }
 }

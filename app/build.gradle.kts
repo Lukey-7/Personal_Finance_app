@@ -84,6 +84,12 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+        // Sheets, sticky headers and wrapping chip rows are still marked experimental in Compose 1.7.
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.foundation.layout.ExperimentalLayoutApi",
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+        )
     }
     buildFeatures {
         compose = true

@@ -1,53 +1,44 @@
 package com.pft.financetracker.ui.screens.dashboard
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.DonutLarge
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.outlined.Storefront
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.ui.text.style.TextOverflow
-import com.pft.financetracker.ui.components.AddFab
-import com.pft.financetracker.ui.components.CardPadding
-import com.pft.financetracker.ui.components.ChipRow
-import com.pft.financetracker.ui.components.EmptyState
-import com.pft.financetracker.ui.components.FabClearance
-import com.pft.financetracker.ui.components.IconCircle
-import com.pft.financetracker.ui.components.LocalBottomBarPadding
-import com.pft.financetracker.ui.components.RowTextInset
-import com.pft.financetracker.ui.components.bottomPadding
-import com.pft.financetracker.ui.components.categoryIcon
-import com.pft.financetracker.ui.components.displayMerchant
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
@@ -64,47 +55,75 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material3.SnackbarDuration
-import com.pft.financetracker.domain.insights.Periods
-import com.pft.financetracker.ui.components.AmountRow
-import com.pft.financetracker.ui.components.Trend
-import com.pft.financetracker.ui.components.heroLine
-import com.pft.financetracker.ui.components.LoadingState
-import com.pft.financetracker.ui.components.PrimaryButton
-import com.pft.financetracker.ui.components.Space
-import com.pft.financetracker.ui.components.TextAction
-import com.pft.financetracker.ui.components.countLabel
-import com.pft.financetracker.ui.components.scanResultLine
-import com.pft.financetracker.ui.theme.moneyTone
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.InsightsEngine.Bucket
+import com.pft.financetracker.domain.insights.Period
+import com.pft.financetracker.domain.insights.PeriodSummary
+import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.ImportUiState
 import com.pft.financetracker.ui.PeriodChoice
+import com.pft.financetracker.ui.components.AddButton
+import com.pft.financetracker.ui.components.AmountDisplay
+import com.pft.financetracker.ui.components.AmountRow
 import com.pft.financetracker.ui.components.CapsLabel
-import com.pft.financetracker.ui.components.DonutChart
+import com.pft.financetracker.ui.components.CategoryIcon
+import com.pft.financetracker.ui.components.CategoryRing
+import com.pft.financetracker.ui.components.ChartBar
+import com.pft.financetracker.ui.components.EmptyState
+import com.pft.financetracker.ui.components.ExpandableCard
+import com.pft.financetracker.ui.components.FabClearance
 import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.FinSnackbarHost
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
-import com.pft.financetracker.ui.components.Legend
-import com.pft.financetracker.ui.components.PillChip
+import com.pft.financetracker.ui.components.InfoButton
+import com.pft.financetracker.ui.components.LocalBottomBarPadding
+import com.pft.financetracker.ui.components.PrimaryButton
+import com.pft.financetracker.ui.components.ProgressMeter
+import com.pft.financetracker.ui.components.RowTextInset
+import com.pft.financetracker.ui.components.SecondaryButton
 import com.pft.financetracker.ui.components.SectionHeader
+import com.pft.financetracker.ui.components.SegmentedControl
+import com.pft.financetracker.ui.components.SkeletonHero
+import com.pft.financetracker.ui.components.SkeletonRows
 import com.pft.financetracker.ui.components.Slice
-import com.pft.financetracker.ui.components.SoftPanel
+import com.pft.financetracker.ui.components.Space
+import com.pft.financetracker.ui.components.SpendChart
+import com.pft.financetracker.ui.components.TextAction
+import com.pft.financetracker.ui.components.TintedSquare
 import com.pft.financetracker.ui.components.TransactionRow
-import com.pft.financetracker.ui.components.colorFor
+import com.pft.financetracker.ui.components.Trend
+import com.pft.financetracker.ui.components.bottomPadding
+import com.pft.financetracker.ui.components.categoryColor
+import com.pft.financetracker.ui.components.countLabel
+import com.pft.financetracker.ui.components.displayMerchant
+import com.pft.financetracker.ui.components.heroLine
 import com.pft.financetracker.ui.components.money
+import com.pft.financetracker.ui.components.rememberAtTop
+import com.pft.financetracker.ui.components.scanResultLine
+import com.pft.financetracker.ui.model.HomeLines
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.Income
+import com.pft.financetracker.ui.theme.MoneyType
 import com.pft.financetracker.ui.theme.Neutral
-import kotlin.math.roundToInt
+import com.pft.financetracker.ui.theme.moneyTone
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
+/**
+ * Home, "today's statement": one hero figure with its comparison and a six-period spark chart, three tiles, then cards
+ * ordered by what needs you first, each summed up in one line until opened. Every figure still opens its payments.
+ */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun DashboardScreen(
@@ -129,6 +148,8 @@ fun DashboardScreen(
     val loaded by vm.loaded.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var showRange by remember { mutableStateOf(false) }
+    var sparkSelected by remember(choice) { mutableStateOf<Int?>(null) }
+    val listState = rememberLazyListState()
 
     val period = choice.period()
     val summary = InsightsEngine.summarize(txns, period, includeCash)
@@ -138,6 +159,7 @@ fun DashboardScreen(
     val prev = InsightsEngine.summarize(txns, comparedWith, includeCash)
     val budgetStatus = InsightsEngine.budgetStatus(txns, budgets, period)
     val recent = txns.take(6)
+    val spark = sparkPeriods(choice)
 
     LaunchedEffect(importState) {
         val s = importState
@@ -162,51 +184,57 @@ fun DashboardScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("FinTrack", style = MaterialTheme.typography.titleLarge) },
+                title = {
+                    Column {
+                        Text("FinTrack", style = MaterialTheme.typography.titleLarge)
+                        Text(todayLine(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 actions = {
                     IconButton(onClick = onOpenTools) { Icon(Icons.Outlined.Apps, "Money tools") }
-                    if (importState is ImportUiState.Running) CircularProgressIndicator(Modifier.padding(14.dp).size(22.dp), strokeWidth = 2.dp)
+                    if (importState is ImportUiState.Running) CircularProgressIndicator(Modifier.padding(14.dp).size(20.dp).semantics { contentDescription = "Scanning SMS" }, strokeWidth = 2.dp)
                     else IconButton(onClick = { vm.scanInbox() }) { Icon(Icons.Outlined.Sync, "Scan SMS") }
                 }
             )
         },
-        floatingActionButton = { AddFab(onAdd, Modifier.padding(bottom = barPad)) },
-        snackbarHost = { SnackbarHost(snackbar, Modifier.padding(bottom = barPad)) }
+        floatingActionButton = { AddButton(onAdd, Modifier.padding(bottom = barPad), expanded = rememberAtTop(listState)) },
+        snackbarHost = { FinSnackbarHost(snackbar, Modifier.padding(bottom = barPad)) }
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
-            // Clears the nav pill and the + button, so the last card can be scrolled fully into view.
-            contentPadding = PaddingValues(top = Space.sm, bottom = bottomPadding(FabClearance)),
-            verticalArrangement = Arrangement.spacedBy(Space.lg),
+            state = listState,
+            // Clears the nav pill and the Add button, so the last row can be scrolled fully into view.
+            contentPadding = PaddingValues(top = Space.xs, bottom = bottomPadding(FabClearance)),
+            verticalArrangement = Arrangement.spacedBy(Space.md),
         ) {
             item {
-                ChipRow {
-                    PillChip(choice is PeriodChoice.ThisMonth, "This month") { vm.setPeriod(PeriodChoice.ThisMonth) }
-                    PillChip(choice is PeriodChoice.LastMonth, "Last month") { vm.setPeriod(PeriodChoice.LastMonth) }
-                    PillChip(choice is PeriodChoice.ThisWeek, "This week") { vm.setPeriod(PeriodChoice.ThisWeek) }
-                    PillChip(choice is PeriodChoice.Custom, if (choice is PeriodChoice.Custom) period.label else "Custom", icon = Icons.Outlined.DateRange) { showRange = true }
-                }
+                SegmentedControl(
+                    options = listOf("This month", "Last month", "This week"),
+                    selected = when (choice) { PeriodChoice.ThisMonth -> 0; PeriodChoice.LastMonth -> 1; PeriodChoice.ThisWeek -> 2; is PeriodChoice.Custom -> -1 },
+                    onSelect = { vm.setPeriod(listOf(PeriodChoice.ThisMonth, PeriodChoice.LastMonth, PeriodChoice.ThisWeek)[it]) },
+                    modifier = Modifier.padding(horizontal = Gutter),
+                    trailing = Icons.Outlined.DateRange,
+                    trailingLabel = if (choice is PeriodChoice.Custom) "Custom range: ${period.label}" else "Pick a custom range",
+                    trailingSelected = choice is PeriodChoice.Custom,
+                    onTrailing = { showRange = true },
+                )
             }
 
-            // Until the database answers, every figure below would read ₹0: show a spinner instead.
+            // Until the database answers, every figure below would read ₹0: show the page's shape instead.
             if (!loaded) {
-                item { LoadingState() }
+                item { SkeletonHero(Modifier.padding(top = Space.lg), cards = 3) }
+                item { SkeletonRows(3) }
                 return@LazyColumn
             }
 
-            // ---- The hero: one number, stated plainly, with the arithmetic underneath ----
-            item {
-                Column(Modifier.padding(horizontal = Gutter)) {
+            // ---- The hero: one number, stated plainly, then how it compares and the last six periods ----
+            item(key = "hero") {
+                Column(Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = Space.md)) {
                     CapsLabel("Net spend · ${period.label}")
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        money(summary.netSpendPaise),
-                        style = MaterialTheme.typography.displayLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.clickable { onDrill(Bucket.SPEND, null) },
-                    )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(Space.sm))
+                    AmountDisplay(summary.netSpendPaise, spokenLabel = "Net spend, ${period.label}", onClick = { onDrill(Bucket.SPEND, null) })
+                    Spacer(Modifier.height(Space.sm))
                     val running = now in period
                     val (line, trend) = heroLine(
                         spendPaise = summary.netSpendPaise,
@@ -229,34 +257,46 @@ fun DashboardScreen(
                 }
             }
 
-            item {
-                // The rows are 48dp touch targets already; extra gaps between them made the sum read as a list.
-                SoftPanel(Modifier.padding(horizontal = Gutter), padding = PaddingValues(horizontal = CardPadding, vertical = Space.md), spacing = 0.dp) {
-                    AmountRow("Income", summary.incomePaise, moneyTone(summary.incomePaise), sign = "+") { onDrill(Bucket.INCOME, null) }
-                    AmountRow("Gross spend", summary.grossSpendPaise, MaterialTheme.colorScheme.onSurface, sign = "-") { onDrill(Bucket.SPEND, null) }
-                    if (summary.refundsPaise > 0) AmountRow("Refunds & cashback", summary.refundsPaise, Income, sign = "+") { onDrill(Bucket.REFUNDS, null) }
-                    Hairline()
-                    Spacer(Modifier.height(Space.md))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Savings", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            money(summary.savingsPaise),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = moneyTone(summary.savingsPaise),
-                        )
+            item(key = "spark") {
+                val bars = spark.mapIndexed { i, p -> ChartBar(sparkLabel(p, choice is PeriodChoice.ThisWeek), InsightsEngine.summarize(txns, p, includeCash).netSpendPaise, current = p.start == period.start) }
+                SpendChart(
+                    bars,
+                    Modifier.padding(horizontal = Gutter),
+                    height = 64.dp,
+                    selected = sparkSelected,
+                    onSelect = { sparkSelected = it },
+                    onOpen = { i -> vm.setPeriod(choiceFor(spark[i], choice is PeriodChoice.ThisWeek)) },
+                    compact = true,
+                    caption = { i -> spark[i].label },
+                )
+            }
+
+            item(key = "tiles") { Tiles(summary, onDrill) }
+
+            // ---- Cards, most urgent first ----
+            if (reviewCount > 0) item(key = "review") {
+                FinCard(Modifier.padding(horizontal = Gutter), onClick = onOpenReview, raised = true, padding = PaddingValues(horizontal = Space.lg, vertical = 14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TintedSquare(Icons.Outlined.ErrorOutline, Expense)
+                        Spacer(Modifier.width(Space.lg))
+                        Column(Modifier.weight(1f)) {
+                            Text(reviewLine(reviewCount), style = MaterialTheme.typography.titleSmall)
+                            Text("Messages FinTrack wasn't sure about", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text("Review", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
 
-            // ---- Shared payments waiting for a yes ----
-            if (suggestions.isNotEmpty()) item {
-                FinCard(Modifier.padding(horizontal = Gutter)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Groups, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-                        Spacer(Modifier.width(10.dp))
-                        Text(if (suggestions.size == 1) "Looks like a shared payment" else "${suggestions.size} payments look shared", style = MaterialTheme.typography.titleMedium)
-                    }
+            if (suggestions.isNotEmpty()) item(key = "shared") {
+                val first = suggestions.first()
+                ExpandableCard(
+                    title = if (suggestions.size == 1) "Looks like a shared payment" else "${suggestions.size} payments look shared",
+                    summary = "${money(first.totalPaise)} at ${first.title} · your share ${money(first.myShare?.amountPaise ?: first.totalPaise)}",
+                    icon = Icons.Outlined.Groups,
+                    modifier = Modifier.padding(horizontal = Gutter),
+                    raised = true, initiallyExpanded = true, stateKey = "home-shared",
+                ) {
                     suggestions.take(3).forEachIndexed { i, s ->
                         if (i > 0) Hairline()
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -273,124 +313,146 @@ fun DashboardScreen(
                 }
             }
 
-            // ---- Money that moved but is not spend ----
-            if (summary.transfersOutPaise + summary.transfersInPaise + summary.investmentsPaise + (if (includeCash) 0L else summary.cashPaise) > 0) item {
-                FinCard(Modifier.padding(horizontal = Gutter)) {
-                    Text("Not counted as spend", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "Moving money between your own accounts, paying card bills, investing and friends paying back their share of a split are shown here so they never inflate your spending or income.",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (summary.transfersOutPaise > 0) AmountRow("Transfers & card bill payments", summary.transfersOutPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS, null) }
-                    if (summary.transfersInPaise - summary.settlementsInPaise > 0) AmountRow("Transfers in", summary.transfersInPaise - summary.settlementsInPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS, null) }
-                    if (summary.settlementsInPaise > 0) AmountRow("Paid back by friends", summary.settlementsInPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS, null) }
-                    if (summary.investmentsPaise > 0) AmountRow("Investments", summary.investmentsPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.INVESTMENTS, null) }
-                    if (!includeCash && summary.cashPaise > 0) AmountRow("Cash withdrawals", summary.cashPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.CASH, null) }
-                }
-            }
-
-            if (reviewCount > 0) item {
-                SoftPanel(Modifier.padding(horizontal = Gutter), onClick = onOpenReview) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.ErrorOutline, null, Modifier.size(20.dp), tint = Expense)
-                        Spacer(Modifier.width(Space.md))
-                        Text(reviewLine(reviewCount), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                        Text("Review", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-                    }
-                }
-            }
-
-            item {
-                FinCard(Modifier.padding(horizontal = Gutter)) {
-                    Text("Where it went", style = MaterialTheme.typography.titleMedium)
-                    val slices = summary.byCategory.filter { it.amountPaise > 0 }.take(7)
-                        .map { Slice(it.category.label, it.amount, colorFor(Category.entries.indexOf(it.category)), it.category) }
-                    if (slices.isEmpty()) {
-                        Text("No spending recorded in this period.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    } else {
-                        // Legend sits below the donut at full width, so category names are never cut short.
-                        DonutChart(slices, Modifier.fillMaxWidth(), centerText = countLabel(summary.expenseCount, "payment"))
-                        Legend(slices, Modifier.fillMaxWidth()) { cat -> onDrill(Bucket.SPEND, cat) }
-                    }
-                }
-            }
-
-            if (summary.byMerchant.isNotEmpty()) item {
-                FinCard(Modifier.padding(horizontal = Gutter), padding = PaddingValues(top = CardPadding, bottom = Space.sm)) {
-                    Text("Top merchants", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = CardPadding))
-                    Column {
-                        summary.byMerchant.take(5).forEachIndexed { i, m ->
-                            if (i > 0) Hairline(startInset = CardPadding + 56.dp, endInset = CardPadding)
-                            Row(
-                                Modifier.fillMaxWidth().clickable { onDrill(Bucket.SPEND, m.category) }.padding(horizontal = CardPadding, vertical = Space.md),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                IconCircle(categoryIcon(m.category), tint = colorFor(Category.entries.indexOf(m.category)))
-                                Spacer(Modifier.width(Space.lg))
-                                Column(Modifier.weight(1f)) {
-                                    Text(displayMerchant(m.merchant), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("${countLabel(m.count, "payment")} · ${m.category.label}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                                Spacer(Modifier.width(Space.md))
-                                Text(money(m.amountPaise), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (summary.byAccount.size > 1) item {
-                FinCard(Modifier.padding(horizontal = Gutter)) {
-                    Text("By account / card", style = MaterialTheme.typography.titleMedium)
-                    summary.byAccount.take(6).forEach { a ->
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(a.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                            if (a.incomePaise > 0) Text("+${money(a.incomePaise)}  ", color = Income, style = MaterialTheme.typography.bodySmall)
-                            Text(money(a.spendPaise), color = if (a.spendPaise > 0) Expense else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-            }
-
-            item {
-                FinCard(Modifier.padding(horizontal = Gutter)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Budgets", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        TextAction(if (budgetStatus.isEmpty()) "Set budgets" else "Manage", onOpenBudgets)
-                    }
-                    budgetStatus.take(4).forEach { b ->
-                        Column(Modifier.heightIn(min = 48.dp).clickable { onDrill(Bucket.SPEND, b.budget.category) }, verticalArrangement = Arrangement.Center) {
+            item(key = "budgets") {
+                val over = budgetStatus.any { it.over }
+                ExpandableCard(
+                    title = "Budgets",
+                    summary = HomeLines.budgets(budgetStatus),
+                    icon = Icons.Outlined.Savings,
+                    tint = if (over) Expense else MaterialTheme.colorScheme.primary,
+                    summaryColor = if (over) Expense else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = Gutter),
+                    raised = over, initiallyExpanded = over, stateKey = "home-budgets",
+                ) {
+                    if (budgetStatus.isEmpty()) Text("Set a monthly limit for a category and FinTrack shows how close you are.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    budgetStatus.sortedByDescending { it.fraction }.take(5).forEach { b ->
+                        Column(
+                            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "See payments") { onDrill(Bucket.SPEND, b.budget.category) },
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Text(b.budget.category.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                                 Spacer(Modifier.width(Space.md))
-                                Text("${money(b.spentPaise)} of ${money(b.budget.monthlyLimitPaise)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, softWrap = false)
+                                Text("${money(b.spentPaise)} of ${money(b.budget.monthlyLimitPaise)}", style = MoneyType.label, color = MaterialTheme.colorScheme.onSurfaceVariant, softWrap = false)
                             }
-                            Spacer(Modifier.height(6.dp))
-                            LinearProgressIndicator(
-                                progress = { b.fraction.coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth().height(6.dp),
-                                color = if (b.over) Expense else MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                                gapSize = 0.dp,
-                                drawStopIndicator = {},
-                            )
-                            if (b.over) Text("Over budget by ${money(b.spentPaise - b.budget.monthlyLimitPaise)}", color = Expense, style = MaterialTheme.typography.labelSmall)
+                            ProgressMeter(b.fraction, over = b.over)
+                            if (b.over) Text("Over budget by ${money(b.spentPaise - b.budget.monthlyLimitPaise)}", color = Expense, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    TextAction(if (budgetStatus.isEmpty()) "Set budgets" else "Manage budgets", onOpenBudgets, alignStart = true)
+                }
+            }
+
+            item(key = "where") {
+                val slices = summary.byCategory.filter { it.amountPaise > 0 }.take(7)
+                    .map { Slice(it.category.label, it.amount, categoryColor(it.category), it.category) }
+                ExpandableCard(
+                    title = "Where it went",
+                    summary = HomeLines.whereItWent(summary.byCategory),
+                    icon = Icons.Outlined.DonutLarge,
+                    modifier = Modifier.padding(horizontal = Gutter),
+                    stateKey = "home-where",
+                ) {
+                    if (slices.isEmpty()) Text("No spending recorded in this period.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    else CategoryRing(slices, money(summary.grossSpendPaise), countLabel(summary.expenseCount, "payment")) { cat -> onDrill(Bucket.SPEND, cat) }
+                }
+            }
+
+            if (summary.byMerchant.isNotEmpty()) item(key = "merchants") {
+                ExpandableCard(
+                    title = "Top merchants",
+                    summary = HomeLines.merchants(summary.byMerchant),
+                    icon = Icons.Outlined.Storefront,
+                    modifier = Modifier.padding(horizontal = Gutter),
+                    stateKey = "home-merchants",
+                ) {
+                    summary.byMerchant.take(5).forEachIndexed { i, m ->
+                        if (i > 0) Hairline(startInset = 48.dp)
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button) { onDrill(Bucket.SPEND, m.category) },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CategoryIcon(m.category, size = 36.dp)
+                            Spacer(Modifier.width(Space.md))
+                            Column(Modifier.weight(1f)) {
+                                Text(displayMerchant(m.merchant), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text("${countLabel(m.count, "payment")} · ${m.category.label}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Spacer(Modifier.width(Space.md))
+                            Text(money(m.amountPaise), style = MoneyType.row, softWrap = false)
                         }
                     }
                 }
             }
 
-            item {
-                SectionHeader("Recent") {
-                    TextAction("See all", onOpenTransactions)
+            // ---- Money that moved but is not spend ----
+            val paidBack = summary.settlementsInPaise
+            val movedIn = summary.transfersInPaise - paidBack
+            val cashOut = if (includeCash) 0L else summary.cashPaise
+            if (summary.transfersOutPaise + summary.transfersInPaise + summary.investmentsPaise + cashOut > 0) item(key = "notcounted") {
+                ExpandableCard(
+                    title = "Not counted as spend",
+                    summary = HomeLines.notCounted(summary.transfersOutPaise + movedIn.coerceAtLeast(0), summary.investmentsPaise, cashOut, paidBack),
+                    icon = Icons.Outlined.SwapHoriz,
+                    tint = Neutral,
+                    modifier = Modifier.padding(horizontal = Gutter),
+                    stateKey = "home-notcounted",
+                ) {
+                    if (summary.transfersOutPaise > 0) AmountRow("Transfers & card bill payments", summary.transfersOutPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS, null) }
+                    if (movedIn > 0) AmountRow("Transfers in", movedIn, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS, null) }
+                    if (paidBack > 0) AmountRow("Paid back by friends", paidBack, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS, null) }
+                    if (summary.investmentsPaise > 0) AmountRow("Investments", summary.investmentsPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.INVESTMENTS, null) }
+                    if (cashOut > 0) AmountRow("Cash withdrawals", cashOut, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.CASH, null) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Why aren't these spend?", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        InfoButton("Not counted as spend", NOT_COUNTED_BODY)
+                    }
                 }
             }
-            if (recent.isEmpty()) item {
-                EmptyState(Icons.AutoMirrored.Outlined.ReceiptLong, "No transactions yet. Scan your SMS with the sync button above, or add one with +.")
+
+            if (summary.byAccount.size > 1) item(key = "accounts") {
+                val top = summary.byAccount.maxByOrNull { it.spendPaise }
+                ExpandableCard(
+                    title = "By account",
+                    summary = "${summary.byAccount.size} accounts" + (top?.takeIf { it.spendPaise > 0 }?.let { " · most spent on ${it.label}" } ?: ""),
+                    icon = Icons.Outlined.AccountBalance,
+                    modifier = Modifier.padding(horizontal = Gutter),
+                    stateKey = "home-accounts",
+                ) {
+                    summary.byAccount.take(6).forEach { a ->
+                        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(a.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                            if (a.incomePaise > 0) Text("+${money(a.incomePaise)}  ", color = Income, style = MoneyType.label, softWrap = false)
+                            Text(
+                                if (a.spendPaise > 0) "-${money(a.spendPaise)}" else money(0),
+                                color = if (a.spendPaise > 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MoneyType.small.copy(fontWeight = FontWeight.SemiBold), softWrap = false,
+                            )
+                        }
+                    }
+                }
             }
-            itemsIndexed(recent) { i, t ->
-                if (i > 0) Hairline(startInset = RowTextInset, endInset = Gutter)
-                TransactionRow(t) { onEdit(t.id) }
+
+            item(key = "recent-h") {
+                SectionHeader("Recent", Modifier.padding(top = Space.md)) { TextAction("See all", onOpenTransactions) }
+            }
+            if (recent.isEmpty()) item(key = "recent-empty") {
+                EmptyState(
+                    Icons.AutoMirrored.Outlined.ReceiptLong,
+                    "No transactions yet",
+                    "FinTrack reads bank and UPI alerts on this phone. Scan your SMS, or add a payment yourself.",
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                        PrimaryButton("Scan SMS", { vm.scanInbox() }, fill = false)
+                        SecondaryButton("Add one", onAdd)
+                    }
+                }
+            }
+            itemsIndexed(recent, key = { _, t -> "r${t.id}" }) { i, t ->
+                Column(Modifier.animateItem()) {
+                    if (i > 0) Hairline(startInset = RowTextInset, endInset = Gutter)
+                    TransactionRow(t) { onEdit(t.id) }
+                }
             }
         }
     }
@@ -411,5 +473,81 @@ fun DashboardScreen(
     }
 }
 
+/** Income, spend and savings side by side; stacked as rows at a large font so no figure is squeezed. */
+@Composable
+private fun Tiles(summary: PeriodSummary, onDrill: (Bucket, Category?) -> Unit) {
+    val big = LocalDensity.current.fontScale > 1.3f
+    val items = listOf(
+        Triple("Income", summary.incomePaise, Bucket.INCOME),
+        Triple("Spent", summary.grossSpendPaise, Bucket.SPEND),
+        Triple("Savings", summary.savingsPaise, null),
+    )
+    Column(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        if (big) {
+            FinCard(padding = PaddingValues(horizontal = Space.lg, vertical = Space.xs), spacing = 0.dp) {
+                items.forEach { (label, paise, bucket) ->
+                    AmountRow(label, paise, tileColor(label, paise), labelColor = MaterialTheme.colorScheme.onSurface, sign = if (label == "Income" && paise > 0) "+" else "",
+                        onClick = bucket?.let { b -> { onDrill(b, null) } })
+                }
+            }
+        } else Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+            items.forEach { (label, paise, bucket) ->
+                FinCard(
+                    Modifier.weight(1f),
+                    onClick = bucket?.let { b -> { onDrill(b, null) } },
+                    padding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                    spacing = 4.dp,
+                ) {
+                    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AmountDisplay(paise, size = com.pft.financetracker.ui.components.AmountSize.Title, color = tileColor(label, paise),
+                        prefix = if (label == "Income" && paise > 0) "+" else "", spokenLabel = label)
+                }
+            }
+        }
+        if (summary.refundsPaise > 0) Row(
+            Modifier.fillMaxWidth().heightIn(min = 40.dp).clickable(role = Role.Button) { onDrill(Bucket.REFUNDS, null) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Includes ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("+${money(summary.refundsPaise)}", style = MoneyType.label, color = Income)
+            Text(" back in refunds & cashback", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun tileColor(label: String, paise: Long) = when (label) {
+    "Income" -> if (paise > 0) Income else MaterialTheme.colorScheme.onSurface
+    "Savings" -> moneyTone(paise)
+    else -> MaterialTheme.colorScheme.onSurface
+}
+
+private const val NOT_COUNTED_BODY =
+    "Moving money between your own accounts, paying a credit card bill, investing, and friends paying back their share " +
+        "of a split are shown here, so they never inflate your spending or income. ATM cash is here too when you've " +
+        "chosen not to count it as spend (Settings › Calculation)."
+
+/** "Wed 7 Oct" under the app name. */
+private fun todayLine(): String = SimpleDateFormat("EEE d MMM", Locale.ENGLISH).format(Date())
+
+/** The six periods the spark chart shows, ending with the chosen one (months, or weeks for "This week"). */
+internal fun sparkPeriods(choice: PeriodChoice): List<Period> = when (choice) {
+    PeriodChoice.ThisWeek -> (5 downTo 0).map { Periods.week(-it) }
+    PeriodChoice.LastMonth -> (6 downTo 1).map { Periods.month(-it) }
+    else -> (5 downTo 0).map { Periods.month(-it) }
+}
+
+/** The Home choice that shows [p]: this or last month / this week by name, anything older as a custom range. */
+internal fun choiceFor(p: Period, weekly: Boolean): PeriodChoice = when {
+    weekly && p.start == Periods.week().start -> PeriodChoice.ThisWeek
+    !weekly && p.start == Periods.month().start -> PeriodChoice.ThisMonth
+    !weekly && p.start == Periods.month(-1).start -> PeriodChoice.LastMonth
+    else -> PeriodChoice.Custom(p.start, p.end - 1)
+}
+
+private fun sparkLabel(p: Period, weekly: Boolean): String =
+    SimpleDateFormat(if (weekly) "d MMM" else "MMM", Locale.ENGLISH).format(Date(p.start))
+
 /** "1 item needs review" / "3 items need review". Neutral: the queue holds both SMS and statement rows. */
 internal fun reviewLine(n: Int) = if (n == 1) "1 item needs review" else "$n items need review"
+

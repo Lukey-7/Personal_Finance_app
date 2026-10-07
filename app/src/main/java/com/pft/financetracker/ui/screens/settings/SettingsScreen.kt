@@ -1,177 +1,134 @@
 package com.pft.financetracker.ui.screens.settings
 
-import android.Manifest
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Memory
-import android.net.Uri
-import androidx.compose.material.icons.outlined.Restore
-import androidx.compose.material.icons.outlined.Backup
-import androidx.compose.material.icons.outlined.Widgets
-import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.NotificationsActive
-import androidx.core.content.ContextCompat
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.CallSplit
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Backup
+import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Sms
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import com.pft.financetracker.ui.components.AdaptiveRow
-import com.pft.financetracker.ui.components.PrimaryButton
-import com.pft.financetracker.ui.components.SecondaryButton
-import com.pft.financetracker.ui.components.Space
-import com.pft.financetracker.ui.components.TextAction
-import com.pft.financetracker.ui.components.countLabel
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.pft.financetracker.ui.AiUiState
+import com.pft.financetracker.BuildConfig
+import com.pft.financetracker.data.ai.NanoAi
 import com.pft.financetracker.ui.AppViewModel
-import com.pft.financetracker.ui.components.MarkdownText
+import com.pft.financetracker.ui.components.ActionRow
+import com.pft.financetracker.ui.components.CapsLabel
+import com.pft.financetracker.ui.components.EmptyState
+import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.FinSnackbarHost
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.Hairline
+import com.pft.financetracker.ui.components.LocalBottomBarPadding
+import com.pft.financetracker.ui.components.SecondaryButton
 import com.pft.financetracker.ui.components.SoftPanel
-import com.pft.financetracker.ui.components.money
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.pft.financetracker.ui.components.Space
+import com.pft.financetracker.ui.components.TintedSquare
+import com.pft.financetracker.ui.components.bottomPadding
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import androidx.compose.material3.TopAppBarDefaults
-import com.pft.financetracker.ui.components.FinCard
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.CallSplit
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Calculate
-import androidx.compose.material.icons.outlined.CleaningServices
-import androidx.compose.material.icons.outlined.DeleteForever
-import androidx.compose.material.icons.outlined.FileDownload
-import androidx.compose.material.icons.outlined.History
-import androidx.compose.material.icons.outlined.Key
-import androidx.compose.material.icons.outlined.KeyOff
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.ManageHistory
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.ui.semantics.Role
-import androidx.compose.material.icons.outlined.Sync
-import androidx.compose.material.icons.outlined.UploadFile
-import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material.icons.outlined.Sms
-import androidx.compose.material.icons.outlined.Storage
-import androidx.compose.material3.Icon
-import androidx.compose.ui.graphics.vector.ImageVector
-import com.pft.financetracker.ui.components.ActionRow
-import com.pft.financetracker.ui.components.CardTitle
-import com.pft.financetracker.ui.components.Gutter
-import com.pft.financetracker.ui.components.LocalBottomBarPadding
-import com.pft.financetracker.ui.components.bottomPadding
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+/** The settings pages, by route key (`settings/{section}`), in index order. */
+private val sectionTitles = linkedMapOf(
+    "sms" to "SMS & import",
+    "calculation" to "Calculation",
+    "splits" to "Splits",
+    "reminders" to "Reminders",
+    "backup" to "Backup",
+    "widget" to "Widget",
+    "ai" to "AI",
+    "data" to "Your data",
+)
+
+private val sectionIcons: Map<String, ImageVector> = mapOf(
+    "sms" to Icons.Outlined.Sms,
+    "calculation" to Icons.Outlined.Calculate,
+    "splits" to Icons.AutoMirrored.Outlined.CallSplit,
+    "reminders" to Icons.Outlined.NotificationsActive,
+    "backup" to Icons.Outlined.Backup,
+    "widget" to Icons.Outlined.Widgets,
+    "ai" to Icons.Outlined.AutoAwesome,
+    "data" to Icons.Outlined.Storage,
+)
+
+private val dayMonth = SimpleDateFormat("d MMM", Locale.ENGLISH)
+
+/**
+ * Settings: a grouped index. Each row names a page and says, in one line, how that part is set right now; tapping it
+ * opens the page ([onOpenSection] with its key).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () -> Unit) {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val snackbar = remember { SnackbarHostState() }
-    val hasKey by vm.hasApiKey.collectAsState()
+fun SettingsScreen(vm: AppViewModel, onOpenSection: (String) -> Unit) {
     val autoImport by vm.autoImport.collectAsState()
     val cashAsSpend by vm.countCashAsSpend.collectAsState()
     val myName by vm.myName.collectAsState()
     val splitAi by vm.splitAi.collectAsState()
+    val hasKey by vm.hasApiKey.collectAsState()
     val remindersOn by vm.remindersEnabled.collectAsState()
-    val templates by vm.learnedTemplates.collectAsState()
+    val lastBackup by vm.lastBackupAt.collectAsState()
     val widgetHide by vm.widgetHideAmounts.collectAsState()
     val useNano by vm.useNano.collectAsState()
     val nanoStatus by vm.nanoStatus.collectAsState()
+    // Read again each time the index is shown, so a permission granted on the SMS page shows here on the way back.
+    val smsGranted = remember { vm.hasSmsPermission() }
     LaunchedEffect(Unit) { vm.refreshNano() }
-    val lastBackup by vm.lastBackupAt.collectAsState()
-    val backupBusy by vm.backupBusy.collectAsState()
-    var backupAsk by remember { mutableStateOf<Uri?>(null) }
-    var restoreAsk by remember { mutableStateOf<Uri?>(null) }
-    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> backupAsk = uri }
-    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> restoreAsk = uri }
-    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        vm.setRemindersEnabled(granted)
-        if (!granted) scope.launch { snackbar.showSnackbar("Notifications are blocked. Allow them in Android settings to get reminders.") }
-    }
-    var nameInput by remember(myName) { mutableStateOf(myName) }
-    var exportingSplits by remember { mutableStateOf(false) }
-    val aiState by vm.aiState.collectAsState()
-    var keyInput by remember { mutableStateOf("") }
-    val keyBuiltIn by vm.apiKeyBuiltIn.collectAsState()
-    var changingKey by remember { mutableStateOf(false) }
-    var showPayload by remember { mutableStateOf(false) }
-    var confirmClear by remember { mutableStateOf(false) }
-    var smsGranted by remember { mutableStateOf(vm.hasSmsPermission()) }
 
-    val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r ->
-        smsGranted = r[Manifest.permission.READ_SMS] == true
-        if (smsGranted) vm.scanInbox(full = true)
-    }
-
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val csv = if (exportingSplits) vm.exportSplitsCsv() else vm.exportCsv()
-            val ok = withContext(Dispatchers.IO) {
-                runCatching { ctx.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray(Charsets.UTF_8)) } }.isSuccess
-            }
-            snackbar.showSnackbar(if (ok) "Exported CSV" else "Export failed")
-        }
-    }
-
-    backupAsk?.let { uri ->
-        com.pft.financetracker.ui.screens.settings.BackupPassphraseDialog(
-            restoring = false,
-            onConfirm = { pw -> backupAsk = null; scope.launch { snackbar.showSnackbar(vm.writeBackup(uri, pw) ?: "Backup saved") } },
-            onDismiss = { backupAsk = null },
-        )
-    }
-    restoreAsk?.let { uri ->
-        com.pft.financetracker.ui.screens.settings.BackupPassphraseDialog(
-            restoring = true,
-            onConfirm = { pw -> restoreAsk = null; scope.launch { snackbar.showSnackbar(vm.restoreBackup(uri, pw) ?: "Restored. Everything now matches the backup.") } },
-            onDismiss = { restoreAsk = null },
-        )
-    }
+    val subtitles = mapOf(
+        "sms" to when {
+            !smsGranted -> "SMS access off"
+            autoImport -> "Auto-scan on"
+            else -> "Auto-scan off"
+        },
+        "calculation" to if (cashAsSpend) "Cash counts as spend" else "Cash kept out of spend",
+        "splits" to listOfNotNull(
+            myName.trim().takeIf { it.isNotEmpty() }?.let { "You appear as $it" } ?: "Your name isn't set",
+            if (splitAi && hasKey) "AI for unclear cases" else null,
+        ).joinToString(" · "),
+        "reminders" to if (remindersOn) "On – before bills and renewals" else "Off",
+        "backup" to if (lastBackup == 0L) "No backup yet" else "Last backup ${dayMonth.format(Date(lastBackup))}",
+        "widget" to if (widgetHide) "Amounts hidden" else "Amounts shown",
+        "ai" to listOfNotNull(
+            if (hasKey) "OpenAI key saved" else null,
+            if (nanoStatus == NanoAi.Status.READY && useNano) "On-device AI on" else null,
+        ).joinToString(" · ").ifEmpty { "Off" },
+        "data" to "Export as CSV or clear everything",
+    )
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -182,320 +139,100 @@ fun SettingsScreen(vm: AppViewModel, onOpenSmsLog: () -> Unit, onOpenImport: () 
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },
-        snackbarHost = { SnackbarHost(snackbar, Modifier.padding(bottom = LocalBottomBarPadding.current)) },
+    ) { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+                .padding(start = Gutter, top = Space.xs, end = Gutter, bottom = bottomPadding()),
+            verticalArrangement = Arrangement.spacedBy(Space.xl),
+        ) {
+            SoftPanel {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TintedSquare(Icons.Outlined.Lock)
+                    Spacer(Modifier.width(Space.md))
+                    Column(Modifier.weight(1f)) {
+                        Text("Everything stays on this phone", style = MaterialTheme.typography.titleSmall)
+                        Text("No account, no cloud, no analytics", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            IndexGroup("Tracking", listOf("sms", "calculation", "splits"), subtitles, onOpenSection)
+            IndexGroup("Everyday", listOf("reminders", "backup", "widget"), subtitles, onOpenSection)
+            IndexGroup("Privacy", listOf("ai", "data"), subtitles, onOpenSection)
+            Text(
+                "FinTrack ${BuildConfig.VERSION_NAME}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** One card of index rows under a caps heading, hairlines between the rows. */
+@Composable
+private fun IndexGroup(label: String, keys: List<String>, subtitles: Map<String, String>, onOpen: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        CapsLabel(label, Modifier.padding(start = Space.xs))
+        FinCard(padding = PaddingValues(horizontal = Space.lg, vertical = Space.xs), spacing = 0.dp) {
+            keys.forEachIndexed { i, key ->
+                if (i > 0) Hairline(startInset = 36.dp + Space.lg)
+                ActionRow(
+                    label = sectionTitles.getValue(key),
+                    icon = sectionIcons.getValue(key),
+                    onClick = { onOpen(key) },
+                    subtitle = subtitles[key],
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One settings page ([section] is the key from the index): a back arrow, its title, and only the settings for that
+ * part of the app. An unknown key shows a way back instead of a blank page.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsSectionScreen(
+    vm: AppViewModel,
+    section: String,
+    onBack: () -> Unit,
+    onOpenSmsLog: () -> Unit,
+    onOpenImport: () -> Unit,
+) {
+    val snackbar = remember { SnackbarHostState() }
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text(sectionTitles[section] ?: "Settings") },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
+            )
+        },
+        snackbarHost = { FinSnackbarHost(snackbar, Modifier.padding(bottom = LocalBottomBarPadding.current)) },
     ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
                 .padding(start = Gutter, top = Space.sm, end = Gutter, bottom = bottomPadding()),
-            verticalArrangement = Arrangement.spacedBy(Space.lg),
+            verticalArrangement = Arrangement.spacedBy(Space.xl),
         ) {
-
-            Section("SMS import", Icons.Outlined.Sms) {
-                if (!smsGranted) {
-                    Text("FinTrack can't read your SMS yet. You can still add transactions yourself.", style = MaterialTheme.typography.bodyMedium)
-                    PrimaryButton("Allow SMS access", { permLauncher.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)) }, fill = false)
-                } else {
-                    // The whole row is the toggle, so TalkBack reads "Auto-import new SMS, switch, on" rather
-                    // than an unnamed switch, and the label is a tap target too.
-                    Row(
-                        Modifier.fillMaxWidth().toggleable(value = autoImport, role = Role.Switch, onValueChange = { vm.setAutoImport(it) }),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        Text("Auto-import new SMS", Modifier.weight(1f))
-                        Switch(checked = autoImport, onCheckedChange = null)
-                    }
-                }
-                // Rows rather than side-by-side buttons: they wrap at any font size instead of clipping.
-                Column {
-                    if (smsGranted) {
-                        ActionRow("Scan for new SMS", Icons.Outlined.Sync, { vm.scanInbox(full = false) })
-                        ActionRow("Rescan the last 12 months", Icons.Outlined.ManageHistory, { vm.scanInbox(full = true) })
-                    }
-                    ActionRow("SMS log", Icons.Outlined.History, onOpenSmsLog, subtitle = "Every message scanned and what happened to it")
-                    // Shapes learned from Review. Only the bank's fixed wording is kept: amounts, names and numbers are masked.
-                    if (templates.isNotEmpty()) {
-                        Text("Learned from Review (${templates.size})", style = MaterialTheme.typography.labelLarge)
-                        Text("When you confirm a message, FinTrack remembers that sender's wording and reads the next one by itself.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        templates.forEach { t ->
-                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("${t.senderCore} · ${if (t.type == "CREDIT") "money in" else "money out"}", style = MaterialTheme.typography.bodyMedium)
-                                    Text(t.skeleton, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                }
-                                IconButton(onClick = { vm.deleteTemplate(t.id) }) { Icon(Icons.Outlined.Delete, "Forget this shape") }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Section("Import statements", Icons.Outlined.UploadFile) {
-                Text(
-                    "Add a bank statement (PDF, Excel, CSV) or payment-app screenshots. Read on this phone; payments you already have from SMS are skipped.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                ActionRow("Import a statement or screenshots", Icons.Outlined.UploadFile, onOpenImport)
-            }
-
-            Section("Clean up duplicates", Icons.Outlined.CleaningServices) {
-                Text(
-                    "Looks for the same payment stored twice, usually by an older version that couldn't yet tell a bank and a UPI app were reporting one payment. Nothing is deleted until you confirm.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                val dupes by vm.duplicates.collectAsState()
-                val scanning by vm.scanningDuplicates.collectAsState()
-                val scanned by vm.duplicatesScanned.collectAsState()
-                SecondaryButton(if (scanning) "Looking…" else "Find duplicates", { vm.findDuplicates() }, enabled = !scanning)
-                if (scanned && dupes.isEmpty() && !scanning) {
-                    Text("No duplicates found.", style = MaterialTheme.typography.bodyMedium)
-                }
-                if (dupes.isNotEmpty()) {
-                    val total = dupes.sumOf { it.amountPaise }
-                    Text(
-                        "${dupes.size} duplicate${if (dupes.size > 1) "s" else ""} worth ${money(total)} in total:",
-                        style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold
-                    )
-                    dupes.take(8).forEach { d ->
-                        Text(
-                            "• ${money(d.amountPaise)} ${d.keep.merchant}: keeps the ${d.keep.bankName ?: "first"} record, removes the ${d.drop.bankName ?: "other"} one",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                    if (dupes.size > 8) Text("…and ${dupes.size - 8} more", style = MaterialTheme.typography.bodySmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        PrimaryButton("Remove ${dupes.size}", {
-                            vm.mergeDuplicates { n -> scope.launch { snackbar.showSnackbar("Removed ${countLabel(n, "duplicate")}") } }
-                        }, fill = false)
-                        TextAction("Cancel", { vm.clearDuplicates() })
-                    }
-                }
-            }
-
-            Section("Calculation", Icons.Outlined.Calculate) {
-                Row(
-                    Modifier.fillMaxWidth().toggleable(value = cashAsSpend, role = Role.Switch, onValueChange = { vm.setCountCashAsSpend(it) }),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Count ATM cash as spend")
-                        Text("Off: cash withdrawals are shown separately and left out of spend totals.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(Modifier.width(Space.md))
-                    Switch(checked = cashAsSpend, onCheckedChange = null)
-                }
-                Text("Spend = expenses minus refunds. Transfers between your accounts, credit-card bill payments, investments and split settlements are never counted. Tap any number on the Home tab to see the transactions behind it.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            Section("Bill splits", Icons.AutoMirrored.Outlined.CallSplit) {
-                OutlinedTextField(nameInput, { nameInput = it }, label = { Text("Your name in splits") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                // Only offered once there is something to save; a disabled pill just looked broken.
-                if (nameInput.trim().isNotEmpty() && nameInput.trim() != myName) {
-                    PrimaryButton("Save name", { vm.setMyName(nameInput) }, fill = false)
-                }
-                ActionRow("Export splits as CSV", Icons.Outlined.FileDownload, {
-                    exportingSplits = true
-                    exportLauncher.launch("fintrack-splits-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ENGLISH).format(Date()) + ".csv")
-                })
-                Text("Bill photos are read on this phone with an offline text recogniser and are not stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            Section("Reminders", Icons.Outlined.NotificationsActive) {
-                Row(
-                    Modifier.fillMaxWidth().toggleable(value = remindersOn, role = Role.Switch, onValueChange = { on ->
-                        if (on && ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        } else vm.setRemindersEnabled(on)
-                    }),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Remind me before bills and renewals")
-                        Text("A notification a few days before a bill, EMI or subscription is due. Worked out on this phone; amounts are hidden on the lock screen.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(Modifier.width(Space.md))
-                    Switch(checked = remindersOn, onCheckedChange = null)
-                }
-            }
-
-            Section("Backup", Icons.Outlined.Backup) {
-                Text(
-                    "One file with all your data, locked with a passphrase only you know (AES-256). Save it anywhere you like: another folder, a USB drive, your own cloud. " +
-                        "FinTrack never uploads it, and without the passphrase nobody can open it, not even you.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(if (lastBackup == 0L) "No backup yet." else "Last backup: ${com.pft.financetracker.ui.components.fullDate(lastBackup)}", style = MaterialTheme.typography.bodyMedium)
-                backupBusy?.let { msg ->
-                    Text(msg, style = MaterialTheme.typography.bodyMedium)
-                    androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
-                } ?: run {
-                    ActionRow("Back up now", Icons.Outlined.Backup, { backupLauncher.launch("FinTrack-${java.time.LocalDate.now()}.ftbackup") })
-                    ActionRow("Restore from a backup", Icons.Outlined.Restore, { restoreLauncher.launch(arrayOf("*/*")) })
-                }
-            }
-
-            Section("Home-screen widget", Icons.Outlined.Widgets) {
-                Row(
-                    Modifier.fillMaxWidth().toggleable(value = widgetHide, role = Role.Switch, onValueChange = { vm.setWidgetHideAmounts(it) }),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Hide amounts on the widget")
-                        Text("Shows ₹•••• instead of figures, since anyone can see your home screen. Long-press the app icon or use the widget to note a purchase quickly.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Spacer(Modifier.width(Space.md))
-                    Switch(checked = widgetHide, onCheckedChange = null)
-                }
-                // Launchers that support it show their own "Add to home screen" sheet; others need a long-press on the home screen.
-                ActionRow("Add the widget to your home screen", Icons.Outlined.Widgets, {
-                    scope.launch {
-                        val ok = runCatching {
-                            androidx.glance.appwidget.GlanceAppWidgetManager(ctx).requestPinGlanceAppWidget(com.pft.financetracker.ui.widget.FinTrackWidgetReceiver::class.java)
-                        }.getOrDefault(false)
-                        if (!ok) snackbar.showSnackbar("Long-press your home screen, choose Widgets and find FinTrack.")
-                    }
-                })
-            }
-
-            Section("Split intelligence", Icons.Outlined.Groups) {
-                Text(
-                    "When you pay for a group and friends pay you back, only your share counts as your spending. FinTrack spots this by itself: " +
-                        "clear cases are applied (tap Undo on any of them), unclear ones wait for your yes in the Split tab.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(
-                    Modifier.fillMaxWidth().toggleable(value = splitAi, role = Role.Switch, enabled = hasKey, onValueChange = { vm.setSplitAi(it) }),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Use AI for unclear cases")
-                        Text(
-                            if (hasKey) "Uneven shares and one transfer covering two bills. Sent to OpenAI: amounts, days and payment types only; people appear as \"Person A\", never by name."
-                            else "Needs an OpenAI key (below). Without it, the rules on this phone still handle the clear cases.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    Spacer(Modifier.width(Space.md))
-                    Switch(checked = splitAi && hasKey, onCheckedChange = null, enabled = hasKey)
-                }
-                ActionRow("Check again now", Icons.Outlined.Sync, { vm.refreshSplits() })
-            }
-
-            Section("On-device AI (Gemini Nano)", Icons.Outlined.Memory) {
-                Text(
-                    when (nanoStatus) {
-                        com.pft.financetracker.data.ai.NanoAi.Status.READY -> "Ready on this phone. Ask hands it questions its rules don't understand, with your totals only; nothing leaves the phone."
-                        com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADABLE -> "This phone supports it. Android downloads the model once (about 1-2 GB, over Wi-Fi is best)."
-                        com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADING -> "Android is downloading the model…"
-                        com.pft.financetracker.data.ai.NanoAi.Status.UNSUPPORTED -> "Not available on this phone (it needs Android AICore: Pixel 9 or later, Galaxy S24 or later and some others). Ask still answers with its rules."
-                        null -> "Checking…"
-                    },
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (nanoStatus == com.pft.financetracker.data.ai.NanoAi.Status.DOWNLOADABLE) ActionRow("Download the model", Icons.Outlined.Download, { vm.downloadNano() })
-                if (nanoStatus == com.pft.financetracker.data.ai.NanoAi.Status.READY) Row(
-                    Modifier.fillMaxWidth().toggleable(value = useNano, role = Role.Switch, onValueChange = { vm.setUseNano(it) }),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Text("Use it in Ask", Modifier.weight(1f))
-                    Switch(checked = useNano, onCheckedChange = null)
-                }
-            }
-
-            Section("AI monthly summary (optional)", Icons.Outlined.AutoAwesome) {
-                Text(
-                    "Uses your own OpenAI API key. Only category totals for this month and last are sent, never SMS text, merchant names or account numbers. Nothing is sent until you tap Generate.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (hasKey) {
-                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.width(Space.sm))
-                        Text(
-                            if (keyBuiltIn) "Using the key built into this app, encrypted with Android Keystore"
-                            else "Using your own key, encrypted with Android Keystore",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    // Side by side where they fit, stacked at a large font.
-                    AdaptiveRow(count = 2, minItemWidth = 140.dp) { m ->
-                        PrimaryButton("Generate", { vm.generateAiSummary() }, m, enabled = aiState !is AiUiState.Loading)
-                        SecondaryButton("What is sent?", { showPayload = true }, m)
-                    }
-                    // Change replaces the key in place; either action makes the key yours, so the built-in
-                    // one is not restored on the next launch.
-                    Column {
-                        if (changingKey) {
-                            OutlinedTextField(
-                                keyInput, { keyInput = it },
-                                label = { Text("OpenAI API key (sk-...)") }, singleLine = true,
-                                visualTransformation = PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), modifier = Modifier.padding(top = Space.sm)) {
-                                PrimaryButton("Save new key", { vm.setApiKey(keyInput); keyInput = ""; changingKey = false; vm.clearAi() }, enabled = keyInput.trim().length > 20, fill = false)
-                                TextAction("Cancel", { keyInput = ""; changingKey = false })
-                            }
-                        } else {
-                            ActionRow("Change key", Icons.Outlined.Key, { changingKey = true })
-                        }
-                        ActionRow("Remove key", Icons.Outlined.KeyOff, { vm.setApiKey(null); vm.clearAi(); changingKey = false })
-                    }
-                } else {
-                    SecondaryButton("What would be sent?", { showPayload = true })
-                    OutlinedTextField(
-                        keyInput, { keyInput = it },
-                        label = { Text("OpenAI API key (sk-...)") }, singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    PrimaryButton("Save key", { vm.setApiKey(keyInput); keyInput = "" }, enabled = keyInput.trim().length > 20, fill = false)
-                }
-                when (val s = aiState) {
-                    is AiUiState.Loading -> Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(Space.sm)); Text("Writing your summary…") }
-                    is AiUiState.Result -> SoftPanel { MarkdownText(s.text) }
-                    is AiUiState.Error -> Text("Couldn't get a summary. ${s.message}", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    AiUiState.Idle -> {}
-                }
-            }
-
-            Section("Your data", Icons.Outlined.Storage) {
-                Text("All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Column {
-                    ActionRow("Export all transactions as CSV", Icons.Outlined.FileDownload, {
-                        exportingSplits = false
-                        val name = "fintrack-" + SimpleDateFormat("yyyyMMdd-HHmm", Locale.ENGLISH).format(Date()) + ".csv"
-                        exportLauncher.launch(name)
-                    })
-                    // Destructive but rare: present, clearly red, not the loudest thing on the page. The
-                    // confirmation dialog below is unchanged.
-                    ActionRow("Clear all data", Icons.Outlined.DeleteForever, { confirmClear = true }, tint = MaterialTheme.colorScheme.error)
-                }
+            when (section) {
+                "sms" -> SmsSection(vm, snackbar, onOpenSmsLog, onOpenImport)
+                "calculation" -> CalculationSection(vm)
+                "splits" -> SplitsSection(vm)
+                "reminders" -> RemindersSection(vm, snackbar)
+                "backup" -> BackupSection(vm, snackbar)
+                "widget" -> WidgetSection(vm, snackbar)
+                "ai" -> AiSection(vm)
+                "data" -> DataSection(vm, snackbar)
+                else -> EmptyState(
+                    Icons.Outlined.Settings,
+                    "This page isn't here",
+                    "It may have moved in an update. Everything is still in Settings.",
+                ) { SecondaryButton("Back to Settings", onBack) }
             }
         }
-    }
-
-    if (showPayload) AlertDialog(
-        onDismissRequest = { showPayload = false },
-        title = { Text("Exact payload sent to OpenAI") },
-        text = { Text(vm.aiPayloadPreview(), style = MaterialTheme.typography.bodySmall, modifier = Modifier.verticalScroll(rememberScrollState())) },
-        confirmButton = { TextButton(onClick = { showPayload = false }) { Text("Close") } }
-    )
-
-    if (confirmClear) AlertDialog(
-        onDismissRequest = { confirmClear = false },
-        title = { Text("Delete everything?") },
-        text = { Text("All transactions, budgets, splits, the SMS log, review items and the saved API key will be permanently erased from this device.") },
-        confirmButton = { TextButton(onClick = { confirmClear = false; vm.clearAllData { scope.launch { snackbar.showSnackbar("All data cleared") } } }) { Text("Delete everything", color = MaterialTheme.colorScheme.error) } },
-        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } }
-    )
-}
-
-@Composable
-private fun Section(title: String, icon: ImageVector, content: @Composable () -> Unit) {
-    FinCard {
-        CardTitle(title, icon)
-        content()
     }
 }

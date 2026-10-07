@@ -13,107 +13,165 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pft.financetracker.R
 
 /*
- * Buro-derived design language.
+ * "Quiet ledger": Buro's calm grown into a tactile app.
  *
- * High-utility minimalism: a warm off-white page, white cards separated by hairlines instead of
- * shadows, one saturated blue for anything actionable, and numbers treated as the hero element.
- * Colours below were sampled from the reference screens in stitch_buro_fintech_app/.
+ * A warm page, white cards on hairlines, and one deep ink-blue that is the only tappable colour. Depth comes from four
+ * surface tiers (page, card, raised, sunken) instead of hairlines alone, and money has its own face with tabular
+ * figures so columns of amounts line up. Every text pair is at least 4.5:1 and every UI edge 3:1 in both themes;
+ * the measured ratios are in docs/redesign/tokens.md.
  *
  * Dynamic (wallpaper) colour is deliberately off so the app looks the same on every phone.
  */
 
-// --- sampled from the reference ---
-private val Page = Color(0xFFFDFCFB)        // warm off-white background
-private val CardWhite = Color(0xFFFFFFFF)
-private val SoftPanel = Color(0xFFF4F5F6)   // tonal grouping, no border
-private val Hairline = Color(0xFFE7E6E6)    // the only separator
-private val Ink = Color(0xFF000000)
-private val InkBody = Color(0xFF101112)
-private val Muted = Color(0xFF6A6F77)       // 4.6:1 on SoftPanel (#70757D was 4.25)
-private val MutedSoft = Color(0xFFA8ABB0)
-private val Accent = Color(0xFF0000FF)      // Buro blue: buttons, links, selected state
-private val AccentSoft = Color(0xFFF0EFFB)  // selected chip / avatar tint
-private val Danger = Color(0xFFB50000)
-private val DangerSoft = Color(0xFFFDECEC)
-
-private val Light = lightColorScheme(
-    primary = Accent,
-    onPrimary = Color.White,
-    primaryContainer = AccentSoft,
-    onPrimaryContainer = Accent,
-    secondary = Ink,
-    onSecondary = Color.White,
-    secondaryContainer = SoftPanel,
-    onSecondaryContainer = InkBody,
-    tertiary = Accent,
-    onTertiary = Color.White,
-    tertiaryContainer = AccentSoft,
-    onTertiaryContainer = Accent,
-    background = Page,
-    onBackground = InkBody,
-    surface = CardWhite,
-    onSurface = InkBody,
-    surfaceVariant = SoftPanel,
-    onSurfaceVariant = Muted,
-    surfaceContainer = SoftPanel,
-    surfaceContainerLow = Page,
-    surfaceContainerLowest = CardWhite,
-    surfaceContainerHigh = CardWhite,          // dialogs and date pickers: the white card surface, not the grey panel
-    surfaceContainerHighest = Hairline,
-    outline = MutedSoft,
-    outlineVariant = Hairline,
-    error = Danger,
-    onError = Color.White,
-    errorContainer = DangerSoft,
-    onErrorContainer = Danger,
-    scrim = Color(0x33000000),
+/** The four surface tiers, plus the lines drawn on them. Read with [surfaces]. */
+@Immutable
+data class Surfaces(
+    /** The window behind everything. */
+    val page: Color,
+    /** Grouped content: cards, list backgrounds. */
+    val card: Color,
+    /** Things that float: sheets, the Add button, urgent cards, the nav pill. Paired with a soft shadow. */
+    val raised: Color,
+    /** Things you put something into: inputs, the segment track, the number pad, skeletons. */
+    val sunken: Color,
+    /** The hairline between rows and around cards (decorative, not a control edge). */
+    val hairline: Color,
+    /** A control's edge that must be seen (3:1): unselected chip outlines, checkboxes. */
+    val outline: Color,
+    /** The accent's soft tint: selected chips and the tinted squares behind icons. */
+    val accentSoft: Color,
+    /** Shadow tint for raised surfaces. */
+    val shadow: Color,
 )
 
-/* The reference is light-only; this keeps its structure - one accent, hairlines, no shadows. */
+private val LightSurfaces = Surfaces(
+    page = Color(0xFFFDFCFB),
+    card = Color(0xFFFFFFFF),
+    raised = Color(0xFFFFFFFF),
+    sunken = Color(0xFFF3F2EE),
+    hairline = Color(0xFFE6E4DF),
+    outline = Color(0xFF85888F),
+    accentSoft = Color(0xFFEBEEFC),
+    shadow = Color(0x29111214),
+)
+
+private val DarkSurfaces = Surfaces(
+    page = Color(0xFF0B0B0C),
+    card = Color(0xFF151618),
+    raised = Color(0xFF1D1E21),
+    sunken = Color(0xFF101113),
+    hairline = Color(0xFF2A2B2F),
+    outline = Color(0xFF6E727A),
+    accentSoft = Color(0xFF1E2340),
+    shadow = Color(0x99000000),
+)
+
+val LocalSurfaces = staticCompositionLocalOf { LightSurfaces }
+
+/** The current theme's surface tiers. */
+val surfaces: Surfaces @Composable @ReadOnlyComposable get() = LocalSurfaces.current
+
+private val AccentLight = Color(0xFF1F3BD6)   // 7.9:1 on card, 7.1:1 on sunken
+private val AccentDark = Color(0xFF9DA8FF)    // 8.2:1 on card
+private val InkLight = Color(0xFF111214)
+private val InkDark = Color(0xFFF2F2F3)
+private val MutedLight = Color(0xFF62666E)    // 5.8:1 on card, 5.1:1 on sunken
+private val MutedDark = Color(0xFFA3A7AE)     // 7.5:1 on card
+private val DangerLight = Color(0xFFB50000)
+private val DangerDark = Color(0xFFFF7B72)
+
+private val Light = lightColorScheme(
+    primary = AccentLight,
+    onPrimary = Color.White,
+    primaryContainer = LightSurfaces.accentSoft,
+    onPrimaryContainer = AccentLight,
+    inversePrimary = AccentDark,
+    secondary = InkLight,
+    onSecondary = Color.White,
+    secondaryContainer = LightSurfaces.accentSoft,
+    onSecondaryContainer = AccentLight,
+    tertiary = AccentLight,
+    onTertiary = Color.White,
+    tertiaryContainer = LightSurfaces.accentSoft,
+    onTertiaryContainer = AccentLight,
+    background = LightSurfaces.page,
+    onBackground = InkLight,
+    surface = LightSurfaces.card,
+    onSurface = InkLight,
+    surfaceVariant = LightSurfaces.sunken,
+    onSurfaceVariant = MutedLight,
+    surfaceTint = Color.Transparent,
+    inverseSurface = InkLight,
+    inverseOnSurface = LightSurfaces.page,
+    surfaceBright = LightSurfaces.card,
+    surfaceDim = LightSurfaces.sunken,
+    surfaceContainerLowest = LightSurfaces.card,
+    surfaceContainerLow = LightSurfaces.raised,     // bottom sheets
+    surfaceContainer = LightSurfaces.sunken,
+    surfaceContainerHigh = LightSurfaces.raised,    // dialogs, date pickers, menus
+    surfaceContainerHighest = LightSurfaces.sunken, // text field and switch tracks
+    outline = LightSurfaces.outline,
+    outlineVariant = LightSurfaces.hairline,
+    error = DangerLight,
+    onError = Color.White,
+    errorContainer = Color(0xFFFDECEC),
+    onErrorContainer = DangerLight,
+    scrim = Color(0x52111214),
+)
+
 private val Dark = darkColorScheme(
-    primary = Color(0xFF9DA8FF),
-    onPrimary = Color(0xFF00007A),
-    primaryContainer = Color(0xFF1B1F3B),
-    onPrimaryContainer = Color(0xFFC9CFFF),
-    secondary = Color(0xFFE8E8E8),
-    onSecondary = Color(0xFF101112),
-    secondaryContainer = Color(0xFF1C1D1F),
-    onSecondaryContainer = Color(0xFFE8E8E8),
-    tertiary = Color(0xFF9DA8FF),
-    onTertiary = Color(0xFF00007A),
-    tertiaryContainer = Color(0xFF1B1F3B),
-    onTertiaryContainer = Color(0xFFC9CFFF),
-    background = Color(0xFF0B0B0C),
-    onBackground = Color(0xFFF2F2F3),
-    surface = Color(0xFF121314),
-    onSurface = Color(0xFFF2F2F3),
-    surfaceVariant = Color(0xFF1C1D1F),
-    onSurfaceVariant = Color(0xFFA8ABB0),
-    surfaceContainer = Color(0xFF1C1D1F),
-    surfaceContainerLow = Color(0xFF121314),
-    surfaceContainerLowest = Color(0xFF0B0B0C),
-    surfaceContainerHigh = Color(0xFF232425),
-    surfaceContainerHighest = Color(0xFF2B2C2E),
-    outline = Color(0xFF5A5D62),
-    outlineVariant = Color(0xFF2B2C2E),
-    error = Color(0xFFFF8A80),
+    primary = AccentDark,
+    onPrimary = Color(0xFF0A1170),
+    primaryContainer = DarkSurfaces.accentSoft,
+    onPrimaryContainer = AccentDark,
+    inversePrimary = AccentLight,
+    secondary = InkDark,
+    onSecondary = Color(0xFF111214),
+    secondaryContainer = DarkSurfaces.accentSoft,
+    onSecondaryContainer = AccentDark,
+    tertiary = AccentDark,
+    onTertiary = Color(0xFF0A1170),
+    tertiaryContainer = DarkSurfaces.accentSoft,
+    onTertiaryContainer = AccentDark,
+    background = DarkSurfaces.page,
+    onBackground = InkDark,
+    surface = DarkSurfaces.card,
+    onSurface = InkDark,
+    surfaceVariant = DarkSurfaces.sunken,
+    onSurfaceVariant = MutedDark,
+    surfaceTint = Color.Transparent,
+    inverseSurface = InkDark,
+    inverseOnSurface = DarkSurfaces.page,
+    surfaceBright = DarkSurfaces.raised,
+    surfaceDim = DarkSurfaces.page,
+    surfaceContainerLowest = DarkSurfaces.page,
+    surfaceContainerLow = DarkSurfaces.raised,
+    surfaceContainer = DarkSurfaces.sunken,
+    surfaceContainerHigh = DarkSurfaces.raised,
+    surfaceContainerHighest = Color(0xFF26272B),
+    outline = DarkSurfaces.outline,
+    outlineVariant = DarkSurfaces.hairline,
+    error = DangerDark,
     onError = Color(0xFF4A0000),
     errorContainer = Color(0xFF3A1210),
     onErrorContainer = Color(0xFFFFB4AB),
+    scrim = Color(0x8C000000),
 )
 
 /**
  * Money direction: money in, money out, and money that only moved. The same three colours everywhere, nowhere else,
- * with a dark-mode set of their own. Every value is at least 4.5:1 on its theme's page, card and panel.
+ * with a dark-mode set of their own. Every value is at least 4.5:1 on its theme's page, card, raised and sunken tiers.
  */
 @Immutable
 data class MoneyColors(val income: Color, val expense: Color, val neutral: Color)
@@ -135,28 +193,28 @@ fun moneyTone(paise: Long): Color = when {
     else -> MaterialTheme.colorScheme.onSurface
 }
 
-/** Category accents for charts and avatars: muted, distinguishable, legible on both themes. */
+/** Category accents for charts and icons: muted, distinguishable, and at least 3:1 (UI) on card in both themes. */
 val CategoryColors: List<Color> = listOf(
-    Color(0xFFE07A5F), // Food
-    Color(0xFF3D5A80), // Shopping
-    Color(0xFFF2A541), // Bills
-    Color(0xFF6C8EAD), // Transport
+    Color(0xFFD9694C), // Food
+    Color(0xFF4F6FA0), // Shopping
+    Color(0xFFC08414), // Bills
+    Color(0xFF5E86AA), // Transport
     Color(0xFF9B5DE5), // Entertainment
-    Color(0xFF2A9D8F), // Health
-    Color(0xFF577590), // Education
-    Color(0xFF43AA8B), // Investment
-    Color(0xFF8D99AE), // ATM
-    Color(0xFF7B8CDE), // Transfer
-    Color(0xFF3A9B5C), // Income
-    Color(0xFF9AA5B1), // Other
+    Color(0xFF23907F), // Health
+    Color(0xFF6A7FA0), // Education
+    Color(0xFF3A9C7C), // Investment
+    Color(0xFF7F8AA0), // ATM
+    Color(0xFF6E7FD8), // Transfer
+    Color(0xFF2F9353), // Income
+    Color(0xFF8A95A3), // Other
 )
 
-/** High-radius curvature: pill controls, 24dp cards. */
+/** Generous curvature: 12dp controls, 20dp cards, 28dp sheets. */
 private val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(10.dp),
-    small = RoundedCornerShape(14.dp),
-    medium = RoundedCornerShape(20.dp),
-    large = RoundedCornerShape(24.dp),
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(20.dp),
     extraLarge = RoundedCornerShape(28.dp),
 )
 
@@ -167,16 +225,24 @@ val Inter = FontFamily(
     Font(R.font.inter_bold, FontWeight.Bold),
 )
 
-/**
- * Numbers are the hero: large balances get tight tracking so they read as a single dense block.
- * Everything else stays quiet so the figures carry the page.
- */
+/** Inter Tight: the display face, for money only. One variable file, pinned to the weights the app uses. */
+@OptIn(ExperimentalTextApi::class)
+val InterTight = FontFamily(
+    Font(R.font.inter_tight, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+    Font(R.font.inter_tight, FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+    Font(R.font.inter_tight, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+)
+
+/** Tabular figures: every digit the same width, so amounts in a column line up. */
+const val TabularFigures = "tnum"
+
+/** The type scale: display 56/44/36 (money), title 22/20/17, body 16/14/13, label 12/11. */
 private val AppTypography = Typography(
-    displayLarge = TextStyle(fontFamily = Inter, fontSize = 56.sp, lineHeight = 60.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.8).sp),
-    displayMedium = TextStyle(fontFamily = Inter, fontSize = 44.sp, lineHeight = 48.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.2).sp),
-    displaySmall = TextStyle(fontFamily = Inter, fontSize = 36.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.8).sp),
-    headlineLarge = TextStyle(fontFamily = Inter, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp),
-    headlineMedium = TextStyle(fontFamily = Inter, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp),
+    displayLarge = TextStyle(fontFamily = InterTight, fontSize = 56.sp, lineHeight = 60.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.9).sp, fontFeatureSettings = TabularFigures),
+    displayMedium = TextStyle(fontFamily = InterTight, fontSize = 44.sp, lineHeight = 48.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-1.3).sp, fontFeatureSettings = TabularFigures),
+    displaySmall = TextStyle(fontFamily = InterTight, fontSize = 36.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.9).sp, fontFeatureSettings = TabularFigures),
+    headlineLarge = TextStyle(fontFamily = Inter, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp),
+    headlineMedium = TextStyle(fontFamily = Inter, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp),
     headlineSmall = TextStyle(fontFamily = Inter, fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp),
     titleLarge = TextStyle(fontFamily = Inter, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp),
     titleMedium = TextStyle(fontFamily = Inter, fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp),
@@ -189,12 +255,32 @@ private val AppTypography = Typography(
     labelSmall = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.2.sp),
 )
 
-/** Small uppercase label that sits above a figure, as in the reference. */
-val LabelCaps = TextStyle(fontFamily = Inter, fontSize = 12.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp)
+/**
+ * Money styles: Inter Tight with tabular figures. The display sizes are the hero; [row] is a list's amount column;
+ * [tile] and [title] sit in tiles and card headers.
+ */
+object MoneyType {
+    val hero: TextStyle get() = AppTypography.displayLarge
+    val large: TextStyle get() = AppTypography.displayMedium
+    val medium: TextStyle get() = AppTypography.displaySmall
+    val title = TextStyle(fontFamily = InterTight, fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.4).sp, fontFeatureSettings = TabularFigures)
+    val tile = TextStyle(fontFamily = InterTight, fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp, fontFeatureSettings = TabularFigures)
+    val row = TextStyle(fontFamily = InterTight, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.1).sp, fontFeatureSettings = TabularFigures)
+    val small = TextStyle(fontFamily = InterTight, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = TabularFigures)
+    val label = TextStyle(fontFamily = InterTight, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = TabularFigures)
+}
+
+/** Small uppercase label that sits above a figure. */
+val LabelCaps = TextStyle(fontFamily = Inter, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.9.sp)
 
 @Composable
 fun FinTrackTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalMoneyColors provides if (darkTheme) DarkMoney else LightMoney) {
-        MaterialTheme(colorScheme = if (darkTheme) Dark else Light, shapes = AppShapes, typography = AppTypography, content = content)
+    CompositionLocalProvider(
+        LocalMoneyColors provides if (darkTheme) DarkMoney else LightMoney,
+        LocalSurfaces provides if (darkTheme) DarkSurfaces else LightSurfaces,
+    ) {
+        MaterialTheme(colorScheme = if (darkTheme) Dark else Light, shapes = AppShapes, typography = AppTypography) {
+            ProvideMotion(content)
+        }
     }
 }
