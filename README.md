@@ -1,54 +1,87 @@
 # FinTrack: private, on-device personal finance tracker for Android
 
-FinTrack reads bank, UPI and credit-card alert SMS, turns them into transactions, and shows where your money goes. Everything is stored in an encrypted database on your phone. There is no cloud sync, no account, no analytics, and no tracking SDK.
+FinTrack reads bank, UPI and credit-card alert SMS, turns them into transactions, and shows where your money goes.
+Everything is stored in an encrypted database on your phone. There is no cloud sync, no account, no analytics and
+no tracking SDK. It is a personal project, not a production app: it works well for its author, and its limits are
+written down below.
 
 - Kotlin, Jetpack Compose, Material 3
 - Room on SQLCipher (AES-256) for storage
 - Android 12+ (minSdk 31, targetSdk 35)
 
+<p>
+<img src="docs/redesign/after/02-home-top.jpg" width="240" alt="Home: net spend this month, a six-month chart, income, spend and savings tiles">
+<img src="docs/redesign/after/11-activity-1.jpg" width="240" alt="Activity: days with their net totals and a lined-up amount column">
+<img src="docs/redesign/after/49-quickadd.jpg" width="240" alt="Adding an expense: a number pad and a category grid in one sheet">
+</p>
+
 ## Download
 
-Get the latest signed APK from the [Releases page](https://github.com/Lukey-7/Personal_Finance_app/releases/latest). Each release lists a SHA-256 checksum so you can verify the file.
-
-APKs are split by CPU: take **arm64-v8a** for any phone from the last several years. The `universal`
-APK works everywhere but is about three times the size, because the on-device OCR models ship once per
-architecture.
+Get the latest APK from the [Releases page](https://github.com/Lukey-7/Personal_Finance_app/releases/latest). Each
+release attaches **one file, the arm64-v8a APK** (any phone from the last several years), with its SHA-256 in the
+notes. It is the author's **personal build with an OpenAI key built in** (the name ends in `-personal`), so don't
+pass it around; build your own (below) for a copy with no key.
 
 ## Features
 
-- **Adaptive SMS parsing.** A layered, bank-agnostic parser detects debits and credits from most Indian banks, UPI apps and card networks. There are no per-bank templates. Direction is read from the first verb about *your* account, so alerts that also mention the other side ("Acct debited ...; CAFE credited", "Rs 500 Dr. ... Cr. to x@ybl") are still booked the right way round.
-- **Review queue.** Messages the parser is unsure about are never guessed or silently dropped. They go to a review list where you confirm or dismiss them.
-- **Rescans that respect you.** *Rescan the last 12 months* re-reads your inbox with the current parser: it recovers messages an older version ignored and corrects rows an older version stored backwards, but never brings back a transaction you deleted, a review item you dismissed, or overwrites a row you edited.
-- **Auto-categorisation.** Keyword rules sort transactions into food, shopping, bills, transport and more. You can recategorise any transaction.
-- **Manual entry.** Add, edit and delete transactions yourself.
-- **Dashboard you can audit.** Net spend = gross spend - refunds, savings = income - net spend, shown with the arithmetic. Transfers, card-bill payments and investments are listed separately and never counted as spend. Every number is tappable and opens the transactions behind it. Period picker, daily average, month-end projection, top merchants, per-account totals.
-- **Correct counting.** Amounts are stored as paise (integers). One payment reported by two SMS (bank + UPI app) is stored once, matched by reference number or by amount within ten minutes. Every transaction has an editable *flow* (expense, income, refund, transfer, investment, cash, settlement) that decides how it is counted.
-- **SMS log.** Every scanned message with what happened to it and why. Message text is not stored; tapping a row re-reads it from the inbox.
-- **Bill split with on-device OCR.** Photograph or pick a bill; ML Kit's bundled recognisers (Latin and Devanagari/Hindi) read it offline. Edit the extracted total and items, add people, split equally / by shares / custom / by item with proportional tax, and only your share counts as your spend. Tracks who owes whom and settlements. See [Splitting a bill](#splitting-a-bill).
-- **Insights.** Weekly and monthly trends, category comparisons such as "Food up 20%", and local "reduce spending" suggestions. Suggestions cover recurring subscriptions, frequent small spends, rising categories and budget overspend.
-- **Budgets.** Set a monthly limit per category, with progress bars and overspend alerts.
-- **Split intelligence.** Pay for a group and let friends pay you back: FinTrack notices, and only your share counts as your spend. It handles shared cabs, one transfer covering two bills, late payers and money collected before a trip. Clear cases apply automatically (with undo), unsure ones ask. With an OpenAI key it also asks the AI about uneven shares, sending only amounts, days and "Person A"-style labels; every answer is checked before it can change a number.
-- **Import statements and screenshots.** PDF (including password-protected and scanned), Excel and CSV statements from any bank, and Google Pay / PhonePe / Paytm / Amazon Pay history screenshots. No bank templates; the running balance is checked on every row; payments already known from SMS are skipped; every import can be undone.
-- **Optional AI summary.** Add your own OpenAI API key to get a written monthly summary and saving tips, on demand only.
-- **Clean up duplicates.** Finds the same payment stored twice by an older version and shows exactly what it would remove before deleting anything.
-- **Money tools (v1.3).** Subscriptions with yearly cost and price-rise flags; bills and loan EMIs with automatic
-  "paid" detection; credit-card billing cycles and rewards; savings goals; a tax helper (80C, 80D, NPS, rent,
-  donations) with CSV; net worth from SMS balances, a mutual-fund CAS PDF and what you type in; and **Ask FinTrack**,
-  plain-language questions answered by rules on the phone.
-- **Refunds paired with purchases.** Failed payments that came straight back are hidden, refunds worded like income
-  are counted as refunds, and every pairing can be undone.
-- **Learns from Review.** Confirming a message teaches the parser that sender's wording for next time.
-- **Reminders and a widget.** Optional notifications before bills and renewals; a home-screen widget with amounts
-  hidden by default and one-tap expense / cash entry.
-- **Encrypted backup.** One passphrase-locked file (AES-256-GCM) saved wherever you choose; nothing is uploaded.
-- **Your data.** Export to CSV, or wipe everything.
+**Core**
+
+- **Reads your bank SMS.** A layered, bank-agnostic parser books debits and credits from most Indian banks, UPI apps
+  and card networks, with no per-bank templates. Unsure messages go to a **review queue** instead of being guessed,
+  and confirming one teaches the parser that sender's wording.
+- **A dashboard you can audit.** Net spend = gross spend - refunds; savings = income - net spend. Transfers,
+  card-bill payments and investments are kept apart and never counted as spend. Every figure opens the
+  transactions behind it.
+- **Activity and transaction detail.** Every payment by day with search and filters; swipe to recategorise or
+  delete (with undo); select several to recategorise at once. Each payment opens a read-first page with its SMS,
+  links to splits, refunds and bills, and its tax section.
+- **Quick add.** A sheet with a number pad and a category grid, also from the widget and the app shortcut.
+- **Correct counting.** Amounts are integer paise. One payment reported by two SMS is stored once. Every
+  transaction has a *flow* (expense, income, refund, transfer, investment, cash, settlement) that decides how it
+  counts. Refunds are paired with their purchase; failed payments that came straight back are hidden.
+- **Budgets and insights.** Monthly limits per category; weekly and monthly trends you can read by touch; category
+  changes and local "reduce spending" tips.
+- **Split bills.** Photograph a bill (read on the phone, English and Hindi) and split it equally, by shares, amounts
+  or item; only your share counts as your spend. FinTrack also spots shared payments and friends paying you back.
+  See [Splitting a bill](#splitting-a-bill).
+
+**Money tools**
+
+- **Subscriptions** with yearly cost and price-rise flags; **bills and loan EMIs** marked paid when the payment
+  arrives; **credit-card cycles** and rewards; **savings goals**; a **tax helper** (80C, 80D, NPS, rent, donations)
+  with CSV; **net worth** from SMS balances, a mutual-fund CAS PDF and what you type in.
+- **Ask FinTrack:** plain questions ("food last month") answered by rules on the phone, with Gemini Nano on phones
+  that have it.
+- **Reminders** before bills and renewals, and a **home-screen widget** (two sizes) with amounts hidden by default.
+
+**Power-user**
+
+- **Import statements and screenshots:** PDF (including password-protected and scanned), Excel and CSV from any
+  bank, and Google Pay / PhonePe / Paytm / Amazon Pay history screenshots, with the running balance checked and
+  every import undoable.
+- **SMS log** of every scanned message and what happened to it; **rescan the last 12 months** with the current
+  parser without bringing back anything you deleted or overwriting your edits; **duplicate clean-up**.
+- **Encrypted backup** to one passphrase-locked file; **CSV export**; **clear everything**.
+- **Optional AI summary** with your own OpenAI key, on demand only, showing exactly what is sent.
+
+## Using the app
+
+1. On first launch, three short screens explain what FinTrack reads and what stays private; allow SMS access or
+   skip to manual entry. The first scan runs in front of you and lands on Home.
+2. New messages are imported automatically while auto-import is on. The **Activity** badge counts messages that
+   need review; **Activity › SMS log** shows what was skipped and why.
+3. Tap any number on **Home** to see the payments behind it; tap a payment to read it, then **Edit** to fix its
+   flow or category.
+4. Set monthly limits under **Budgets** (from Home or Insights); the money tools are behind the grid icon on Home.
+5. Use **Split** to photograph a bill, check the numbers, add people and save.
+6. Optionally add an OpenAI key in **Settings › AI**.
 
 ## Security and privacy
 
 | Area | What the app does |
 |---|---|
 | Database | Encrypted with SQLCipher. A random 256-bit key is created per install and kept in EncryptedSharedPreferences backed by the Android Keystore. `secure_delete` is on, so cleared rows are overwritten. |
-| API key | Stored only in EncryptedSharedPreferences using AES-256-GCM with a Keystore master key. Never logged or exported, and never in the source. Published release APKs carry no key; a personal build can have one built in (see `docs/RUNNING.md`), which can be changed or removed in Settings. |
+| API key | Stored only in EncryptedSharedPreferences using AES-256-GCM with a Keystore master key. Never logged or exported, and never in the source. **The APK attached to GitHub releases is a personal build with the author's own OpenAI key built in** (file names end in `-personal`); anyone holding the file can extract that key. Build your own APK without `FINTRACK_EMBED_KEY` to get one with no key (see `docs/RUNNING.md`). A built-in key can be changed or removed in Settings. |
 | SMS | Only messages from alphanumeric sender IDs such as `VM-HDFCBK` are read. Personal messages from phone numbers are skipped. Only parsed fields are stored. Raw text is kept only for messages waiting in the review queue, and is deleted when you resolve them. The SMS log stores sender, time, outcome, reason and amount, never the body. |
 | Bill photos | Read on the phone by ML Kit Text Recognition with the **bundled** Latin and Devanagari models (`com.google.mlkit:text-recognition`, `com.google.mlkit:text-recognition-devanagari`): no model download, works in airplane mode. The camera capture goes to a temp file in app-private cache and is deleted after recognition, whether or not it succeeded; gallery images are read through the system Photo Picker without a storage permission. No image is stored or sent. ML Kit's own anonymous usage logging to Google is on; see [What ML Kit sends](#what-ml-kit-sends). |
 | Statements and screenshots | Picked through the system file / photo picker (no storage permission), read on the phone and not kept. A PDF password is used in memory to open the file and never stored. Only the parsed fields of each transaction are saved, like SMS. |
@@ -56,7 +89,7 @@ architecture.
 | Data sent to OpenAI | Summary: category totals, counts, budgets, and this and last month's totals. Settings has a **What is sent?** button that shows the exact payload. Split intelligence: for payments the on-phone rules cannot explain, the amounts, relative days and times, a payment type ("restaurant, food") and "Person A"-style labels for whoever sent money. Never merchant or people's names, SMS or statement text, bank names or account numbers. Answers are cached so the same week is never sent twice. |
 | Backups | `allowBackup=false` and data-extraction rules exclude everything from cloud backup and device-to-device transfer. Your own backup (Settings → Backup) is one file sealed with AES-256-GCM under a key derived from your passphrase (PBKDF2-HMAC-SHA256, 600,000 rounds, random salt); FinTrack writes it only where you pick and never uploads it. Without the passphrase it cannot be opened. |
 | Reminders and widget | Worked out on the phone by WorkManager twice a day; notifications keep amounts off the lock screen. The widget shows "₹••••" unless you turn on amounts. |
-| Release build | R8 minification is on, and all `android.util.Log` calls are stripped. |
+| Release build | R8 minification is on, and all `android.util.Log` calls are stripped. Screenshots and screen recording are allowed (no `FLAG_SECURE`), so the screen is as private as your phone. |
 | Third parties | Only AndroidX and Google libraries, plus SQLCipher. No Firebase SDK, analytics, crash reporting or ads. `scripts/audit_apk.py` checks each build: ML Kit's logging classes may not grow, and the only endpoint in FinTrack's own code is `api.openai.com`. |
 | CSV export | Written to a location you pick through the system file picker. Cells are escaped against spreadsheet formula injection. |
 
@@ -113,12 +146,26 @@ must be typed in; the total is usually still found. Crumpled or very low-light p
 corrections. The Devanagari model adds roughly 4 MB per ABI (Google's figure, not yet measured on a
 release build). Recognised text is logged only in debug builds, never in release.
 
+## Known limits
+
+- Wording no bank in the corpus uses can still be misread. The defence is the review queue plus one new corpus row per report.
+- A "You paid ₹200 ... cashback ₹20 credited" message records the ₹200 spend; the ₹20 cashback is not recorded separately.
+- A balance alert that also mentions the last debit is imported. If the bank's real debit alert arrived more than ten minutes apart, **Clean up duplicates** in Settings will merge them.
+- Bank alerts sent from ordinary phone numbers (not sender IDs) are skipped, to keep personal SMS private.
+
+## How it works
+
+How the SMS parser reads a message, the regression corpus that keeps it honest, how to report a misread SMS, and
+the exact rules behind every number are in [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md). Every rule has a unit
+test under `app/src/test`.
+
 ## Design
 
-The interface follows the Buro design reference (the mockups are no longer kept in the repo): a warm off-white page,
-white cards separated by hairlines rather than shadows, a single saturated blue for anything actionable,
-and figures treated as the hero element with tight tracking. Colours were sampled from those screens.
-[Inter](https://rsms.me/inter/) is bundled under the SIL Open Font License (`licenses/Inter-OFL.txt`).
+"Quiet ledger": a warm off-white page (near-black at night), white cards on hairlines with raised sheets and
+sunken inputs, one deep ink-blue for everything you can tap, and money as the hero in **Inter Tight** with lined-up
+figures. Motion is springy and stops when Android's "Remove animations" is on. Every colour pair is measured
+against WCAG AA in [docs/redesign/tokens.md](docs/redesign/tokens.md). [Inter](https://rsms.me/inter/) and Inter
+Tight are bundled under the SIL Open Font License (`licenses/`).
 
 ## Project structure
 
@@ -127,80 +174,35 @@ app/src/main/java/com/pft/financetracker/
 ├── data/
 │   ├── local/        Room entities, DAOs, encrypted database + migrations, mappers
 │   ├── prefs/        Settings and encrypted API key storage
-│   ├── repository/   Transaction and budget repositories
-│   └── sms/          Inbox reader, live SMS receiver, import pipeline
-├── domain/
-│   ├── model/        Transaction, Category (with keyword lists), Budget
-│   ├── parser/       Layered SMS parser incl. reference + flow classification (pure Kotlin, unit tested)
+│   ├── repository/   Transaction, budget, split and SMS-log repositories
+│   ├── sms/          Inbox reader, live SMS receiver, import pipeline
+│   ├── importer/     Statement and screenshot files (PDF, Excel, CSV, images)
+│   ├── split/        Split intelligence engine
+│   ├── refunds/      Refund and reversal pairing
+│   ├── recurring/ bills/ cards/ goals/ tax/ networth/   Money tools storage and services
+│   ├── reminders/    Bill and renewal notifications (WorkManager)
+│   ├── backup/       Encrypted backup and restore
+│   └── ai/           Gemini Nano on the phone
+├── domain/           Pure Kotlin, unit tested
+│   ├── model/        Transaction, Category (with keyword lists), Budget, Rupees formatting
+│   ├── parser/       Layered SMS parser incl. reference + flow classification
 │   ├── categorize/   Rule-based categoriser
-│   ├── insights/     Net/gross/refund summaries, drill-downs, trends, suggestions, budget status
-│   ├── split/        Bill split models and integer-paise calculator
-│   ├── ocr/          Receipt text -> structured bill (row straightening, Latin + Devanagari labels and digits)
+│   ├── insights/     Summaries, drill-downs, trends, suggestions, budget status
+│   ├── split/        Split maths, solver and payer classification
+│   ├── ocr/          Receipt text -> structured bill
+│   ├── importer/     Statement table readers and parser
+│   ├── refunds/ recurring/ bills/ cards/ goals/ tax/ networth/ reminders/ widget/ backup/
+│   ├── ask/          Ask FinTrack rules and the month in words
 │   ├── ai/           OpenAI client and aggregated payload builder
 │   └── export/       CSV exporter
-└── ui/               Compose theme, charts, navigation, screens
+└── ui/
+    ├── theme/        Colours, surface tiers, type, motion and haptics
+    ├── components/   Shared components (money display, ledger rows, charts, sheets, states)
+    ├── model/        Screen logic kept testable (filters, quick add, transaction detail, summaries)
+    ├── nav/          Navigation and shared-element transitions
+    ├── screens/      One package per screen
+    └── widget/       Home-screen widget and the quick-add activity
 ```
-
-## How the SMS parser works
-
-The parser lives in `domain/parser`. It has no Android dependencies, so it runs as a plain JVM unit test.
-
-1. **Filters** drop OTPs, promotions, future or scheduled debits, failed transactions, payment requests and statement reminders, but only when the message reports **no completed money movement**. A real debit with a "never share your OTP" footer, a refund for a "cancelled" order or a reversal of a "failed" payment is kept. A verb after "will be", "to be" or "if amount" does not count as completed. The one rule that always wins is "has not been debited".
-2. **Type detection** reads direction from the **first** verb that reports money moving (`debited`, `spent`, `paid`, `sent`, `credited`, `received`, `Dr.`/`Cr.` after an amount...), because that verb is about your account and later mentions describe the other party. "Credited to beneficiary" and "transferred to" are debits; "paid you" and "transferred to your a/c" are credits. Keyword scoring is the fallback when no such verb exists.
-3. **Amount extraction** handles `Rs`, `Rs.`, `INR` and `₹` before or after the number, plus Indian digit grouping. It ignores amounts that follow "Avl bal" or "limit", and digits glued to an account or card mask (`XX1234 Rs 750` is ₹750, not ₹1,234).
-4. **Account extraction** keeps only the last four digits, from forms like `XX1234`, `a/c **1234` or `card ending 1234`.
-5. **Bank detection** reads the sender ID or message body, and falls back to the sender ID itself.
-6. **Merchant extraction** understands UPI handles, `UPI/P2M/...`, `Info:`, `at X`, `to X` and `from X`.
-7. **Date extraction** reads a date from the body in many formats, and falls back to the SMS timestamp (keeping the SMS time of day when the body has only a date).
-8. **Reference extraction** picks up `UPI Ref No`, `UPI:<number>`, `IMPS Ref`, `RRN`, `Txn ID`, `UTR` for duplicate detection.
-9. **Flow classification** decides whether the transaction is an expense, income, refund, transfer (incl. credit-card bill payments and self-transfers), investment or cash withdrawal.
-
-Each result gets a confidence score. Results below 60 go to the review queue instead of being saved.
-
-### The SMS regression corpus
-
-`app/src/test/.../SmsCorpus.kt` is a table of real-world SMS shapes, each with the outcome it must produce
-(saved with direction, amount, flow, merchant and reference; sent to review; or ignored). `SmsCorpusTest`
-runs every row through the parser, categoriser and flow classifier and reports **all** mismatches in one
-failure, so a change that fixes one bank and breaks another is caught immediately.
-
-**Fixing a misread message** is always the same two steps:
-
-1. Add the message (card and account digits masked) as a new `CorpusCase` row with the outcome it should have. Run `testDebugUnitTest` and watch it fail.
-2. Fix the right layer, usually one line, and re-run until the whole corpus is green:
-   - A new ignore rule: append to `TextFilters.ignoreRules` (it yields to completed movements automatically).
-   - A new direction verb: add it to `TypeDetector.primaryVerb`.
-   - A new merchant shape: add a regex to `MerchantExtractor.patterns` at the right priority.
-   - A new bank: append to `BankExtractor.knownIssuers`.
-   - A new category keyword: add it to the list on the `Category` enum.
-
-### Reporting a misread SMS
-
-Open **Settings › SMS log**, find the message (every scanned message is listed with its outcome and
-reason), tap it to see the text, and open an issue with the text and what it should have been. Mask
-account and card digits first. A message marked *ignored* that was really a payment can also be sent to
-the review queue from the same screen.
-
-## How the numbers are calculated
-
-- **Spend** counts transactions with flow `EXPENSE` (and `CASH` unless turned off in Settings).
-- **Refunds** (`REFUND` flow) are subtracted from spend, and from the matching category when the merchant matches a spend in the same period.
-- **Income** counts only `INCOME`. **Transfers**, **investments** and split **settlements** are listed separately.
-- **Same message twice:** the live receiver and an inbox scan see one SMS seconds apart; it is stored once. Every message the importer looks at is recorded in the SMS log, which is how it remembers what it has already handled.
-- **Identical alerts are separate payments:** two word-for-word identical alerts more than five minutes apart (two ₹180 coffees on one card) are two transactions, not one.
-- **One payment, two senders:** a bank alert and a UPI-app alert for the same payment are stored once when their reference numbers match, or when the same amount and direction arrive within ten minutes from a different bank/app (or one has no real merchant). Two references that both exist and differ are always two payments. Same merchant and amount hours apart is two payments.
-- **Your edits win:** once you edit a transaction, duplicate merging only fills in missing identifiers and rescans never rewrite it.
-- **Splits:** only your share is your expense. If you paid and an SMS debit for the full amount exists, that transaction is trimmed to your share (the bank's original amount is remembered, so a second alert for the full bill is still recognised as the same payment); otherwise your share is recorded as a `SPLIT` expense. Money friends pay back is a `SETTLEMENT`, not income.
-
-Every rule above has a unit test under `app/src/test` (parser corpus, duplicate detection, import memory,
-insights, split maths, database migrations). Run them with `testDebugUnitTest`.
-
-### Known limits
-
-- Wording no bank in the corpus uses can still be misread. The defence is the review queue plus one new corpus row per report.
-- A "You paid ₹200 ... cashback ₹20 credited" message records the ₹200 spend; the ₹20 cashback is not recorded separately.
-- A balance alert that also mentions the last debit is imported. If the bank's real debit alert arrived more than ten minutes apart, **Clean up duplicates** in Settings will merge them.
-- Bank alerts sent from ordinary phone numbers (not sender IDs) are skipped, to keep personal SMS private.
 
 ## Building
 
@@ -272,15 +274,5 @@ Never commit the keystore or this file. `*.jks`, `*.keystore` and `keystore.prop
 Enable installing from unknown sources on your phone, then copy the APK over, or run:
 
 ```bash
-adb install app/build/outputs/apk/release/FinTrack-v1.1.0-arm64-v8a-release.apk
+adb install app/build/outputs/apk/release/FinTrack-v1.3.1-arm64-v8a-release.apk
 ```
-
-## Using the app
-
-1. On first launch, read the SMS explanation, then allow access or skip to manual entry.
-2. The app imports the last 12 months of transaction SMS. New messages are imported automatically while auto-import is on.
-3. Check the **Activity** tab badge for messages that need review, and the **SMS log** to see what was skipped and why. After updating the app, **Settings › Rescan the last 12 months** applies parser fixes to your existing history.
-4. Tap any number on **Home** to see the transactions behind it. Fix a wrong flow or category from the transaction editor.
-5. Set monthly limits under **Budgets** (from Home or Insights).
-6. Use **Split** to photograph a bill (English, Hinglish or Hindi), check the extracted numbers, add people and save; only your share is counted as spend.
-7. Optionally, paste an OpenAI API key in **Settings**, then tap **Generate summary**.
