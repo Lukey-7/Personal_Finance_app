@@ -3,14 +3,12 @@ package com.pft.financetracker.ui.widget
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.lifecycle.lifecycleScope
-import com.pft.financetracker.BuildConfig
 import com.pft.financetracker.MainActivity
 import com.pft.financetracker.appContainer
 import com.pft.financetracker.data.local.toDomain
@@ -29,7 +27,6 @@ import kotlinx.coroutines.withContext
 class QuickAddActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!BuildConfig.DEBUG) window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         val cash = intent.getBooleanExtra(EXTRA_CASH, false)
         val cashCounted = appContainer.settings.countCashAsSpend.value

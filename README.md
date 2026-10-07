@@ -56,9 +56,7 @@ architecture.
 | Data sent to OpenAI | Summary: category totals, counts, budgets, and this and last month's totals. Settings has a **What is sent?** button that shows the exact payload. Split intelligence: for payments the on-phone rules cannot explain, the amounts, relative days and times, a payment type ("restaurant, food") and "Person A"-style labels for whoever sent money. Never merchant or people's names, SMS or statement text, bank names or account numbers. Answers are cached so the same week is never sent twice. |
 | Backups | `allowBackup=false` and data-extraction rules exclude everything from cloud backup and device-to-device transfer. Your own backup (Settings → Backup) is one file sealed with AES-256-GCM under a key derived from your passphrase (PBKDF2-HMAC-SHA256, 600,000 rounds, random salt); FinTrack writes it only where you pick and never uploads it. Without the passphrase it cannot be opened. |
 | Reminders and widget | Worked out on the phone by WorkManager twice a day; notifications keep amounts off the lock screen. The widget shows "₹••••" unless you turn on amounts. |
-| Screen | `FLAG_SECURE` blocks screenshots, screen recording and the recents preview. |
 | Release build | R8 minification is on, and all `android.util.Log` calls are stripped. |
-| Screenshots | `FLAG_SECURE` is set in release builds. Debug builds leave it off so the UI can be captured for documentation. |
 | Third parties | Only AndroidX and Google libraries, plus SQLCipher. No Firebase SDK, analytics, crash reporting or ads. `scripts/audit_apk.py` checks each build: ML Kit's logging classes may not grow, and the only endpoint in FinTrack's own code is `api.openai.com`. |
 | CSV export | Written to a location you pick through the system file picker. Cells are escaped against spreadsheet formula injection. |
 

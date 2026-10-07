@@ -127,8 +127,8 @@ Or clear it inside the app with **Settings → Remove key**.
 
 ## Screenshots
 
-Release builds set `FLAG_SECURE`, so screenshots come out black. Debug builds leave it off, so
-`adb exec-out screencap -p > shot.png` works against a debug install.
+Screenshots and screen recording work in every build (the app no longer sets `FLAG_SECURE`):
+`adb exec-out screencap -p > shot.png`.
 
 ## Running the tests
 
