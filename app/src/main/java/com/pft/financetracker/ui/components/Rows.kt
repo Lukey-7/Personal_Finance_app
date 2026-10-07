@@ -1,5 +1,10 @@
 package com.pft.financetracker.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -26,6 +31,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.ui.theme.MoneyType
+import com.pft.financetracker.ui.theme.Motion
+import com.pft.financetracker.ui.theme.motion
 import com.pft.financetracker.ui.theme.surfaces
 
 /** Row avatar size and the gap after it. */
@@ -56,9 +65,39 @@ fun rememberAtTop(state: LazyListState): Boolean {
     return atTop
 }
 
+/** True while [state] is scrolling back towards its top (or not moving): the moment to bring the Add button back. */
+@Composable
+fun rememberScrollingUp(state: LazyListState): Boolean {
+    var previousIndex by remember(state) { mutableIntStateOf(state.firstVisibleItemIndex) }
+    var previousOffset by remember(state) { mutableIntStateOf(state.firstVisibleItemScrollOffset) }
+    return remember(state) {
+        derivedStateOf {
+            val up = if (previousIndex != state.firstVisibleItemIndex) previousIndex > state.firstVisibleItemIndex
+            else previousOffset >= state.firstVisibleItemScrollOffset
+            previousIndex = state.firstVisibleItemIndex
+            previousOffset = state.firstVisibleItemScrollOffset
+            up
+        }
+    }.value
+}
+
 /**
- * The Add button: "+ Add" while the list is at its top, folding into a circle as you scroll so it never sits on an
- * amount for long. The same accent on every screen, raised on a soft shadow. TalkBack always hears [text].
+ * The Add button for a scrolling list: "+ Add" at the top, a circle once you scroll, and out of the way while you
+ * scroll down (back as soon as you scroll up), so it never sits on an amount you are reading.
+ */
+@Composable
+fun AddButton(onClick: () -> Unit, listState: LazyListState, modifier: Modifier = Modifier, text: String = "Add") {
+    val atTop = rememberAtTop(listState)
+    val up = rememberScrollingUp(listState)
+    AnimatedVisibility(
+        visible = atTop || up,
+        enter = scaleIn(motion(Motion.spatial())) + fadeIn(motion(Motion.effects())),
+        exit = scaleOut(motion(Motion.spatial())) + fadeOut(motion(Motion.effects())),
+    ) { AddButton(onClick, modifier, expanded = atTop, text = text) }
+}
+
+/**
+ * The Add button itself: the same accent on every screen, raised on a soft shadow. TalkBack always hears [text].
  */
 @Composable
 fun AddButton(onClick: () -> Unit, modifier: Modifier = Modifier, expanded: Boolean = true, text: String = "Add") {

@@ -121,7 +121,7 @@ fun CardsScreen(vm: AppViewModel, onBack: () -> Unit) {
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
             )
         },
-        floatingActionButton = { AddButton({ editing = newCard() }, expanded = rememberAtTop(listState), text = "Add card") },
+        floatingActionButton = { if (summaries.isNotEmpty()) AddButton({ editing = newCard() }, listState, text = "Add card") },
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),

@@ -198,7 +198,7 @@ fun DashboardScreen(
                 }
             )
         },
-        floatingActionButton = { AddButton(onAdd, Modifier.padding(bottom = barPad), expanded = rememberAtTop(listState)) },
+        floatingActionButton = { AddButton(onAdd, listState, Modifier.padding(bottom = barPad)) },
         snackbarHost = { FinSnackbarHost(snackbar, Modifier.padding(bottom = barPad)) }
     ) { padding ->
         LazyColumn(

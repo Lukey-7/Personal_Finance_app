@@ -1,6 +1,7 @@
 package com.pft.financetracker.ui.screens.edit
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -43,7 +44,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.categorize.Categorizer
@@ -197,21 +202,22 @@ fun EditTransactionScreen(
             // ---- Amount & type: the hero ----
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 CapsLabel("Amount")
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("₹", style = MoneyType.medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    BasicTextField(
-                        amount, { amount = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(13) },
-                        textStyle = MoneyType.large.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Start),
-                        singleLine = true,
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.widthIn(min = 64.dp, max = 280.dp).semantics { contentDescription = "Amount in rupees" },
-                        decorationBox = { inner ->
-                            if (amount.isEmpty()) Text("0", style = MoneyType.large, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // Centred, with the ₹ drawn as part of the text so the figure and its sign stay together as it grows.
+                BasicTextField(
+                    amount, { amount = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(13) },
+                    textStyle = MoneyType.large.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
+                    singleLine = true,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    visualTransformation = RupeePrefix,
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Amount in rupees" },
+                    decorationBox = { inner ->
+                        Box(contentAlignment = Alignment.Center) {
+                            if (amount.isEmpty()) Text("₹0", style = MoneyType.large, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             inner()
-                        },
-                    )
-                }
+                        }
+                    },
+                )
                 SegmentedControl(
                     listOf("Money out", "Money in"),
                     if (type == TransactionType.DEBIT) 0 else 1,
@@ -305,6 +311,15 @@ fun EditTransactionScreen(
         confirmButton = { TextButton(onClick = { existing?.let { vm.delete(it) }; confirmDelete = false; onBack() }) { Text("Delete", color = Expense) } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
     )
+}
+
+/** Shows "₹" before the typed amount without it being part of the value. */
+private val RupeePrefix = VisualTransformation { text ->
+    if (text.isEmpty()) TransformedText(text, OffsetMapping.Identity)
+    else TransformedText(AnnotatedString("₹") + text, object : OffsetMapping {
+        override fun originalToTransformed(offset: Int) = offset + 1
+        override fun transformedToOriginal(offset: Int) = (offset - 1).coerceIn(0, text.length)
+    })
 }
 
 /** A titled group of fields on a card. */

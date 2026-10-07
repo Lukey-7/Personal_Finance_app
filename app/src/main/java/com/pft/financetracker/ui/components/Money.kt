@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -86,7 +87,7 @@ fun AmountDisplay(
         val style = size.ladder().firstOrNull { s ->
             measurer.measure(full, s, softWrap = false, maxLines = 1).size.width <= maxPx
         } ?: size.ladder().last()
-        val small = style.copy(fontSize = style.fontSize * 0.62f, letterSpacing = style.letterSpacing * 0.5f)
+        val small = style.copy(fontSize = style.fontSize * 0.62f, letterSpacing = style.letterSpacing * 0.5f, baselineShift = androidx.compose.ui.text.style.BaselineShift(0.52f))
         Row(verticalAlignment = Alignment.Bottom) {
             if (sign.isNotEmpty()) Text(sign, Modifier.alignByBaseline(), style = style, color = color, maxLines = 1, softWrap = false)
             if (r >= 0) Text(
@@ -104,7 +105,10 @@ fun AmountDisplay(
  */
 @Composable
 fun RollingText(text: String, style: TextStyle, color: Color, up: Boolean = true, modifier: Modifier = Modifier) {
-    if (reducedMotion) {
+    var shape by remember { mutableStateOf(text.length) }
+    val sameShape = shape == text.length
+    shape = text.length
+    if (reducedMotion || !sameShape) {
         Text(text, modifier, style = style, color = color, maxLines = 1, softWrap = false)
         return
     }

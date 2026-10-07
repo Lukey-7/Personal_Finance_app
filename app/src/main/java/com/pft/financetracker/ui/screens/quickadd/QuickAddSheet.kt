@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -69,6 +70,7 @@ private fun short(c: Category): String = when (c) {
     Category.FOOD -> "Food"
     Category.ENTERTAINMENT -> "Fun"
     Category.ATM -> "Cash / ATM"
+    Category.BILLS -> "Bills"
     else -> c.label
 }
 
@@ -156,6 +158,7 @@ fun QuickAddSheet(
         )
 
         NumberPad(
+            keyHeight = 50.dp,
             onKey = { k -> AmountKeys.press(draft.amount, k)?.let { draft = draft.copy(amount = it); true } ?: false },
             onBackspace = { draft = draft.copy(amount = AmountKeys.backspace(draft.amount)) },
             onClear = { draft = draft.copy(amount = "") },
@@ -177,19 +180,21 @@ fun QuickAddSheet(
 @Composable
 private fun CategoryGrid(categories: List<Category>, selected: Category?, onPick: (Category) -> Unit) {
     val s = surfaces
+    // Four tiles a row; two at a large font, so names wrap between words rather than inside them.
+    val perRow = if (LocalDensity.current.fontScale > 1.3f) 2 else 4
     Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-        categories.chunked(4).forEach { row ->
+        categories.chunked(perRow).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 row.forEach { c ->
                     val on = c == selected
                     val tint = categoryColor(c)
                     Column(
-                        Modifier.weight(1f).heightIn(min = 72.dp).clip(ControlShape)
+                        Modifier.weight(1f).heightIn(min = 64.dp).clip(ControlShape)
                             .background(if (on) s.accentSoft else s.card)
                             .border(if (on) 1.5.dp else 1.dp, if (on) MaterialTheme.colorScheme.primary else s.hairline, ControlShape)
                             .clickable(role = Role.RadioButton) { onPick(c) }
                             .semantics { this.selected = on; contentDescription = c.label }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
@@ -202,7 +207,7 @@ private fun CategoryGrid(categories: List<Category>, selected: Category?, onPick
                         )
                     }
                 }
-                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }

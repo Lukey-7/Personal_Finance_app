@@ -93,7 +93,7 @@ fun SplitHomeScreen(vm: AppViewModel, onNew: () -> Unit, onOpen: (Long) -> Unit)
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { TopAppBar(title = { Text("Split bills") }, colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)) },
         // With no splits yet the empty state carries the button, so a floating one would only repeat it.
-        floatingActionButton = { if (loaded && splits.isNotEmpty()) AddButton(onNew, Modifier.padding(bottom = barPad), expanded = atTop, text = "New split") },
+        floatingActionButton = { if (loaded && splits.isNotEmpty()) AddButton(onNew, listState, Modifier.padding(bottom = barPad), text = "New split") },
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),

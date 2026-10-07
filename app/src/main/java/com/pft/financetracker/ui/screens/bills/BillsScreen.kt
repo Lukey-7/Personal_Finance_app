@@ -142,7 +142,7 @@ fun BillsScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () 
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
             )
         },
-        floatingActionButton = { AddButton({ editing = newBill() }, expanded = rememberAtTop(listState), text = "Add bill") },
+        floatingActionButton = { if (states.isNotEmpty()) AddButton({ editing = newBill() }, listState, text = "Add bill") },
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),

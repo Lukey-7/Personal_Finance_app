@@ -193,7 +193,7 @@ fun TransactionsScreen(
                 },
             )
         },
-        floatingActionButton = { if (!selection.active) AddButton(onAdd, Modifier.padding(bottom = barPad), expanded = rememberAtTop(listState)) },
+        floatingActionButton = { if (!selection.active) AddButton(onAdd, listState, Modifier.padding(bottom = barPad)) },
         snackbarHost = { FinSnackbarHost(snackbar, Modifier.padding(bottom = barPad)) },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {

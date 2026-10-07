@@ -112,7 +112,7 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
             )
         },
-        floatingActionButton = { AddButton({ editing = newGoal() }, expanded = rememberAtTop(listState), text = "Add goal") },
+        floatingActionButton = { if (goals.isNotEmpty()) AddButton({ editing = newGoal() }, listState, text = "Add goal") },
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),

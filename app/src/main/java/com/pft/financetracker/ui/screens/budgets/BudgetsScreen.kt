@@ -159,7 +159,7 @@ private fun Hero(period: String, limits: Long, spent: Long, totalSpent: Long) {
             AmountDisplay(totalSpent, spokenLabel = "Spent, $period")
             Spacer(Modifier.height(Space.sm))
             Text(
-                "No limits yet. Set one for a category and alerts show when you cross it.",
+                "No limits yet. Set one for a category to see how close you are each month.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
