@@ -3,6 +3,29 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [Unreleased] - redesign
+
+Focus: **a new look**, "Quiet ledger". Every feature and every number is unchanged; no database change (still
+version 7). Before and after: `docs/redesign/index.html`.
+
+### Changed
+- **One tappable colour**, a deep ink-blue, and depth from raised sheets and sunken inputs. Money in its own face
+  (Inter Tight) with figures that line up; amounts never wrap. Every colour pair meets WCAG AA in both themes.
+- **Home** leads with one figure, how it compares and a six-month chart you can read by touch, then income, spend
+  and savings, then cards ordered by what needs you first, each summed up in one line.
+- **Adding a payment** is one sheet with a number pad and your recent categories, also from the widget and the app
+  shortcuts; the full editor groups its fields under the amount.
+- **Activity** groups days under headers with their net, keeps filters in a sheet, and lets you swipe to
+  recategorise or delete (with Undo) and select several to recategorise at once.
+- **Every payment opens a read-first page** with its SMS, its splits, refunds and bill, and its tax section.
+- **Split, Insights, Money tools, Settings, onboarding and the widget** follow the same language: a balance board
+  and receipts, one interactive chart, a grid of live tiles, a short index of settings pages, three onboarding steps
+  with a live first scan, and a widget in two sizes.
+- **Motion and touch:** springy sheets, rolling totals, a row that grows into its page, predictive back, and
+  haptics on save, choices and refused input; all motion stops with "Remove animations".
+- **Loading** shows the shape of the page instead of a spinner.
+- **Screenshots and screen recording are allowed** in every build (`FLAG_SECURE` removed).
+
 ## [1.3.1] - 2026-10-06
 
 Focus: **polish**. No new features and no database change (still version 7); a few visible bugs fixed on the way.
