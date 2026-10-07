@@ -1,0 +1,139 @@
+# Redesign: "Quiet ledger"
+
+**Branch:** `redesign` (worktree `C:\Users\hp\Personal_Finance_app-redesign`, from `main` @ 32c6ddb, v1.3.1).
+**Goal:** keep every feature, every number and all data behaviour; change how FinTrack looks, moves and reads.
+**Direction:** Buro's calm (warm page, hairlines, one accent, money as the hero) grown into a confident, tactile app:
+real surface depth, a display face for money, springy motion, sheets instead of dialogs, and one read-first screen per
+transaction.
+
+Mock of Home, Activity and the add sheet: [`docs/redesign/mock/index.html`](redesign/mock/index.html).
+Tokens and contrast: [`docs/redesign/tokens.md`](redesign/tokens.md).
+
+Rules kept: no network endpoint, analytics or new SDK (fonts are resources); `Rupees.format` for every figure,
+`approxMoney` for estimates; the `notLoaded()`/`isLoaded()` marker and its tests; `heroLine` wording and its tests; no
+database change (still version 7).
+
+---
+
+## 0. Tokens and shared components (`ui/theme`, `ui/components`)
+
+### Colour (`Theme.kt`)
+- [ ] Accent: light **#1F3BD6** (7.9:1 on card), dark **#9DA8FF** (8.2:1 on card). The only tappable colour.
+- [ ] `accentSoft` (selected chip, tinted squares): light #EBEEFC, dark #1E2340; accent text on it ≥ 6.8:1.
+- [ ] Surface tiers, as a `Surfaces` token object in a `LocalSurfaces` composition local:
+      page #FDFCFB / #0B0B0C · card #FFFFFF / #151618 · raised #FFFFFF + soft shadow / #1D1E21 · sunken #F3F2EE / #101113.
+- [ ] Ink #111214 / #F2F2F3, muted #62666E / #A3A7AE, hairline #E6E4DF / #2A2B2F, outline (UI 3:1) #85888F / #6E727A.
+- [ ] MoneyColors unchanged: income #007F22 / #4CD07D, expense #B50000 / #FF7B72, neutral #6A6F77 / #9AA0A8.
+- [ ] `docs/redesign/tokens.md`: every text pair ≥ 4.5:1 and every UI pair ≥ 3:1, computed by `scripts/contrast.py`.
+
+### Type
+- [ ] Inter for UI. **Inter Tight** (variable, OFL, bundled in `res/font`) for money only: `MoneyDisplay` styles.
+- [ ] Scale: display 56/44/36, title 22/20/17, body 16/14/13, label 12/11. `tnum` on every money style and column.
+- [ ] Money never wraps or truncates: `AmountDisplay` and `LedgerAmount` are `softWrap = false`, `maxLines = 1`, and
+      the display sizes step down (56 → 44 → 36) to fit the width instead of clipping.
+
+### Motion and haptics (`Motion.kt`)
+- [ ] `Motion.spring*` specs (Expressive-style: bouncy for spatial, critically damped for colour/alpha).
+- [ ] `reducedMotion()` reads `Settings.Global.ANIMATOR_DURATION_SCALE == 0`; every animation snaps when it is set.
+- [ ] Haptics helper: `confirm` on save, `tick` on chip/segment changes, `reject` on invalid input.
+- [ ] Rolling totals (`AmountDisplay` digits slide to a new value), list items settle in, spring sheets.
+- [ ] Shared-element transition from a ledger row into Transaction detail (`SharedTransitionLayout` around the NavHost).
+- [ ] Predictive back: `android:enableOnBackInvokedCallback="true"`; nav transitions use the system back progress.
+
+### Components (each with `@Preview` light / dark / 200% font in `ui/components/Previews.kt`)
+- [ ] `AmountDisplay` (display face, sign before ₹, rolling digits, auto step-down size).
+- [ ] `LedgerRow` (avatar · name/meta · amount column of fixed min width, tabular, aligned across rows).
+- [ ] `DayHeader` (sticky; date on the left, the day's net on the right).
+- [ ] `SegmentedControl` (replaces most two-to-four chip choices; sliding thumb; tick haptic).
+- [ ] `FilterSheet` (category, account, flow, date range, reversed) + count badge on the trigger.
+- [ ] `NumberPad` (large keys, ₹ display, backspace long-press clears, decimal guard).
+- [ ] `SpendChart` (bars or line; tap/drag to read a value; 44dp+ hit columns; TalkBack label per bar).
+- [ ] `CategoryRing` (donut; tap a slice or legend row to drill; centre label capped for 200%).
+- [ ] `ProgressMeter` (budgets, goals; over state with a pattern + words, never colour alone).
+- [ ] `Skeleton` (list rows, cards, hero) with a shimmer that stops under reduced motion; replaces `LoadingState` spinners.
+- [ ] `EmptyState` (what this is · why it is empty · how to start, + one action).
+- [ ] `SwipeActions` (left: categorise; right: delete with undo / split).
+- [ ] `FinSnackbar` style (raised surface, accent action) and `InfoSheet` ("Learn more").
+- [ ] `ExpandableCard` (title, one-line summary when collapsed, chevron rotates, content animates).
+- [ ] Remove what these replace: `BarChart`, `DonutChart`, `Legend`, `LoadingState`, `SoftPanel` (→ sunken card),
+      `AddFab` (→ `AddButton`, extended→circle), `PillChip` rows where a segment or sheet now does the job.
+
+## 1. Home ("Today's statement")
+- [ ] Period as a `SegmentedControl` (This month · Last month · This week) + a calendar icon for a custom range.
+- [ ] Hero: `AmountDisplay(netSpend)`, `heroLine` under it (wording and tests unchanged), then a tappable 6-period
+      spark-bar `SpendChart` (tap a bar → that period on Home; hold to read the value).
+- [ ] Three compact tiles in a row: Income · Spend · Savings (each drills as today). At 200% they stack.
+- [ ] `ExpandableCard`s ordered by urgency: needs review → shared payments → budgets over/near → where it went
+      (`CategoryRing`) → top merchants → not counted as spend (one line + info sheet) → by account. Collapsed summary
+      lines ("2 budgets over · Food ₹500 over"). Urgent cards start expanded.
+- [ ] Recent list as `LedgerRow`s.
+- [ ] `AddButton`: extended "Add" that shrinks to a circle on scroll; lists reserve its height.
+- [ ] Skeleton while loading, never ₹0.
+- **Check:** every figure on Home still drills to its transactions; heroLine tests green.
+
+## 2. Add a transaction
+- [ ] Quick-add `ModalBottomSheet`: amount (`NumberPad`) → category grid (last used first) → optional note → Save.
+      "More details" opens the full editor pre-filled. Same sheet from Home, Activity, the widget and the app shortcut
+      (QuickAddActivity hosts it over the launcher).
+- [ ] `QuickAddDraft` (pure): builds the `Transaction`, including the cash rule (cash + counted ATM = transfer).
+- [ ] Full editor: amount hero at top, then grouped sections: Amount & type · What it was · When & where · Counts as ·
+      Tax. Category and flow chips wrap (no clipping).
+- **Tests:** `QuickAddDraftTest` (saving, cash rule, invalid amounts), `RecentCategoriesTest` (last used first).
+
+## 3. Activity
+- [ ] Search in the top bar (expands), overflow menu with text labels: "Import statement", "SMS log", "Review".
+- [ ] Filters in a `FilterSheet` (category, account, flow, date range, show reversed) with a count badge.
+- [ ] Sticky `DayHeader`s with each day's net; `LedgerRow`s with a lined-up amount column.
+- [ ] `SwipeActions`: start-to-end categorise; end-to-start delete with an Undo snackbar (split from the row menu).
+- [ ] Long-press to select several; a contextual bar recategorises them all.
+- **Tests:** `ActivityFilterTest` (each filter, count badge, search), `PendingDeleteTest` (delete + undo, commit on
+  timeout), `BulkRecategoriseTest`, `DayNetTest` (day's net total).
+
+## 4. Transaction detail (new, read-first)
+- [ ] Route `txn/{id}`; every list row opens it (shared-element on the amount and avatar).
+- [ ] Amount hero, merchant, category chip, account, date/time, original SMS (if kept), linked split / refund / bill,
+      tax section, then "Edit" (opens the editor). Delete lives in the overflow with undo.
+- **Tests:** `TransactionDetailTest` (mapping: sign, flow words, links, tax line, SMS present or not).
+
+## 5. Split
+- [ ] Balance board: two columns (Owed to you · You owe) with avatars (contrast-checked initials) and amounts.
+- [ ] Each split as a receipt card with a perforated edge; settle-up as a sheet listing that person's matching
+      payments first (`settleCandidates`).
+
+## 6. Insights
+- [ ] One interactive `SpendChart` with a Monthly/Weekly `SegmentedControl`.
+- [ ] Category trends as a ranked list with mini bars and arrow + words ("up 40%").
+- [ ] "Reduce spending" as dismissible tip cards (dismissed for the session).
+- **Tests:** `ChartHitTest` (value at a position, edges, empty bars).
+
+## 7. Money tools
+- [ ] Two-column grid of tiles with a live number each (subscriptions ₹/month, next bill + date, card cycle spend,
+      goal %, net worth, tax found, Ask).
+- [ ] Each tool screen opens with its own hero `AmountDisplay`.
+
+## 8. Settings
+- [ ] Grouped index: SMS & import · Calculation · Splits · Reminders · Backup · Widget · AI · Your data, icons in small
+      tinted squares; each opens its own page (route `settings/{section}`).
+- [ ] Descriptions: one line + "Learn more" `InfoSheet`.
+- [ ] "Clear all data" last, red, with a typed confirmation ("DELETE").
+
+## 9. Onboarding
+- [ ] Three short steps (what it does → why SMS → privacy promise) with one illustration style (drawn in Compose),
+      then a live first scan with progress that ends on Home.
+
+## 10. Widget (Glance)
+- [ ] Two sizes via `SizeMode.Responsive`: small (spent this month), medium (spent + budget left + next bill +
+      Add / Cash). New accent, light/dark, ₹•••• by default.
+
+## Fix while there
+- [ ] "Not counted as spend": one-line summary + info sheet.
+- [ ] Settings paragraphs → one line + Learn more.
+- [ ] Chip rows that cut off → wrap or FilterSheet.
+- [ ] Donut centre and chart labels at 200%; nav bar one line at 200%.
+- [ ] Skeleton, empty and error states on every screen.
+
+## Done when
+- [ ] `bash build.sh testDebugUnitTest` green (538 + new), `assembleDebug` builds.
+- [ ] `scripts/audit_apk.py` baselines unchanged (no new permission, endpoint or SDK).
+- [ ] After screenshots (light, dark, 200%) in `docs/redesign/after/`, pairs in `docs/redesign/pairs/`, one page.
+- [ ] Test data cleared from the `.redesign` install; emulator left running normally; Gradle stopped.
