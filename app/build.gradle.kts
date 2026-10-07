@@ -10,8 +10,8 @@ plugins {
 // Single source of truth for the version. Bump both for every release:
 //   versionCode: integer, +1 each release (Android uses it to decide what is an upgrade)
 //   versionName: semantic version MAJOR.MINOR.PATCH, matches the git tag vX.Y.Z
-val appVersionCode = 8
-val appVersionName = "1.3.1"
+val appVersionCode = 9
+val appVersionName = "1.4.0"
 
 // Release signing is read from keystore.properties (git-ignored). Without it, release falls back to the debug key.
 val keystoreProps = Properties().apply {
@@ -84,6 +84,12 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+        // Sheets, sticky headers and wrapping chip rows are still marked experimental in Compose 1.7.
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.foundation.layout.ExperimentalLayoutApi",
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+        )
     }
     buildFeatures {
         compose = true

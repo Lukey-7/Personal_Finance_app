@@ -194,6 +194,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refreshSplits(useAi = false)
     }
 
+    /** Moves the chosen rows to [category] (Activity's multi-select). Only rows that change are written. */
+    fun recategorise(ids: Set<Long>, category: Category) = viewModelScope.launch {
+        com.pft.financetracker.ui.model.recategorise(transactions.value, ids, category).forEach { c.transactions.update(it) }
+        refreshSplits(useAi = false)
+    }
+
+    /** The SMS a transaction was read from, while the inbox still has it; null for manual rows or a deleted message. */
+    suspend fun smsTextFor(t: Transaction): String? {
+        val hash = t.smsHash ?: return null
+        val entry = withContext(Dispatchers.IO) { c.db.smsLogDao().getByHash(hash) } ?: return null
+        return smsBody(entry)
+    }
+
     suspend fun getTransaction(id: Long): Transaction? = c.transactions.getById(id)
     suspend fun getReview(id: Long): ReviewItemEntity? = c.transactions.getReview(id)
 
@@ -374,7 +387,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val byBill = marks.groupBy({ it.billId }, { java.time.LocalDate.ofEpochDay(it.dueDay) })
                 c.bills.statesOf(bills.map { it.toDomain() }, txns, byBill, day)
             }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), notLoaded())
     fun saveBill(b: com.pft.financetracker.domain.bills.Bill) = viewModelScope.launch(Dispatchers.IO) { c.bills.save(b) }
     fun deleteBill(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.bills.delete(id) }
     fun markBillPaid(id: Long, due: java.time.LocalDate) = viewModelScope.launch(Dispatchers.IO) { c.bills.markPaid(id, due) }
@@ -384,7 +397,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val cardSummaries: StateFlow<List<com.pft.financetracker.domain.cards.CardSummary>> =
         combine(transactions, c.db.cardDao().observeAll(), today) { txns, cards, day ->
             withContext(Dispatchers.Default) { c.cards.summariesOf(cards.map { it.toDomain() }, txns, day) }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), notLoaded())
     suspend fun cardSuggestions(): List<String> = withContext(Dispatchers.IO) {
         c.cards.suggestions(extra = c.bills.all().mapNotNull { it.cardLast4 })
     }
@@ -394,7 +407,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val goalProgress: StateFlow<List<com.pft.financetracker.domain.goals.GoalProgress>> =
         combine(c.db.goalDao().observeAll(), c.db.goalDao().observeContributions(), today) { goals, contributions, day ->
             c.goals.progressOf(goals, contributions, day)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), notLoaded())
     /** Income minus net spend last month: the natural amount to move into a goal. */
     val lastMonthSavingsPaise: StateFlow<Long> = transactions.map { InsightsEngine.summarize(it, Periods.month(-1), c.settings.countCashAsSpend.value).savingsPaise }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)

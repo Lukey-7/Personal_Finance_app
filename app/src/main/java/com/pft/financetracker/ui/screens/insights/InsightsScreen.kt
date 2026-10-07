@@ -1,77 +1,140 @@
 package com.pft.financetracker.ui.screens.insights
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Savings
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.TrendingDown
-import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.ThumbUp
+import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.pft.financetracker.domain.insights.Insight
+import com.pft.financetracker.domain.insights.InsightsEngine
+import com.pft.financetracker.domain.insights.InsightsEngine.Bucket
 import com.pft.financetracker.domain.insights.Period
-import com.pft.financetracker.ui.components.ChipRow
+import com.pft.financetracker.domain.insights.Periods
+import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.components.CardPadding
+import com.pft.financetracker.ui.components.CategoryIcon
+import com.pft.financetracker.ui.components.ChartBar
+import com.pft.financetracker.ui.components.EmptyState
+import com.pft.financetracker.ui.components.FinCard
+import com.pft.financetracker.ui.components.Gutter
+import com.pft.financetracker.ui.components.Hairline
+import com.pft.financetracker.ui.components.LedgerAmount
+import com.pft.financetracker.ui.components.LedgerAmountMinWidth
+import com.pft.financetracker.ui.components.PrimaryButton
+import com.pft.financetracker.ui.components.ProgressMeter
+import com.pft.financetracker.ui.components.RowIconGap
+import com.pft.financetracker.ui.components.RowTextInset
 import com.pft.financetracker.ui.components.SectionHeader
+import com.pft.financetracker.ui.components.SegmentedControl
+import com.pft.financetracker.ui.components.SkeletonCard
+import com.pft.financetracker.ui.components.SkeletonRows
+import com.pft.financetracker.ui.components.Space
+import com.pft.financetracker.ui.components.SpendChart
+import com.pft.financetracker.ui.components.TextAction
+import com.pft.financetracker.ui.components.TintedSquare
 import com.pft.financetracker.ui.components.bottomPadding
+import com.pft.financetracker.ui.components.categoryColor
+import com.pft.financetracker.ui.components.money
+import com.pft.financetracker.ui.theme.Expense
+import com.pft.financetracker.ui.theme.Income
+import com.pft.financetracker.ui.theme.MoneyType
+import com.pft.financetracker.ui.theme.Motion
+import com.pft.financetracker.ui.theme.motion
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import com.pft.financetracker.ui.components.CardShape
-import com.pft.financetracker.ui.components.Space
-import androidx.compose.ui.unit.dp
-import com.pft.financetracker.domain.insights.Insight
-import com.pft.financetracker.domain.insights.InsightsEngine
-import com.pft.financetracker.domain.insights.Periods
-import com.pft.financetracker.ui.AppViewModel
-import com.pft.financetracker.ui.components.BarChart
-import com.pft.financetracker.ui.components.money
-import androidx.compose.material3.TopAppBarDefaults
-import com.pft.financetracker.ui.components.FinCard
-import com.pft.financetracker.ui.components.Gutter
-import com.pft.financetracker.ui.components.PillChip
 
+/**
+ * Insights: one chart of net spend you can read by touch (monthly or weekly), the categories that moved most against
+ * the same days before, ranked, and "reduce spending" tips you can dismiss for the session.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () -> Unit = {}) {
+fun InsightsScreen(
+    vm: AppViewModel,
+    onOpenBudgets: () -> Unit,
+    onOpenTools: () -> Unit = {},
+    onDrill: (Bucket, Category?) -> Unit = { _, _ -> },
+) {
     val txns by vm.transactions.collectAsState()
     val budgets by vm.budgets.collectAsState()
-    var weekly by remember { mutableStateOf(false) }
+    val loaded by vm.loaded.collectAsState()
+    var weekly by rememberSaveable { mutableStateOf(false) }
+    var selected by remember(weekly) { mutableStateOf<Int?>(null) }
+    val dismissed = rememberSaveable(
+        saver = listSaver<SnapshotStateList<String>, String>(save = { it.toList() }, restore = { it.toMutableStateList() }),
+    ) { mutableStateListOf<String>() }
 
+    val now = System.currentTimeMillis()
     val periods = if (weekly) (5 downTo 0).map { Periods.week(-it) } else (5 downTo 0).map { Periods.month(-it) }
-    val series = periods.mapIndexed { i, p -> shortLabel(p, weekly, i, periods) to InsightsEngine.summarize(txns, p).spend }
-    // Category cards compare like with like, the same way as the trend line: this period so far against the same days before.
-    val trendNow = System.currentTimeMillis()
-    val trends = if (weekly) InsightsEngine.categoryTrends(txns, Periods.week(), Periods.sameSpanBefore(Periods.week(), Periods.week(-1), trendNow))
-    else InsightsEngine.categoryTrends(txns, Periods.month(), Periods.sameSpanBefore(Periods.month(), Periods.month(-1), trendNow))
+    val bars = periods.mapIndexed { i, p -> ChartBar(shortLabel(p, weekly, i, periods), InsightsEngine.summarize(txns, p).netSpendPaise, current = now in p) }
+    // Category rows compare like with like, the same way as the trend line: this period so far against the same days before.
+    val current = if (weekly) Periods.week() else Periods.month()
+    val before = Periods.sameSpanBefore(current, if (weekly) Periods.week(-1) else Periods.month(-1), now)
+    val trends = InsightsEngine.categoryTrends(txns, current, before).sortedByDescending { it.magnitude }
+    val curByCat = InsightsEngine.summarize(txns, current).byCategory.associate { it.category to it.amountPaise }
+    val prevByCat = InsightsEngine.summarize(txns, before).byCategory.associate { it.category to it.amountPaise }
+    val biggest = trends.maxOfOrNull { t -> t.category?.let { curByCat[it] } ?: 0L }?.coerceAtLeast(1L) ?: 1L
     val suggestions = InsightsEngine.suggestions(txns, budgets)
 
     Scaffold(
@@ -88,74 +151,198 @@ fun InsightsScreen(vm: AppViewModel, onOpenBudgets: () -> Unit, onOpenTools: () 
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(top = Space.sm, bottom = bottomPadding()), verticalArrangement = Arrangement.spacedBy(Space.lg)) {
-            item {
-                ChipRow {
-                    PillChip(!weekly, "Monthly") { weekly = false }
-                    PillChip(weekly, "Weekly") { weekly = true }
-                }
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(top = Space.xs, bottom = bottomPadding()),
+            verticalArrangement = Arrangement.spacedBy(Space.md),
+        ) {
+            item(key = "period") {
+                SegmentedControl(
+                    options = listOf("Monthly", "Weekly"),
+                    selected = if (weekly) 1 else 0,
+                    onSelect = { weekly = it == 1 },
+                    modifier = Modifier.padding(horizontal = Gutter),
+                )
             }
-            item {
-                FinCard(Modifier.padding(horizontal = Gutter)) {
+
+            // Until the database answers, every figure below would read ₹0: show the page's shape instead.
+            if (!loaded) {
+                item { SkeletonCard(Modifier.padding(horizontal = Gutter, vertical = Space.sm), height = 240.dp) }
+                item { SkeletonRows(4) }
+                return@LazyColumn
+            }
+
+            if (txns.isEmpty()) {
+                item(key = "empty") {
+                    EmptyState(
+                        Icons.Outlined.Insights,
+                        "Nothing to compare yet",
+                        "Insights compare your spending month by month and week by week. They fill in as payments arrive from SMS or you add them.",
+                    ) { PrimaryButton("Scan SMS", { vm.scanInbox() }, fill = false) }
+                }
+                return@LazyColumn
+            }
+
+            // ---- The one chart ----
+            item(key = "chart") {
+                FinCard(Modifier.padding(horizontal = Gutter, vertical = Space.xs)) {
                     Column {
-                        Text("Net spending trend", style = MaterialTheme.typography.titleMedium)
+                        Text("Net spending trend", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
                         Text("Expenses minus refunds. Transfers and investments excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(Space.md))
-                        BarChart(series)
-                        // The current period is still running, so it is compared with the same days of the one before.
-                        val now = System.currentTimeMillis()
-                        val cur = InsightsEngine.summarize(txns, periods.last()).netSpendPaise
-                        val span = Periods.sameSpanBefore(periods.last(), periods[periods.lastIndex - 1], now)
-                        val before = InsightsEngine.summarize(txns, span).netSpendPaise
-                        val change = InsightsEngine.changePercent(cur, before)
-                        if (change != null) {
-                            Spacer(Modifier.height(Space.md))
+                    }
+                    SpendChart(
+                        bars,
+                        selected = selected,
+                        onSelect = { selected = it },
+                        caption = { i -> periods[i].label },
+                    )
+                    // The current period is still running, so it is compared with the same days of the one before.
+                    val cur = InsightsEngine.summarize(txns, periods.last()).netSpendPaise
+                    val span = Periods.sameSpanBefore(periods.last(), periods[periods.lastIndex - 1], now)
+                    val spanSpend = InsightsEngine.summarize(txns, span).netSpendPaise
+                    val change = InsightsEngine.changePercent(cur, spanSpend)
+                    if (change != null) {
+                        Hairline()
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            val tone = when { change > 0 -> Expense; change < 0 -> Income; else -> MaterialTheme.colorScheme.onSurfaceVariant }
+                            if (change != 0) Icon(if (change > 0) Icons.Outlined.ArrowUpward else Icons.Outlined.ArrowDownward, null, Modifier.size(18.dp), tint = tone)
+                            if (change != 0) Spacer(Modifier.width(Space.sm))
                             Text(
-                                (if (change >= 0) "$change% more" else "${-change}% less") + " than ${span.label} (${money(before)})",
+                                (if (change >= 0) "$change% more" else "${-change}% less") + " than ${span.label} (${money(spanSpend)})",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }
                     }
                 }
             }
-            item { SectionHeader("Category changes", Modifier.padding(top = Space.lg)) }
-            if (trends.isEmpty()) item { Hint("Not enough data for comparisons yet.") }
-            items(trends.size) { i -> InsightCard(trends[i]) }
 
-            item { SectionHeader("Reduce spending", Modifier.padding(top = Space.lg)) }
-            if (suggestions.isEmpty()) item { Hint("Suggestions appear once there are a few weeks of transactions.") }
-            items(suggestions.size) { i -> InsightCard(suggestions[i]) }
+            // ---- Category trends, biggest change first ----
+            item(key = "trends-h") {
+                Column(Modifier.padding(top = Space.lg)) {
+                    SectionHeader("Category changes")
+                    Text(
+                        "This ${if (weekly) "week" else "month"} so far, against ${before.label}",
+                        Modifier.padding(horizontal = Gutter),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (trends.isEmpty()) item(key = "trends-none") { Hint("Not enough data for comparisons yet.") }
+            else item(key = "trends") {
+                // One ledger: rows flush, hairlines lined up with the text.
+                Column(Modifier.fillMaxWidth()) {
+                    trends.forEachIndexed { i, t ->
+                        if (i > 0) Hairline(startInset = RowTextInset, endInset = Gutter)
+                        TrendRow(
+                            insight = t,
+                            nowPaise = t.category?.let { curByCat[it] } ?: 0L,
+                            beforePaise = t.category?.let { prevByCat[it] } ?: 0L,
+                            biggest = biggest,
+                            onOpen = t.category?.let { cat -> { onDrill(Bucket.SPEND, cat) } },
+                        )
+                    }
+                }
+            }
+
+            // ---- Tips, dismissible for this session ----
+            item(key = "tips-h") { SectionHeader("Reduce spending", Modifier.padding(top = Space.lg)) }
+            if (suggestions.isEmpty()) item(key = "tips-none") { Hint("Suggestions appear once there are a few weeks of transactions.") }
+            else item(key = "tips") {
+                Column(Modifier.fillMaxWidth().padding(horizontal = Gutter)) {
+                    suggestions.forEach { s ->
+                        AnimatedVisibility(
+                            visible = s.title !in dismissed,
+                            enter = expandVertically(motion(Motion.spatial())) + fadeIn(motion(Motion.effects())),
+                            exit = shrinkVertically(motion(Motion.spatial())) + fadeOut(motion(Motion.effects())),
+                        ) {
+                            TipCard(
+                                s,
+                                onDismiss = { dismissed.add(s.title) },
+                                onOpen = s.category?.let { cat -> { onDrill(Bucket.SPEND, cat) } },
+                                modifier = Modifier.padding(bottom = Space.md),
+                            )
+                        }
+                    }
+                    if (suggestions.all { it.title in dismissed }) {
+                        Text("You've put every tip away for now.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        TextAction("Show tips again", { dismissed.clear() }, alignStart = true)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One category that moved: its icon and name, a short bar of this period's spend (scaled to the biggest row), the figure,
+ * and which way it went as an arrow and words, so the direction never rests on colour. Tap to see its payments.
+ */
+@Composable
+private fun TrendRow(insight: Insight, nowPaise: Long, beforePaise: Long, biggest: Long, onOpen: (() -> Unit)?) {
+    val cat = insight.category
+    val name = cat?.label ?: insight.title
+    val (icon, words, tone) = when (insight.severity) {
+        Insight.Severity.WARN -> Triple(Icons.Outlined.ArrowUpward, "Up ${insight.magnitude}%", Expense)
+        Insight.Severity.GOOD -> Triple(Icons.Outlined.ArrowDownward, "Down ${insight.magnitude}%", Income)
+        Insight.Severity.INFO -> Triple(Icons.Outlined.Add, "New", MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    val from = if (beforePaise > 0) "from ${money(beforePaise)}" else "nothing before"
+    Row(
+        Modifier.fillMaxWidth()
+            .then(if (onOpen != null) Modifier.clickable(role = Role.Button, onClickLabel = "See payments", onClick = onOpen) else Modifier)
+            .clearAndSetSemantics {
+                contentDescription = "$name, ${money(nowPaise)}, ${words.lowercase(Locale.ENGLISH)}, $from"
+                if (onOpen != null) role = Role.Button
+            }
+            .heightIn(min = 64.dp)
+            .padding(horizontal = Gutter, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (cat != null) CategoryIcon(cat) else TintedSquare(Icons.Outlined.Insights)
+        Spacer(Modifier.width(RowIconGap))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+            Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            ProgressMeter((nowPaise.toFloat() / biggest).coerceIn(0f, 1f), color = cat?.let { categoryColor(it) } ?: MaterialTheme.colorScheme.primary, height = 6.dp)
+            Text(from.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.width(Space.md))
+        Column(Modifier.widthIn(min = LedgerAmountMinWidth), horizontalAlignment = Alignment.End) {
+            LedgerAmount(money(nowPaise), MaterialTheme.colorScheme.onSurface)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, Modifier.size(14.dp), tint = tone)
+                Spacer(Modifier.width(Space.xs))
+                Text(words, style = MaterialTheme.typography.labelMedium, color = tone, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+            }
+        }
+    }
+}
+
+/** A "reduce spending" tip: what we noticed, why it matters, a way to its payments, and a cross to put it away. */
+@Composable
+private fun TipCard(i: Insight, onDismiss: () -> Unit, onOpen: (() -> Unit)?, modifier: Modifier = Modifier) {
+    val (icon, tint) = tipLook(i.severity)
+    FinCard(modifier, padding = PaddingValues(start = CardPadding, top = Space.lg, end = Space.xs, bottom = if (onOpen != null) Space.xs else Space.lg), spacing = Space.xs) {
+        Row(verticalAlignment = Alignment.Top) {
+            TintedSquare(icon, tint)
+            Spacer(Modifier.width(Space.md + Space.xs))
+            Column(Modifier.weight(1f).padding(top = Space.xs), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                Text(i.title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+                Text(i.body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Dismiss tip", tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        if (onOpen != null) Row {
+            Spacer(Modifier.width(36.dp + Space.md + Space.xs))
+            TextAction("See payments", onOpen, alignStart = true)
         }
     }
 }
 
 @Composable
-fun InsightCard(i: Insight) {
-    val container = when (i.severity) {
-        Insight.Severity.WARN -> MaterialTheme.colorScheme.errorContainer
-        Insight.Severity.GOOD -> MaterialTheme.colorScheme.primaryContainer
-        Insight.Severity.INFO -> MaterialTheme.colorScheme.surfaceVariant
-    }
-    val (icon, tint) = when (i.severity) {
-        Insight.Severity.WARN -> Icons.Outlined.TrendingUp to MaterialTheme.colorScheme.error
-        Insight.Severity.GOOD -> Icons.Outlined.TrendingDown to MaterialTheme.colorScheme.primary
-        Insight.Severity.INFO -> Icons.Outlined.Lightbulb to MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Card(
-        Modifier.fillMaxWidth().padding(horizontal = Gutter),
-        shape = CardShape,
-        colors = CardDefaults.cardColors(containerColor = container),
-        elevation = CardDefaults.cardElevation(0.dp),
-    ) {
-        Row(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
-            Icon(icon, null, Modifier.size(22.dp), tint = tint)
-            Spacer(Modifier.width(14.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                Text(i.title, style = MaterialTheme.typography.titleMedium)
-                Text(i.body, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
+private fun tipLook(s: Insight.Severity): Pair<ImageVector, Color> = when (s) {
+    Insight.Severity.WARN -> Icons.Outlined.WarningAmber to Expense
+    Insight.Severity.GOOD -> Icons.Outlined.ThumbUp to Income
+    Insight.Severity.INFO -> Icons.Outlined.Lightbulb to MaterialTheme.colorScheme.primary
 }
 
 @Composable
