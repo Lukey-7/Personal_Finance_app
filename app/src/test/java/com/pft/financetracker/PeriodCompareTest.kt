@@ -59,4 +59,13 @@ class PeriodCompareTest {
         val tips = InsightsEngine.suggestions(txns, emptyList(), now)
         org.junit.Assert.assertTrue(tips.joinToString { it.title }, tips.any { it.title.startsWith("Food & Dining up") })
     }
+
+    @Test fun theFirstOfTheMonthComparesWithOneDayNotARange() {
+        val oct1 = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 1, 9, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+        assertEquals("1 Sep", Periods.sameSpanBefore(Periods.month(0, oct1), Periods.month(-1, oct1), oct1).label)
+        val midnight = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 1, 0, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+        assertEquals("1 Sep", Periods.sameSpanBefore(Periods.month(0, midnight), Periods.month(-1, midnight), midnight).label)
+    }
+
+    @Test fun weeksAreNamedWithoutAZeroAndInFull() = assertEquals("Week of 5 Oct", Periods.week(0, now).label)
 }

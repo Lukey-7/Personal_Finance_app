@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.InsightsEngine.Bucket
+import com.pft.financetracker.domain.insights.Period
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.AmountDisplay
@@ -61,14 +62,22 @@ import java.util.Locale
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: Category?, onBack: () -> Unit, onEdit: (Long) -> Unit) {
+fun DrillDownScreen(
+    vm: AppViewModel,
+    bucket: InsightsEngine.Bucket,
+    category: Category?,
+    onBack: () -> Unit,
+    onEdit: (Long) -> Unit,
+    /** The period the tapping screen showed; null follows Home's period. */
+    range: Period? = null,
+) {
     val txns by vm.transactions.collectAsState()
     val choice by vm.period.collectAsState()
     val loaded by vm.loaded.collectAsState()
     val includeCash by vm.countCashAsSpend.collectAsState()
-    val period = choice.period()
-    // Spend lists its refunds too, so the total is the same net figure Home showed.
-    val list = remember(txns, choice, bucket, category, includeCash) { InsightsEngine.drillDown(txns, period, bucket, category, includeCash) }
+    val period = range ?: choice.period()
+    // Spend lists its refunds too, so the total is the same net figure the tapping screen showed.
+    val list = remember(txns, choice, range, bucket, category, includeCash) { InsightsEngine.drillDown(txns, period, bucket, category, includeCash) }
     val total = InsightsEngine.drillTotal(list, bucket)
     val refunds = if (bucket == InsightsEngine.Bucket.SPEND) list.count { it.flow == com.pft.financetracker.domain.model.Flow.REFUND } else 0
     val name = category?.label ?: bucketLabel(bucket)
@@ -117,7 +126,7 @@ fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: C
                 EmptyState(
                     Icons.Outlined.SearchOff,
                     "Nothing here for ${period.label}",
-                    "Payments that count towards this figure show up here. Choose another period on Home to look further back.",
+                    if (range != null) "Payments that count towards this figure show up here." else "Payments that count towards this figure show up here. Choose another period on Home to look further back.",
                 ) { SecondaryButton("Go back", onBack) }
             }
 

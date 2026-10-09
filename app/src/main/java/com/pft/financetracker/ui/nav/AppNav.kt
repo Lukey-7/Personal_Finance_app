@@ -69,6 +69,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.pft.financetracker.domain.insights.InsightsEngine
+import com.pft.financetracker.domain.insights.Period
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.LocalBottomBarPadding
@@ -76,6 +77,7 @@ import com.pft.financetracker.ui.components.LocalNavAnimatedScope
 import com.pft.financetracker.ui.components.LocalSharedTransitionScope
 import com.pft.financetracker.ui.components.cappedScale
 import com.pft.financetracker.ui.components.raised
+import com.pft.financetracker.ui.model.DrillPeriod
 import com.pft.financetracker.ui.model.QuickAddDraft
 import com.pft.financetracker.ui.screens.budgets.BudgetsScreen
 import com.pft.financetracker.ui.screens.dashboard.DashboardScreen
@@ -118,8 +120,10 @@ object Routes {
     fun edit(id: Long? = null, reviewId: Long? = null) = "edit?id=${id ?: -1}&reviewId=${reviewId ?: -1}"
     /** The full editor, filled in from the quick-add sheet. */
     fun edit(d: QuickAddDraft) = "edit?id=-1&reviewId=-1&amount=${Uri.encode(d.amount)}&category=${d.category?.name ?: ""}&note=${Uri.encode(d.note)}&cash=${d.cash}"
-    const val DRILL = "drill/{bucket}?category={category}"
-    fun drill(bucket: InsightsEngine.Bucket, category: Category? = null) = "drill/${bucket.name}?category=${category?.name ?: ""}"
+    const val DRILL = "drill/{bucket}?category={category}&from={from}&to={to}"
+    /** Without [period] the list follows Home's period; with it, the list covers exactly that period. */
+    fun drill(bucket: InsightsEngine.Bucket, category: Category? = null, period: Period? = null) =
+        "drill/${bucket.name}?category=${category?.name ?: ""}&from=${period?.start ?: -1}&to=${period?.end ?: -1}"
     const val NEW_SPLIT = "split/new"
     const val IMPORT = "import"
     const val SPLIT_DETAIL = "split/{id}"
@@ -238,6 +242,7 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                             onOpenBudgets = { nav.navigate(Routes.BUDGETS) },
                             onOpenSmsLog = { nav.navigate(Routes.smsLog(it)) },
                             onDrill = { bucket, cat -> nav.navigate(Routes.drill(bucket, cat)) },
+                            onDrillIn = { bucket, cat, period -> nav.navigate(Routes.drill(bucket, cat, period)) },
                             onOpenSplit = { nav.navigate(Routes.splitDetail(it)) },
                             onOpenTools = { nav.navigate(Routes.TOOLS) },
                             onOpenRoute = { nav.navigate(it) },
@@ -274,7 +279,7 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                     }
                     screen(Routes.INSIGHTS) {
                         InsightsScreen(vm, onOpenBudgets = { nav.navigate(Routes.BUDGETS) }, onOpenTools = { nav.navigate(Routes.TOOLS) },
-                            onDrill = { bucket, cat -> nav.navigate(Routes.drill(bucket, cat)) })
+                            onDrill = { bucket, cat, period -> nav.navigate(Routes.drill(bucket, cat, period)) })
                     }
                     screen(Routes.TOOLS) { ToolsScreen(vm, onOpen = { nav.navigate(it) }, onBack = { nav.popBackStack() }) }
                     screen(Routes.ASK) { com.pft.financetracker.ui.screens.ask.AskScreen(vm, onOpenTransaction = openTxn) { nav.popBackStack() } }
@@ -304,11 +309,17 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                     }
                     screen(
                         Routes.DRILL,
-                        listOf(navArgument("bucket") { type = NavType.StringType }, navArgument("category") { type = NavType.StringType; defaultValue = "" }),
+                        listOf(
+                            navArgument("bucket") { type = NavType.StringType },
+                            navArgument("category") { type = NavType.StringType; defaultValue = "" },
+                            navArgument("from") { type = NavType.LongType; defaultValue = -1L },
+                            navArgument("to") { type = NavType.LongType; defaultValue = -1L },
+                        ),
                     ) { entry ->
                         val bucket = runCatching { InsightsEngine.Bucket.valueOf(entry.arguments?.getString("bucket") ?: "") }.getOrDefault(InsightsEngine.Bucket.ALL)
                         val cat = entry.arguments?.getString("category")?.takeIf { it.isNotEmpty() }?.let { Category.fromName(it) }
-                        DrillDownScreen(vm, bucket, cat, onBack = { nav.popBackStack() }, onEdit = openTxn)
+                        val range = DrillPeriod.of(entry.arguments?.getLong("from") ?: -1L, entry.arguments?.getLong("to") ?: -1L)
+                        DrillDownScreen(vm, bucket, cat, onBack = { nav.popBackStack() }, onEdit = openTxn, range = range)
                     }
                     screen(
                         Routes.EDIT,

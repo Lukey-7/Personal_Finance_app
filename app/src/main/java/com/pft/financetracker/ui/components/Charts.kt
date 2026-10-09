@@ -190,9 +190,11 @@ fun CategoryRing(
     centreValue: String,
     centreLabel: String,
     modifier: Modifier = Modifier,
+    /** What the percentages are of; defaults to the slices' sum. Pass the full total when the slices leave some out. */
+    totalValue: Double? = null,
     onOpen: ((Category) -> Unit)? = null,
 ) {
-    val total = slices.sumOf { it.value }.takeIf { it > 0 } ?: 1.0
+    val total = (totalValue ?: slices.sumOf { it.value }).takeIf { it > 0 } ?: 1.0
     val empty = surfaces.sunken
     val ring = surfaces.card
     val rm = reducedMotion

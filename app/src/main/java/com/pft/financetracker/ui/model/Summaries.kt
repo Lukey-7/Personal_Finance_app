@@ -57,6 +57,22 @@ object HomeLines {
         return spend.take(3).joinToString(" · ") { "${shortLabel(it.category)} ${(it.amountPaise * 100.0 / total).roundToInt()}%" }
     }
 
+    /** One slice of the "Where it went" ring: a category, or the rest together when [category] is null. */
+    data class RingPart(val category: Category?, val paise: Long)
+
+    /**
+     * The ring's slices: the [top] biggest categories with positive spend, and everything after them as one slice, so
+     * the ring adds up to the same total [whereItWent] takes its percentages from.
+     */
+    fun ringParts(byCategory: List<CategorySpend>, top: Int = 7): List<RingPart> {
+        val spend = byCategory.filter { it.amountPaise > 0 }.sortedByDescending { it.amountPaise }
+        val rest = spend.drop(top).sumOf { it.amountPaise }
+        return spend.take(top).map { RingPart(it.category, it.amountPaise) } + (if (rest > 0) listOf(RingPart(null, rest)) else emptyList())
+    }
+
+    /** Whole-number share of [paise] in [totalPaise], the way the ring and the summary line both round it. */
+    fun percentOf(paise: Long, totalPaise: Long): Int = if (totalPaise <= 0) 0 else (paise * 100.0 / totalPaise).roundToInt()
+
     fun merchants(byMerchant: List<MerchantSpend>): String =
         byMerchant.take(2).joinToString(" · ") { "${displayMerchant(it.merchant)} ${money(it.amountPaise)}" }
 

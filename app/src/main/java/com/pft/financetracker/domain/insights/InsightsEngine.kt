@@ -35,7 +35,7 @@ object Periods {
         c.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY); zero(c)
         c.add(Calendar.WEEK_OF_YEAR, offset)
         val start = c.timeInMillis
-        val label = String.format(Locale.ENGLISH, "Wk of %1\$td %1\$tb", c)
+        val label = String.format(Locale.ENGLISH, "Week of %1\$te %1\$tb", c)
         c.add(Calendar.WEEK_OF_YEAR, 1)
         return Period(start, c.timeInMillis, label)
     }
@@ -72,7 +72,9 @@ object Periods {
         val end = minOf(previous.end, previous.start + (now - current.start))
         val from = Calendar.getInstance().apply { timeInMillis = previous.start }
         val to = Calendar.getInstance().apply { timeInMillis = end - 1 }
-        val label = if (from.get(Calendar.MONTH) == to.get(Calendar.MONTH)) String.format(Locale.ENGLISH, "%1\$te–%2\$te %2\$tb", from, to)
+        val sameDay = from.get(Calendar.YEAR) == to.get(Calendar.YEAR) && from.get(Calendar.DAY_OF_YEAR) == to.get(Calendar.DAY_OF_YEAR)
+        val label = if (sameDay || to.before(from)) String.format(Locale.ENGLISH, "%1\$te %1\$tb", from)
+        else if (from.get(Calendar.MONTH) == to.get(Calendar.MONTH)) String.format(Locale.ENGLISH, "%1\$te–%2\$te %2\$tb", from, to)
         else String.format(Locale.ENGLISH, "%1\$te %1\$tb – %2\$te %2\$tb", from, to)
         return Period(previous.start, end, label)
     }
@@ -247,19 +249,26 @@ object InsightsEngine {
             .sortedByDescending { it.fraction }
     }
 
-    /** Category-level comparison between two periods, e.g. "20% more on food". */
-    fun categoryTrends(all: List<Transaction>, current: Period, previous: Period): List<Insight> {
-        val cur = summarize(all, current)
-        val prev = summarize(all, previous)
+    /**
+     * Category-level comparison between two periods, e.g. "20% more on food". A category whose refunds outweigh its
+     * spend (net ₹0 or less) is left out on either side, since a percentage of a negative figure means nothing. A
+     * category that had spend before and none now is deliberately not listed: the rows show this period's spend, and
+     * "down 100%" on a ₹0 row reads as noise.
+     */
+    fun categoryTrends(all: List<Transaction>, current: Period, previous: Period, includeCash: Boolean = true): List<Insight> {
+        val cur = summarize(all, current, includeCash)
+        val prev = summarize(all, previous, includeCash)
         val out = mutableListOf<Insight>()
         for (cs in cur.byCategory) {
+            if (cs.amountPaise <= 0) continue
             val p = prev.byCategory.firstOrNull { it.category == cs.category }?.amountPaise ?: 0L
+            if (p < 0) continue
             if (p < 20_000 && cs.amountPaise < 50_000) continue
             if (p == 0L) {
                 out += Insight("New spending: ${cs.category.label}", "${rupees(cs.amountPaise)} this period, nothing last period.", Insight.Severity.INFO, cs.category, 0)
                 continue
             }
-            val pct = ((cs.amountPaise - p).toDouble() / p * 100).roundToInt()
+            val pct = changePercent(cs.amountPaise, p) ?: continue
             if (abs(pct) < 10) continue
             if (pct > 0) out += Insight("${cs.category.label} up $pct%", "You spent ${rupees(cs.amountPaise)} vs ${rupees(p)} last period.", Insight.Severity.WARN, cs.category, pct)
             else out += Insight("${cs.category.label} down ${-pct}%", "${rupees(cs.amountPaise)} vs ${rupees(p)} last period. Nice.", Insight.Severity.GOOD, cs.category, -pct)
@@ -268,9 +277,9 @@ object InsightsEngine {
     }
 
     /** Actionable "reduce spending" suggestions computed locally. */
-    fun suggestions(all: List<Transaction>, budgets: List<Budget>, now: Long = System.currentTimeMillis()): List<Insight> {
+    fun suggestions(all: List<Transaction>, budgets: List<Budget>, now: Long = System.currentTimeMillis(), includeCash: Boolean = true): List<Insight> {
         val out = mutableListOf<Insight>()
-        val ninetyDays = all.filter { isSpend(it) && !it.needsReview && it.timestamp > now - 90L * 24 * 3600 * 1000 }
+        val ninetyDays = all.filter { isSpend(it, includeCash) && !it.needsReview && it.timestamp > now - 90L * 24 * 3600 * 1000 }
         if (ninetyDays.isEmpty()) return out
 
         // 1. Subscriptions and other repeating charges (weekly to yearly), and any that just got pricier.
@@ -304,7 +313,7 @@ object InsightsEngine {
         }
 
         // 3. Categories trending up vs previous month.
-        out += categoryTrends(all, month, Periods.sameSpanBefore(month, Periods.month(-1, now), now)).filter { it.severity == Insight.Severity.WARN }.take(3)
+        out += categoryTrends(all, month, Periods.sameSpanBefore(month, Periods.month(-1, now), now), includeCash).filter { it.severity == Insight.Severity.WARN }.take(3)
 
         // 4. Biggest single merchant this month.
         thisMonth.groupBy { normalizeMerchant(it.merchant) }.maxByOrNull { e -> e.value.sumOf { it.amountPaise } }?.let { (_, list) ->
@@ -320,7 +329,7 @@ object InsightsEngine {
         }
 
         // 5. Budget overspend.
-        budgetStatus(all, budgets, month).filter { it.over }.forEach {
+        budgetStatus(all, budgets, month, includeCash).filter { it.over }.forEach {
             out += Insight(
                 "Over budget: ${it.budget.category.label}",
                 "${rupees(it.spentPaise)} spent of ${rupees(it.budget.monthlyLimitPaise)} budget (${(it.fraction * 100).roundToInt()}%).",

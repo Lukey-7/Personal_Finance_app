@@ -114,11 +114,13 @@ fun InsightsScreen(
     vm: AppViewModel,
     onOpenBudgets: () -> Unit,
     onOpenTools: () -> Unit = {},
-    onDrill: (Bucket, Category?) -> Unit = { _, _ -> },
+    /** Opens the payments behind a row, for the period this screen shows (not Home's). */
+    onDrill: (Bucket, Category?, Period) -> Unit = { _, _, _ -> },
 ) {
     val txns by vm.transactions.collectAsState()
     val budgets by vm.budgets.collectAsState()
     val loaded by vm.loaded.collectAsState()
+    val includeCash by vm.countCashAsSpend.collectAsState()
     var weekly by rememberSaveable { mutableStateOf(false) }
     var selected by remember(weekly) { mutableStateOf<Int?>(null) }
     val dismissed = rememberSaveable(
@@ -127,15 +129,17 @@ fun InsightsScreen(
 
     val now = System.currentTimeMillis()
     val periods = if (weekly) (5 downTo 0).map { Periods.week(-it) } else (5 downTo 0).map { Periods.month(-it) }
-    val bars = periods.mapIndexed { i, p -> ChartBar(shortLabel(p, weekly, i, periods), InsightsEngine.summarize(txns, p).netSpendPaise, current = now in p) }
+    val bars = periods.mapIndexed { i, p -> ChartBar(shortLabel(p, weekly, i, periods), InsightsEngine.summarize(txns, p, includeCash).netSpendPaise, current = now in p) }
     // Category rows compare like with like, the same way as the trend line: this period so far against the same days before.
     val current = if (weekly) Periods.week() else Periods.month()
     val before = Periods.sameSpanBefore(current, if (weekly) Periods.week(-1) else Periods.month(-1), now)
-    val trends = InsightsEngine.categoryTrends(txns, current, before).sortedByDescending { it.magnitude }
-    val curByCat = InsightsEngine.summarize(txns, current).byCategory.associate { it.category to it.amountPaise }
-    val prevByCat = InsightsEngine.summarize(txns, before).byCategory.associate { it.category to it.amountPaise }
+    val trends = InsightsEngine.categoryTrends(txns, current, before, includeCash).sortedByDescending { it.magnitude }
+    val curByCat = InsightsEngine.summarize(txns, current, includeCash).byCategory.associate { it.category to it.amountPaise }
+    val prevByCat = InsightsEngine.summarize(txns, before, includeCash).byCategory.associate { it.category to it.amountPaise }
     val biggest = trends.maxOfOrNull { t -> t.category?.let { curByCat[it] } ?: 0L }?.coerceAtLeast(1L) ?: 1L
-    val suggestions = InsightsEngine.suggestions(txns, budgets)
+    val suggestions = InsightsEngine.suggestions(txns, budgets, now, includeCash)
+    // Tips look at this month, so their payments open on this month.
+    val tipsPeriod = Periods.month(0, now)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -197,9 +201,9 @@ fun InsightsScreen(
                         caption = { i -> periods[i].label },
                     )
                     // The current period is still running, so it is compared with the same days of the one before.
-                    val cur = InsightsEngine.summarize(txns, periods.last()).netSpendPaise
+                    val cur = InsightsEngine.summarize(txns, periods.last(), includeCash).netSpendPaise
                     val span = Periods.sameSpanBefore(periods.last(), periods[periods.lastIndex - 1], now)
-                    val spanSpend = InsightsEngine.summarize(txns, span).netSpendPaise
+                    val spanSpend = InsightsEngine.summarize(txns, span, includeCash).netSpendPaise
                     val change = InsightsEngine.changePercent(cur, spanSpend)
                     if (change != null) {
                         Hairline()
@@ -238,7 +242,7 @@ fun InsightsScreen(
                             nowPaise = t.category?.let { curByCat[it] } ?: 0L,
                             beforePaise = t.category?.let { prevByCat[it] } ?: 0L,
                             biggest = biggest,
-                            onOpen = t.category?.let { cat -> { onDrill(Bucket.SPEND, cat) } },
+                            onOpen = t.category?.let { cat -> { onDrill(Bucket.SPEND, cat, current) } },
                         )
                     }
                 }
@@ -258,7 +262,7 @@ fun InsightsScreen(
                             TipCard(
                                 s,
                                 onDismiss = { dismissed.add(s.title) },
-                                onOpen = s.category?.let { cat -> { onDrill(Bucket.SPEND, cat) } },
+                                onOpen = s.category?.let { cat -> { onDrill(Bucket.SPEND, cat, tipsPeriod) } },
                                 modifier = Modifier.padding(bottom = Space.md),
                             )
                         }

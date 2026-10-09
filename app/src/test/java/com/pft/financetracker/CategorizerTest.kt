@@ -33,4 +33,50 @@ class CategorizerTest {
         assertEquals("1 item needs review", reviewLine(1))
         assertEquals("3 items need review", reviewLine(3))
     }
+
+    // ---- Keyword collisions ----
+    private fun cat(m: String) = Categorizer.categorize(m, TransactionType.DEBIT)
+
+    @Test fun uberEatsIsFoodNotTransport() {
+        assertEquals(Category.FOOD, cat("Uber Eats"))
+        assertEquals(Category.FOOD, cat("UBEREATS INDIA"))
+        assertEquals(Category.TRANSPORT, cat("Uber India"))
+    }
+
+    @Test fun streamingPremiumIsEntertainmentNotBills() {
+        assertEquals(Category.ENTERTAINMENT, cat("YouTube Premium"))
+        assertEquals(Category.ENTERTAINMENT, cat("Spotify Premium"))
+        assertEquals(Category.BILLS, cat("LIC premium"))
+    }
+
+    @Test fun namesThatStartLikeFoodWordsAreNotFood() {
+        assertEquals(Category.OTHER, cat("DINESH KUMAR"))
+        assertEquals(Category.OTHER, cat("Chaitanya Rao"))
+        assertEquals(Category.FOOD, cat("Chai Point"))
+        assertEquals(Category.FOOD, cat("chaiwala@ybl"))
+    }
+
+    @Test fun rentMustBeItsOwnWord() {
+        assertEquals(Category.OTHER, cat("Parent Association"))
+        assertEquals(Category.OTHER, cat("Current account charges"))
+        assertEquals(Category.BILLS, cat("House rent"))
+    }
+
+    @Test fun paymentCompaniesNamedCashAreNotAtmCash() {
+        assertNotEquals(Category.ATM, cat("Cashfree Payments"))
+        assertNotEquals(Category.ATM, cat("Cashify"))
+        assertEquals(
+            Flow.EXPENSE,
+            com.pft.financetracker.domain.parser.FlowClassifier.classify(TransactionType.DEBIT, "Paid Rs 500 to Cashfree Payments", "Cashfree Payments", cat("Cashfree Payments")),
+        )
+        // A withdrawal still is one.
+        assertEquals(Category.ATM, cat("ATM CASH WITHDRAWAL"))
+    }
+
+    @Test fun amazonFreshIsGroceries() {
+        assertEquals(Category.FOOD, cat("Amazon Fresh"))
+        assertEquals(Category.SHOPPING, cat("Amazon"))
+    }
+
+    @Test fun mallIsNotInsideSmall() = assertEquals(Category.OTHER, cat("Small Wonders Pvt"))
 }
