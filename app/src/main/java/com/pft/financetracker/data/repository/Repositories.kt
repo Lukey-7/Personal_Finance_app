@@ -14,14 +14,13 @@ import com.pft.financetracker.data.local.TransactionDao
 import com.pft.financetracker.data.local.assembleSplits
 import com.pft.financetracker.data.local.toDomain
 import com.pft.financetracker.data.local.toEntity
-import com.pft.financetracker.domain.insights.InsightsEngine
+import com.pft.financetracker.domain.ledger.SamePayment
 import com.pft.financetracker.domain.model.Budget
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.domain.parser.RefExtractor
 import com.pft.financetracker.domain.split.BillItem
-import com.pft.financetracker.domain.split.PayerClassifier
 import com.pft.financetracker.domain.split.Split
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -47,83 +46,27 @@ class TransactionRepository(
 
     suspend fun findByRef(ref: String, type: TransactionType): Transaction? = dao.findByRef(ref, type.name)?.toDomain()
 
-    /**
-     * The "one payment, two SMS" check. A bank alert and a UPI-app alert for the same payment share the
-     * amount and land within minutes. We call it a duplicate when the reference matches, or when the
-     * amount + direction match inside the window AND the two records are compatible (different bank/app
-     * reporting it, or one of them has no real merchant). Two genuine payments of the same amount to two
-     * different merchants from the same bank within ten minutes are kept.
-     */
-    suspend fun findLikelyDuplicate(candidate: Transaction, windowMillis: Long = 10 * 60_000L, isClaimed: suspend (Long) -> Boolean = { false }): Transaction? {
-        // A shared reference is the strongest sign, but only for the same amount within a few days: some banks reuse
-        // short refs, and a ref alone once paired payments weeks and rupees apart.
-        candidate.refNumber?.let { ref ->
-            dao.findAllByRef(ref).map { it.toDomain() }
-                .filter { it.type == candidate.type && sameAmount(it, candidate.amountPaise) && kotlin.math.abs(it.timestamp - candidate.timestamp) <= REF_MATCH_DAYS * 86_400_000L }
-                .minByOrNull { kotlin.math.abs(it.timestamp - candidate.timestamp) }
-                ?.let { return it }
-        }
-
-        // Search the whole calendar day as well as the window: a transaction imported by v1.0.0 sits at
-        // midnight (its parser dropped the time of day), so the same message re-parsed now lands hours away.
-        val dayStart = startOfDay(candidate.timestamp)
-        val dayEnd = dayStart + 86_400_000L
-        val from = minOf(dayStart, candidate.timestamp - windowMillis)
-        val to = maxOf(dayEnd, candidate.timestamp + windowMillis)
-
-        // Same direction first, so a same-day refund never takes a legacy row its own debit should have matched.
-        val similar = dao.findSimilar(candidate.amountPaise, minOf(from, dayStart - 86_400_000L), to).map { it.toDomain() }
-        val sameDayUnique = similar.count { it.type == candidate.type && it.source == Transaction.Source.STATEMENT } == 1
-        return similar.sortedBy { it.type != candidate.type }.firstOrNull { existing ->
-            // Two references that both exist and disagree mean two genuinely different payments.
-            if (refsDiffer(existing.refNumber, candidate.refNumber)) return@firstOrNull false
-            val sameMerchant = InsightsEngine.normalizeMerchant(existing.merchant) == InsightsEngine.normalizeMerchant(candidate.merchant)
-            val genericMerchant = isGeneric(existing.merchant) || isGeneric(candidate.merchant)
-            when {
-                // A row imported from a statement only knows its day (and the statement may book it a day late). Same
-                // direction, and the names must agree: ten Rs 1,000 paybacks on one day are ten different people.
-                existing.source == Transaction.Source.STATEMENT ->
-                    existing.type == candidate.type && kotlin.math.abs(startOfDay(existing.timestamp) - dayStart) <= 86_400_000L &&
-                        !isClaimed(existing.id) && (PayerClassifier.sameParty(existing.merchant, candidate.merchant) || (genericMerchant && sameDayUnique))
-                // A v1.0.0 row: exactly midnight on this day, possibly with the direction the old parser guessed. Each
-                // stands for one SMS, so once one has matched it (its own debit, scanned first), a same-day refund of
-                // the same amount is a second payment and must not merge into it and flip it.
-                existing.timestamp == startOfDay(existing.timestamp) && existing.timestamp in dayStart until dayEnd ->
-                    !isClaimed(existing.id) && (sameMerchant || genericMerchant)
-                // Minutes apart, same direction: a second sender reporting the same payment, or a generic alert.
-                existing.type == candidate.type && kotlin.math.abs(existing.timestamp - candidate.timestamp) <= windowMillis ->
-                    sameMerchant || existing.bankName != candidate.bankName || genericMerchant
-                // Hours apart is two payments, even to the same merchant: two coffees are two coffees.
-                else -> false
-            }
-        }
+    /** The stored payments [SamePayment] looks through. */
+    val stored: SamePayment.Stored = object : SamePayment.Stored {
+        override suspend fun withRef(ref: String) = dao.findAllByRef(ref).map { it.toDomain() }
+        override suspend fun similar(amountPaise: Long, from: Long, to: Long) = dao.findSimilar(amountPaise, from, to).map { it.toDomain() }
+        override suspend fun sameAmount(amountPaise: Long, type: TransactionType, from: Long, to: Long) =
+            dao.findSameAmount(amountPaise, type.name, from, to).map { it.toDomain() }
     }
+
+    /** The stored row [candidate] repeats (see [SamePayment.find]), or null. */
+    suspend fun findLikelyDuplicate(candidate: Transaction, windowMillis: Long = SamePayment.WINDOW_MILLIS, isClaimed: suspend (Long) -> Boolean = { false }): Transaction? =
+        SamePayment.find(candidate, stored, windowMillis, isClaimed)?.row
 
     companion object {
         /** A shared reference only proves one payment for rows at most this many days apart. */
-        const val REF_MATCH_DAYS = 3L
+        const val REF_MATCH_DAYS = SamePayment.REF_MATCH_DAYS
 
-        fun startOfDay(t: Long): Long = java.util.Calendar.getInstance().apply {
-            timeInMillis = t
-            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
-        }.timeInMillis
+        fun startOfDay(t: Long): Long = SamePayment.startOfDay(t)
     }
 
-    private fun isGeneric(m: String) = m.startsWith("Payment") || m.startsWith("Credit") || m.length < 3
-
     /** "Payment (HDFC Bank)", "Credit (SBI)": the placeholder the parser uses when an SMS names no merchant. */
-    fun isGenericMerchant(m: String) = isGeneric(m)
-
-    private fun isMidnight(t: Transaction) = t.timestamp == startOfDay(t.timestamp)
-
-    /** Same amount, or the bank amount a split shrank this row from; a few paise of rounding allowed. */
-    private fun sameAmount(t: Transaction, paise: Long) = kotlin.math.abs(t.amountPaise - paise) <= 5 || t.originalAmountPaise == paise
-
-    private fun refsAgree(a: String?, b: String?) = a != null && b != null && (a == b || RefExtractor.same(a, b))
-
-    /** Two references that both exist and name different payments. */
-    private fun refsDiffer(a: String?, b: String?) = a != null && b != null && !refsAgree(a, b)
+    fun isGenericMerchant(m: String) = SamePayment.isGeneric(m)
 
     /**
      * A message the person confirmed from the review queue. Runs the same duplicate check as an import, so approving a
@@ -139,7 +82,7 @@ class TransactionRepository(
         )
         val existing = findLikelyDuplicate(filled, isClaimed = isClaimed)
         if (existing != null) {
-            val merged = existing.copy(refNumber = existing.refNumber ?: filled.refNumber, accountRef = existing.accountRef ?: filled.accountRef)
+            val merged = SamePayment.addIdentifiers(existing, filled)
             if (merged != existing) update(merged)
             return existing.id
         }
@@ -147,85 +90,24 @@ class TransactionRepository(
     }
 
     /** Prefer the record with more detail (merchant, account, ref). */
-    fun richer(a: Transaction, b: Transaction): Transaction {
-        fun score(t: Transaction) = (if (!isGeneric(t.merchant)) 4 else 0) + (if (t.accountRef != null) 2 else 0) + (if (t.refNumber != null) 1 else 0) + (if (t.bankName != null) 1 else 0)
-        return if (score(b) > score(a)) b else a
-    }
+    fun richer(a: Transaction, b: Transaction): Transaction = SamePayment.richer(a, b)
 
     /** A pair of stored transactions that look like the same payment recorded twice. */
     data class DuplicatePair(val keep: Transaction, val drop: Transaction) {
         val amountPaise: Long get() = drop.amountPaise
     }
 
-    /**
-     * Sweep already-stored transactions for the same payment counted twice. This is the retrospective
-     * counterpart to [findLikelyDuplicate]: rows imported before the duplicate rules existed are still
-     * sitting in the database, and no amount of re-importing removes them.
-     *
-     * The same rules as the import check: amount and direction match, and either the references agree (within
-     * [REF_MATCH_DAYS]), or the two are minutes apart and a different bank/app reported each, the merchant matches or
-     * one carries no real merchant. A v1.0.0 row (midnight, time of day lost) pairs with a same-day row of the same
-     * merchant. References that both exist and disagree mean two genuine payments, so those are never paired, and the
-     * same merchant hours apart is two payments: two coffees are two coffees.
-     */
-    suspend fun findExistingDuplicates(windowMillis: Long = 10 * 60_000L): List<DuplicatePair> {
-        val all = dao.getAll().map { it.toDomain() }.filter { it.source == Transaction.Source.SMS && !it.needsReview }
-        val pairs = mutableListOf<DuplicatePair>()
-        val consumed = mutableSetOf<Long>()
-        val byKey = all.groupBy { it.amountPaise to it.type }
-        val refWindow = REF_MATCH_DAYS * 86_400_000L
-        for ((_, group) in byKey) {
-            if (group.size < 2) continue
-            val ordered = group.sortedBy { it.timestamp }
-            for (i in ordered.indices) {
-                val a = ordered[i]
-                if (a.id in consumed) continue
-                for (j in i + 1 until ordered.size) {
-                    val b = ordered[j]
-                    val gap = b.timestamp - a.timestamp
-                    if (gap > refWindow) break
-                    if (b.id in consumed) continue
-                    if (refsDiffer(a.refNumber, b.refNumber)) continue
-                    val sameMerchant = InsightsEngine.normalizeMerchant(a.merchant) == InsightsEngine.normalizeMerchant(b.merchant)
-                    val differentReporter = a.bankName != b.bankName
-                    val generic = isGeneric(a.merchant) || isGeneric(b.merchant)
-                    val sameRef = refsAgree(a.refNumber, b.refNumber)
-                    val legacy = (isMidnight(a) || isMidnight(b)) && startOfDay(a.timestamp) == startOfDay(b.timestamp)
-                    val paired = when {
-                        sameRef -> true
-                        legacy -> sameMerchant || generic
-                        gap <= windowMillis -> sameMerchant || differentReporter || generic
-                        else -> false
-                    }
-                    if (!paired) continue
-                    val keep = richer(a, b)
-                    val drop = if (keep === a) b else a
-                    pairs += DuplicatePair(keep, drop)
-                    consumed += drop.id
-                    consumed += keep.id
-                    break
-                }
-            }
-        }
-        return pairs.sortedByDescending { it.amountPaise }
-    }
+    /** Stored SMS rows already counted twice (see [SamePayment.twinsIn]). Nothing is deleted here. */
+    suspend fun findExistingDuplicates(windowMillis: Long = SamePayment.WINDOW_MILLIS): List<DuplicatePair> =
+        SamePayment.twinsIn(dao.getAll().map { it.toDomain() }, windowMillis).map { DuplicatePair(it.keep, it.drop) }
 
     /** Delete the redundant row of each pair, keeping any detail it had that the survivor lacked. */
     suspend fun mergeDuplicates(pairs: List<DuplicatePair>, isLinked: suspend (Long) -> Boolean = { false }) {
         for (pair in pairs) {
-            // A split points at one copy (a settled transfer, a shrunk payment): that copy survives, with the other's
-            // details, so the split's numbers and links stay whole.
-            val p = if (isLinked(pair.drop.id) && !isLinked(pair.keep.id)) DuplicatePair(keep = pair.drop, drop = pair.keep) else pair
-            val merged = p.keep.copy(
-                merchant = if (isGeneric(p.keep.merchant) && !isGeneric(p.drop.merchant)) p.drop.merchant else p.keep.merchant,
-                accountRef = p.keep.accountRef ?: p.drop.accountRef,
-                refNumber = p.keep.refNumber ?: p.drop.refNumber,
-                bankName = p.keep.bankName ?: p.drop.bankName,
-                note = p.keep.note ?: p.drop.note,
-                counterpartyKind = p.keep.counterpartyKind ?: p.drop.counterpartyKind,
-            )
-            if (merged != p.keep) dao.update(merged.toEntity())
-            dao.delete(p.drop.toEntity())
+            val (merged, drop) = SamePayment.combine(SamePayment.Twins(pair.keep, pair.drop), isLinked)
+            val before = if (merged.id == pair.keep.id) pair.keep else pair.drop
+            if (merged != before) dao.update(merged.toEntity())
+            dao.delete(drop.toEntity())
         }
     }
 

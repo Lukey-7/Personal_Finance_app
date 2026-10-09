@@ -11,8 +11,7 @@ import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.domain.importer.ParsedStatement
 import com.pft.financetracker.domain.importer.StatementRow
 import com.pft.financetracker.domain.model.Transaction
-import com.pft.financetracker.domain.parser.RefExtractor
-import com.pft.financetracker.domain.split.PayerClassifier
+import com.pft.financetracker.domain.ledger.SamePayment
 import java.security.MessageDigest
 
 /**
@@ -56,22 +55,7 @@ class StatementImporter(
     private suspend fun findExisting(r: StatementRow, consumed: Set<Long>): Transaction? {
         // The same file (or an overlapping one) imported before.
         txDao.getByHash(hash(r))?.let { return it.toDomain() }
-        // The same reference number, direction, amount and (within a week) date. The date guard matters: some banks
-        // reuse cheque-style numbers, and a ref alone once matched a payment months away. Statements pad or prefix refs
-        // ("000427712345678" for the SMS's "427712345678"), so refs are compared normalised.
-        if (RefExtractor.normalize(r.ref) != null) {
-            txDao.findSameAmount(r.amountPaise, r.type.name, r.date - 7 * DAY, r.date + 7 * DAY).map { it.toDomain() }
-                .filter { it.id !in consumed && RefExtractor.same(it.refNumber, r.ref) }
-                .minByOrNull { kotlin.math.abs(it.timestamp - r.date) }
-                ?.let { return it }
-        }
-        // Same amount and direction within a day either side (statements book some payments a day late). Names
-        // must agree: ten Rs 1,000 paybacks on one day are ten different people.
-        val cands = txDao.findSameAmount(r.amountPaise, r.type.name, r.date - 86_400_000L, r.date + 2 * 86_400_000L - 1)
-            .map { it.toDomain() }.filter { it.id !in consumed && it.source != Transaction.Source.SPLIT }
-        cands.firstOrNull { PayerClassifier.sameParty(it.merchant, r.counterparty) }?.let { return it }
-        val generic = cands.filter { it.merchant.startsWith("Payment") || it.merchant.startsWith("Credit") || it.merchant.length < 3 }
-        return generic.singleOrNull()?.takeIf { cands.size == 1 }
+        return SamePayment.findForStatement(r, repo.stored, consumed)
     }
 
     suspend fun commit(p: Preview): ImportBatchEntity {
@@ -154,8 +138,6 @@ class StatementImporter(
     /** Identical rows in one file (two Rs 20 teas) are told apart by their occurrence; the first keeps the old hash. */
     private fun hash(r: StatementRow) = "stmt:" + sha("${r.date}|${r.amountPaise}|${r.type}|${r.narration.trim().lowercase()}|${r.balancePaise}" +
         if (r.occurrence > 0) "|#${r.occurrence}" else "")
-
-    private companion object { const val DAY = 86_400_000L }
 
     private fun sha(s: String): String = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }.take(32)
 }

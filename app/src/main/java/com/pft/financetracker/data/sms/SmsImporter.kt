@@ -11,7 +11,7 @@ import com.pft.financetracker.data.prefs.SettingsRepository
 import com.pft.financetracker.data.repository.SmsLogRepository
 import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.domain.categorize.Categorizer
-import com.pft.financetracker.domain.model.Flow
+import com.pft.financetracker.domain.ledger.SamePayment
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.parser.FlowClassifier
 import com.pft.financetracker.domain.parser.Hashing
@@ -166,46 +166,6 @@ class SmsImporter(
     }
 
     /**
-     * Keep one record for a payment two messages reported. The richer row's descriptive fields, with what only the other
-     * had filled in; never this parse's amount or note (a split may have shrunk the amount on purpose). A weaker second
-     * alert must not undo what the first one knew: a specific category stays unless it was Other or the direction turned
-     * out wrong, and a transfer, investment, cash or refund flow stays when this parse only fell back to expense/income.
-     */
-    private fun mergeDuplicate(existing: Transaction, candidate: Transaction): Transaction {
-        val base = repo.richer(existing, candidate)
-        val other = if (base === existing) candidate else existing
-        val sameDirection = existing.type == candidate.type
-        // A v1.0.0 row (midnight, flow guessed from its category) or a statement row (flow guessed from the narration)
-        // knew less than the SMS we hold now: this parse decides.
-        val weakExisting = existing.source == Transaction.Source.STATEMENT ||
-            existing.timestamp == com.pft.financetracker.data.repository.TransactionRepository.startOfDay(existing.timestamp)
-        val candidateFellBack = candidate.flow == Flow.EXPENSE || candidate.flow == Flow.INCOME
-        val flowFitsDirection = sameDirection || existing.flow == Flow.TRANSFER || existing.flow == Flow.INVESTMENT
-        val flow = when {
-            // A split owns a settled transfer's flow: re-reading its SMS must not make it income again.
-            existing.flow == Flow.SETTLEMENT -> existing.flow
-            !weakExisting && candidateFellBack && flowFitsDirection &&
-                existing.flow in setOf(Flow.TRANSFER, Flow.INVESTMENT, Flow.CASH, Flow.REFUND) -> existing.flow
-            else -> candidate.flow
-        }
-        val category = when {
-            weakExisting || !sameDirection -> candidate.category
-            existing.category == com.pft.financetracker.domain.model.Category.OTHER -> candidate.category
-            else -> existing.category
-        }
-        val merchant = if (repo.isGenericMerchant(base.merchant) && !repo.isGenericMerchant(other.merchant)) other.merchant else base.merchant
-        return base.copy(
-            id = existing.id, smsHash = existing.smsHash, type = candidate.type, flow = flow, category = category, merchant = merchant,
-            amountPaise = existing.amountPaise, originalAmountPaise = existing.originalAmountPaise, note = existing.note,
-            refNumber = base.refNumber ?: other.refNumber, accountRef = base.accountRef ?: other.accountRef, bankName = base.bankName ?: other.bankName,
-            counterpartyKind = existing.counterpartyKind ?: candidate.counterpartyKind, importBatchId = existing.importBatchId,
-            source = existing.source, userEdited = existing.userEdited, confidence = existing.confidence, needsReview = existing.needsReview,
-            // A statement row only knew the day; the SMS knows the minute.
-            timestamp = if (existing.source == Transaction.Source.STATEMENT) candidate.timestamp else existing.timestamp,
-        )
-    }
-
-    /**
      * The live receiver and an inbox scan can run at once. Both check for a duplicate and then insert, so without one
      * lock a bank alert and its UPI-app twin arriving together could both be inserted.
      */
@@ -250,12 +210,7 @@ class SmsImporter(
                     // fields, but always this parse's flow and category. We are holding the full SMS body,
                     // whereas a row carried over from v1.0.0 only ever had a flow guessed from its category,
                     // so a rescan is the moment a mis-filed card-bill payment or transfer gets corrected.
-                    val merged = if (existing.userEdited) {
-                        // A person corrected this row: only fill in identifiers it lacks.
-                        existing.copy(refNumber = existing.refNumber ?: candidate.refNumber, accountRef = existing.accountRef ?: candidate.accountRef)
-                    } else {
-                        mergeDuplicate(existing, candidate)
-                    }
+                    val merged = SamePayment.merge(existing, candidate)
                     if (merged != existing) repo.update(merged)
                     val why = if (candidate.refNumber != null && candidate.refNumber == existing.refNumber) "same_ref_${existing.id}" else "same_amount_within_10min_${existing.id}"
                     log.log(entry(Outcomes.DUPLICATE, why, p.amountPaise, p.type.name, existing.id))

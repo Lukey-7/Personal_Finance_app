@@ -26,16 +26,19 @@ agent checks the code read-only (prompt at the end). I fix what it confirms.
 
 ## Phase 1 · Same payment (pure, in-process)
 
-- [ ] New `domain/ledger/SamePayment.kt`: `match(a, b): Match` (`Same(reason)` / `Different(reason)`) and
-      `merge(kept, other): Transaction`.
-- [ ] Move the rules into it, unchanged: ref match (same type, amount within 5 paise or split original, 3 days,
-      normalised refs), 10-minute window, generic merchant, different reporter, legacy midnight rows, statement party
-      match, which fields win on merge.
-- [ ] Callers become thin: `findLikelyDuplicate`, the clean-up sweep, `StatementImporter`, `SmsImporter.mergeDuplicate`,
-      `insertReviewed`.
-- [ ] Tests: one table-driven `SamePaymentTest` (pairs in, verdict out), built from every case in
-      `DuplicateDetectionTest` and `StatementImporterTest`. Old DB tests keep passing.
-- [ ] Deletion test: removing `SamePayment` would put the rules back in 4 places. Passes.
+- [x] New `domain/ledger/SamePayment.kt`. Its interface turned out as three checks and three merges, not one
+      `match(a, b)`: the import check, the statement check and the clean-up sweep use different rules today (only the
+      import knows statement and claimed rows; only the sweep pairs two stored rows), so one pairwise rule would have
+      changed behaviour. `find(incoming, stored)` returns the row and why (`REF`, `STATEMENT`, `LEGACY`, `WINDOW`);
+      `findForStatement(row, stored, consumed)`; `twinsIn(rows)`; `merge`, `addIdentifiers`, `combine`.
+      Stored rows come through a small `Stored` seam: Room in the app, a list in `SamePaymentTest`.
+- [x] Rules moved unchanged: ref match (same type, 5 paise or split original, 3 days, normalised refs), 10-minute
+      window, generic merchant, different reporter, legacy midnight rows, statement party match, merge precedence.
+- [x] Callers thin: `findLikelyDuplicate`, `findExistingDuplicates`, `mergeDuplicates`, `insertReviewed` delegate;
+      `SmsImporter.mergeDuplicate` and `StatementImporter.findExisting`'s rules are gone (the same-file hash stays there).
+- [x] `SamePaymentTest`: 21 incoming cases, 9 statement cases, the sweep, combining and merging. Old DB tests unchanged
+      and green (DuplicateDetection 26, StatementImporter 7, EdgeStatementImporter 13, ReviewFixesDb 11, ImportMemory 12).
+- [x] Deletion test: removing `SamePayment` puts the rules back in the repository, SMS importer and statement importer.
 
 ## Phase 2 · Ledger (local-substitutable: in-memory Room in tests)
 
