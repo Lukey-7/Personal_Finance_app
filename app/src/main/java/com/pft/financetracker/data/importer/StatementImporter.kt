@@ -115,9 +115,9 @@ class StatementImporter(
 
     /**
      * Remove every transaction an import added. Rows it only matched (already in the app) are left alone, and a row a
-     * later import also contained stays and moves to that import.
+     * later import also contained stays and moves to that import. [beforeDelete] runs for each row about to go.
      */
-    suspend fun undo(batchId: Long) {
+    suspend fun undo(batchId: Long, beforeDelete: suspend (Long) -> Unit = {}) {
         for (t in txDao.getByBatch(batchId)) {
             val other = importDao.matchesFor(t.id).firstOrNull { it.batchId != batchId && importDao.get(it.batchId) != null }
             when {
@@ -128,7 +128,7 @@ class StatementImporter(
                 }
                 // An SMS reported the same payment since: it is the SMS's row now, and the SMS won't be read again.
                 smsLog?.pointsAt(t.id) == true -> txDao.update(t.copy(importBatchId = null))
-                else -> txDao.delete(t)
+                else -> { beforeDelete(t.id); txDao.delete(t) }
             }
         }
         importDao.deleteMatchesForBatch(batchId)

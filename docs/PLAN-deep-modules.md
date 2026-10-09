@@ -42,18 +42,26 @@ agent checks the code read-only (prompt at the end). I fix what it confirms.
 
 ## Phase 2 · Ledger (local-substitutable: in-memory Room in tests)
 
-- [ ] New `data/ledger/Ledger.kt`, interface:
-      `add(t, from)`, `correct(t)`, `remove(id)`, `approve(reviewId, t)`, `recategorise(ids, category)`.
-      `add` returns `Added(id)` or `Merged(id)` (uses Same payment).
-- [ ] Inside, every time: flow fits direction (`FlowRules`), user-edited mark on corrections, duplicate check on adds
-      and approvals, refund unpairing and deletion memory on removes, then one follow-up (refunds, splits, widget),
-      run in the background so callers never wait or forget.
-- [ ] Callers switch: AppViewModel (save, delete, recategorise, resolveReview, the split's payment writes),
-      QuickAddActivity, SmsImporter's insert, StatementImporter's commit.
-- [ ] Nothing outside `data/ledger` and `data/repository` writes to the transactions table (checked by a grep in the
-      reviewer's list).
-- [ ] Tests: `LedgerTest` through the interface only, one per rule (quick add's money-in can't be spend, removing a
-      refunded purchase restores the refund, approving a duplicate merges, every write runs the follow-up once).
+- [x] New `data/ledger/Ledger.kt`: `add`, `correct`, `reshape` (a split shrinking a payment: not a person's
+      correction), `remove`, `recategorise`, `approve`, `mergeTwins`, `undoImport`, `together { }` (one change, one
+      follow-up), `followUp(useAi)` and `catchUp(useAi)` (waits; for the SMS worker and restore).
+- [x] Inside, every time: flow fits direction (`FlowRules`), the corrected mark, the twin check on approvals, refund
+      give-back and deletion memory on removes, then one follow-up in an app-wide background scope. Requests during a
+      run fold into one next run (AI if any asked), so it never runs twice at once and leaving a screen can't cancel it.
+      `AppContainer.afterChange` is now private to the ledger.
+- [x] Callers switched: AppViewModel (save, delete, recategorise, resolveReview, mergeDuplicates, saveSplit, scan,
+      statement import and undo, restore, refreshSplits), QuickAddActivity, the SMS worker.
+- [x] Changed on purpose (bugs of the kind this phase is for): the duplicate clean-up now runs the follow-up (it
+      didn't, so a refund paired with a dropped twin waited for the next scan); undoing a statement import now gives
+      back the refunds paired with the purchases it removes (it left them lowering spend); recategorise reads the rows
+      from the database rather than the screen's copy.
+- [x] Not moved, by design: the importers' bulk inserts (SMS, statements) keep their own pipelines and ask for one
+      follow-up at the end; refund pairing and split detection write flows as part of the follow-up itself; split
+      actions write through the split engine. No write to payments is left in `ui/` (grep in the reviewer's list).
+- [x] `LedgerTest` (10) through the interface: money in never spend, corrections marked and fitted, reshape unmarked,
+      removing a refunded purchase restores the refund, removed SMS remembered, recategorise writes only changes,
+      approving a stored twin merges, undoing an import restores refunds, one change one follow-up, requests during a
+      run fold into one more run.
 
 ## Phase 3 · Books (in-process)
 

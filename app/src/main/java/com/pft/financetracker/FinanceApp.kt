@@ -55,12 +55,19 @@ class AppContainer(context: Context) {
     val refunds: RefundLinker = RefundLinker(db.transactionDao(), db.refundDao())
     val recurring: com.pft.financetracker.data.recurring.RecurringService = com.pft.financetracker.data.recurring.RecurringService(db.transactionDao(), db.recurringDao())
 
+    /** Every change a person makes to payments goes through here; it also runs the follow-up below, one at a time. */
+    val ledger: com.pft.financetracker.data.ledger.Ledger = com.pft.financetracker.data.ledger.Ledger(
+        transactions, smsLog, refunds, importer, statementImporter,
+        afterChange = { useAi -> afterChange(useAi) },
+        scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO),
+    )
+
     /**
      * Everything that derives from the transactions, re-run after any import, edit or delete: refund pairing first
      * (it never touches money from people), then split intelligence. Each step is idempotent and isolated, so one
-     * failing never blocks the others.
+     * failing never blocks the others. Asked for through [ledger], which never runs two at once.
      */
-    suspend fun afterChange(useAi: Boolean = true) {
+    private suspend fun afterChange(useAi: Boolean) {
         runCatching { refunds.run() }
         runCatching { splitEngine.run(useAi) }
         com.pft.financetracker.ui.widget.FinTrackWidget.refresh(appContext)

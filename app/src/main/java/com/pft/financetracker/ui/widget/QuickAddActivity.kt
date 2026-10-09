@@ -59,10 +59,9 @@ class QuickAddActivity : ComponentActivity() {
 
     private suspend fun insert(t: Transaction) {
         withContext(Dispatchers.IO) {
-            appContainer.transactions.insert(t)
-            appContainer.afterChange(useAi = false)
+            // The ledger's follow-up refreshes refunds, splits and the widget.
+            appContainer.ledger.add(t)
         }
-        FinTrackWidget.refresh(applicationContext)
         finish()
     }
 

@@ -185,7 +185,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Re-run split intelligence. Cheap without AI; with AI, unchanged weeks come from the cache. */
-    fun refreshSplits(useAi: Boolean = true) = viewModelScope.launch(Dispatchers.IO) { c.afterChange(useAi) }
+    fun refreshSplits(useAi: Boolean = true) { c.ledger.followUp(useAi) }
 
     fun hasSmsPermission() = c.importer.hasSmsPermission()
 
@@ -196,7 +196,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val since = if (full) 0L else lastImportAt.value
             val stats = runCatching { c.importer.scanInbox(since) }.getOrNull()
             _importState.value = if (stats == null) ImportUiState.Failed else ImportUiState.Done(stats)
-            withContext(Dispatchers.IO) { c.afterChange() }
+            c.ledger.followUp(useAi = true)
         }
     }
 
@@ -212,26 +212,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun setMyName(v: String) = c.settings.setMyName(v)
 
     fun save(t: Transaction, onDone: () -> Unit = {}) = viewModelScope.launch {
-        // Never money in counted as spend, nor money out as income, whatever the form sent.
-        val row = com.pft.financetracker.ui.model.FlowRules.normalise(t)
-        // An existing row saved from the editor was corrected by a person: protect it from automatic rewrites.
-        if (row.id == 0L) c.transactions.insert(row) else c.transactions.update(row.copy(userEdited = true))
+        // The ledger fits the flow to the direction and marks an existing row as corrected by a person.
+        if (t.id == 0L) c.ledger.add(t) else c.ledger.correct(t)
         onDone()
-        refreshSplits(useAi = false)
     }
 
     fun delete(t: Transaction) = viewModelScope.launch {
-        // A refund paired with this purchase goes back to income first; the pairing itself goes with the purchase.
-        runCatching { c.refunds.unlinkForDeletedPurchase(t.id) }
-        c.transactions.delete(t)
-        c.importer.forgetDeleted(t)
-        refreshSplits(useAi = false)
+        // The ledger gives back paired refunds and remembers the deletion for the next scan or import.
+        c.ledger.remove(t)
     }
 
     /** Moves the chosen rows to [category] (Activity's multi-select). Only rows that change are written. */
     fun recategorise(ids: Set<Long>, category: Category) = viewModelScope.launch {
-        com.pft.financetracker.ui.model.recategorise(transactions.value, ids, category).forEach { c.transactions.update(it) }
-        refreshSplits(useAi = false)
+        c.ledger.recategorise(ids, category)
     }
 
     /** The SMS a transaction was read from, while the inbox still has it; null for manual rows or a deleted message. */
@@ -250,12 +243,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val review = c.transactions.getReview(reviewId)
         review?.let { r -> withContext(Dispatchers.IO) { runCatching { c.templates.learn(r.sender, r.body, t) } } }
         // Same duplicate check as an import, so a second alert for a payment already saved is merged, not added again.
-        val id = c.transactions.insertReviewed(com.pft.financetracker.ui.model.FlowRules.normalise(t).copy(userEdited = true), review?.body) { c.smsLog.pointsAt(it) }
-        c.transactions.resolveReview(reviewId)
-        t.smsHash?.let { c.smsLog.updateOutcome(it, "SAVED", t.merchant, id.takeIf { v -> v > 0 }) }
+        c.ledger.approve(reviewId, t, review?.body)
         onDone()
-        // As after any save: refunds, splits and the widget catch up with the new payment.
-        refreshSplits(useAi = false)
     }
 
     fun dismissReview(reviewId: Long) = viewModelScope.launch {
@@ -290,7 +279,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun mergeDuplicates(onDone: (Int) -> Unit = {}) = viewModelScope.launch {
         val pairs = _duplicates.value
-        c.transactions.mergeDuplicates(pairs) { id -> c.db.splitDao().linksForTransaction(id).isNotEmpty() }
+        c.ledger.mergeTwins(pairs) { id -> c.db.splitDao().linksForTransaction(id).isNotEmpty() }
         _duplicates.value = emptyList()
         onDone(pairs.size)
     }
@@ -363,6 +352,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  - Someone else paid: my share is added as an expense I owe.
      */
     fun saveSplit(split: Split, items: List<BillItem>, category: Category, onDone: (Long) -> Unit = {}) = viewModelScope.launch {
+        // One change: the follow-up runs once the split itself is saved, so it never sees a shrunk payment without it.
+        // A suggestion that shared transfers with the one undone below is worked out again then.
+        val id = c.ledger.together { saveSplitRows(split, items, category) }
+        onDone(id)
+    }
+
+    private suspend fun saveSplitRows(split: Split, items: List<BillItem>, category: Category): Long {
         val me = split.myShare?.amountPaise ?: 0L
         var linked: Long? = null
         val pickedId = split.linkedTransactionId?.takeIf { split.iPaid }
@@ -371,14 +367,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             c.transactions.getById(pickedId)?.let { t ->
                 val full = t.originalAmountPaise ?: t.amountPaise
                 val othersPaise = split.totalPaise - me
-                c.transactions.update(t.copy(
+                c.ledger.reshape(t.copy(
                     amountPaise = (full - othersPaise).coerceAtLeast(0L), originalAmountPaise = full, category = category,
                     note = listOfNotNull(t.note?.takeIf { it.isNotBlank() }, com.pft.financetracker.data.split.SplitEngine.splitNote(split.title, com.pft.financetracker.ui.components.money(othersPaise))).joinToString(" "),
                 ))
                 linked = t.id
             }
         } else if (me > 0) {
-            linked = c.transactions.insert(
+            linked = c.ledger.add(
                 Transaction(
                     amountPaise = me, type = TransactionType.DEBIT, merchant = split.title, category = category, timestamp = split.date,
                     bankName = null, accountRef = null, source = Transaction.Source.SPLIT, flow = Flow.EXPENSE,
@@ -386,10 +382,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 )
             ).takeIf { it > 0 }
         }
-        val id = c.splits.save(split.copy(linkedTransactionId = linked), items)
-        onDone(id)
-        // A suggestion that shared transfers with the one undone above is worked out again.
-        refreshSplits(useAi = false)
+        return c.splits.save(split.copy(linkedTransactionId = linked), items)
     }
 
     /** Payments a split I paid could be ("Paid with"): near the date and the total, not already part of a split. */
@@ -517,7 +510,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // Reminders already sent belong to the replaced data.
             c.settings.setSentReminders(emptySet())
             c.templates.load()
-            c.afterChange(useAi = false)
+            c.ledger.catchUp(useAi = false)
         }.exceptionOrNull()?.let { it.message ?: "Restore failed." }.also { passphrase.fill(' '); _backupBusy.value = null }
     }
 
@@ -632,12 +625,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val batch = withContext(Dispatchers.IO) { c.statementImporter.commit(s.preview) }
             _statementState.value = StatementUiState.Saved(batch)
-            withContext(Dispatchers.IO) { c.afterChange() }
+            c.ledger.followUp(useAi = true)
         }
     }
 
     fun undoImport(batchId: Long) = viewModelScope.launch {
-        withContext(Dispatchers.IO) { c.statementImporter.undo(batchId); c.afterChange(useAi = false) }
+        withContext(Dispatchers.IO) { c.ledger.undoImport(batchId) }
     }
 
     fun resetStatementImport() { _statementState.value = StatementUiState.Idle }
