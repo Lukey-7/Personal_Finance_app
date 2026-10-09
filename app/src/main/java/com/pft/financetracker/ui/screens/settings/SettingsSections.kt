@@ -444,8 +444,11 @@ internal fun AiSection(vm: AppViewModel) {
     }
 
     if (showPayload) FinSheet({ showPayload = false }, title = "Exact payload sent to OpenAI") {
+        // Built from your payments once they have loaded, never from the empty lists the app starts with.
+        val ready by vm.loaded.collectAsState()
         SoftPanel {
-            Text(vm.aiPayloadPreview(), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+            if (ready) Text(vm.aiPayloadPreview(), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+            else BusyLine("Loading your figures…")
         }
         PrimaryButton("Close", { showPayload = false })
     }

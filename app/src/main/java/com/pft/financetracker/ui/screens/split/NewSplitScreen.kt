@@ -475,10 +475,11 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
     }
 
     if (showDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = date)
+        // The picker works in UTC midnights: show the local day, and keep the time when the day changes.
+        val state = rememberDatePickerState(initialSelectedDateMillis = com.pft.financetracker.ui.model.PickerDate.toPicker(date))
         DatePickerDialog(
             onDismissRequest = { showDate = false },
-            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { date = it + 12 * 3600 * 1000 }; showDate = false }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { date = com.pft.financetracker.ui.model.PickerDate.fromPicker(it, date) }; showDate = false }) { Text("OK") } },
             dismissButton = { TextButton(onClick = { showDate = false }) { Text("Cancel") } },
         ) { DatePicker(state) }
     }

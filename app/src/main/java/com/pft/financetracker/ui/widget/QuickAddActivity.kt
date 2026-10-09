@@ -41,7 +41,16 @@ class QuickAddActivity : ComponentActivity() {
         }
     }
 
-    private fun save(t: Transaction) = lifecycleScope.launch {
+    /** Set by the first Save or "More details", so neither can run twice. */
+    private var done = false
+
+    private fun save(t: Transaction) {
+        if (done) return
+        done = true
+        lifecycleScope.launch { insert(t) }
+    }
+
+    private suspend fun insert(t: Transaction) {
         withContext(Dispatchers.IO) {
             appContainer.transactions.insert(t)
             appContainer.afterChange(useAi = false)
@@ -51,6 +60,8 @@ class QuickAddActivity : ComponentActivity() {
     }
 
     private fun moreDetails(d: QuickAddDraft) {
+        if (done) return
+        done = true
         startActivity(MainActivity.editIntent(this, d))
         finish()
     }

@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import com.pft.financetracker.data.importer.StatementFiles
 import com.pft.financetracker.data.importer.StatementImporter
@@ -133,9 +134,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val transactions: StateFlow<List<Transaction>> = c.transactions.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     val budgets: StateFlow<List<Budget>> = c.budgets.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
-    val reviewQueue: StateFlow<List<ReviewItemEntity>> = c.transactions.reviewQueue.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val reviewQueue: StateFlow<List<ReviewItemEntity>> = c.transactions.reviewQueue.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     val reviewCount: StateFlow<Int> = c.transactions.reviewCount.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
-    val smsLog: StateFlow<List<SmsLogEntity>> = c.smsLog.recent.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val smsLog: StateFlow<List<SmsLogEntity>> = c.smsLog.recent.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     val smsLogCounts: StateFlow<Map<String, Int>> = c.smsLog.counts.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val splits: StateFlow<List<Split>> = c.splits.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     /** Automatic splits waiting for a yes or no. */
@@ -203,17 +204,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setOnboarded(v: Boolean) = c.settings.setOnboarded(v)
     fun setAutoImport(v: Boolean) = c.settings.setAutoImport(v)
-    fun setCountCashAsSpend(v: Boolean) = c.settings.setCountCashAsSpend(v)
+    /** The widget shows this month's spend, which changes with the setting. */
+    fun setCountCashAsSpend(v: Boolean) = viewModelScope.launch {
+        c.settings.setCountCashAsSpend(v)
+        com.pft.financetracker.ui.widget.FinTrackWidget.refresh(getApplication())
+    }
     fun setMyName(v: String) = c.settings.setMyName(v)
 
     fun save(t: Transaction, onDone: () -> Unit = {}) = viewModelScope.launch {
+        // Never money in counted as spend, nor money out as income, whatever the form sent.
+        val row = com.pft.financetracker.ui.model.FlowRules.normalise(t)
         // An existing row saved from the editor was corrected by a person: protect it from automatic rewrites.
-        if (t.id == 0L) c.transactions.insert(t) else c.transactions.update(t.copy(userEdited = true))
+        if (row.id == 0L) c.transactions.insert(row) else c.transactions.update(row.copy(userEdited = true))
         onDone()
         refreshSplits(useAi = false)
     }
 
     fun delete(t: Transaction) = viewModelScope.launch {
+        // A refund paired with this purchase goes back to income first; the pairing itself goes with the purchase.
+        runCatching { c.refunds.unlinkForDeletedPurchase(t.id) }
         c.transactions.delete(t)
         c.importer.forgetDeleted(t)
         refreshSplits(useAi = false)
@@ -239,10 +248,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun resolveReview(reviewId: Long, t: Transaction, onDone: () -> Unit = {}) = viewModelScope.launch {
         // The confirmed message teaches the parser this sender's wording, so the next one needs no review.
         c.transactions.getReview(reviewId)?.let { r -> withContext(Dispatchers.IO) { runCatching { c.templates.learn(r.sender, r.body, t) } } }
-        val id = c.transactions.insert(t.copy(userEdited = true))
+        val id = c.transactions.insert(com.pft.financetracker.ui.model.FlowRules.normalise(t).copy(userEdited = true))
         c.transactions.resolveReview(reviewId)
         t.smsHash?.let { c.smsLog.updateOutcome(it, "SAVED", t.merchant, id.takeIf { v -> v > 0 }) }
         onDone()
+        // As after any save: refunds, splits and the widget catch up with the new payment.
+        refreshSplits(useAi = false)
     }
 
     fun dismissReview(reviewId: Long) = viewModelScope.launch {
@@ -298,8 +309,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Aggregated payload preview so users can see exactly what would be sent. */
     fun aiPayloadPreview(): String {
         val all = transactions.value
-        val cur = InsightsEngine.summarize(all, Periods.month(), countCashAsSpend.value)
-        val prev = InsightsEngine.summarize(all, Periods.month(-1), countCashAsSpend.value)
+        // A month still running is compared with the same days of the last one, as on Home and in monthInWords.
+        val now = System.currentTimeMillis()
+        val before = Periods.sameSpanBefore(Periods.month(0, now), Periods.month(-1, now), now)
+        val cur = InsightsEngine.summarize(all, Periods.month(0, now), countCashAsSpend.value)
+        val prev = InsightsEngine.summarize(all, before, countCashAsSpend.value)
         return OpenAiClient().buildPayload(cur, prev, budgets.value)
     }
 
@@ -309,6 +323,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (_aiState.value is AiUiState.Loading) return
         _aiState.value = AiUiState.Loading
         viewModelScope.launch {
+            // Never summarise the empty lists the screens start from.
+            loaded.first { it }
             val payload = aiPayloadPreview()
             when (val r = OpenAiClient().monthlySummary(key, payload)) {
                 is OpenAiClient.Result.Ok -> _aiState.value = AiUiState.Result(r.text)
@@ -349,7 +365,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (split.iPaid && linked != null) {
             c.transactions.getById(linked)?.let { t ->
                 val othersPaise = split.totalPaise - me
-                c.transactions.update(t.copy(amountPaise = me, originalAmountPaise = t.originalAmountPaise ?: t.amountPaise, category = category, note = listOfNotNull(t.note, "Split: ${split.title}. ₹${othersPaise / 100} owed to you.").joinToString(" ")))
+                c.transactions.update(t.copy(amountPaise = me, originalAmountPaise = t.originalAmountPaise ?: t.amountPaise, category = category, note = listOfNotNull(t.note, "Split: ${split.title}. ${com.pft.financetracker.ui.components.money(othersPaise)} owed to you.").joinToString(" ")))
             }
         } else if (me > 0) {
             linked = c.transactions.insert(
@@ -435,7 +451,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             c.goals.progressOf(goals, contributions, day)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), notLoaded())
     /** Income minus net spend last month: the natural amount to move into a goal. */
-    val lastMonthSavingsPaise: StateFlow<Long> = transactions.map { InsightsEngine.summarize(it, Periods.month(-1), c.settings.countCashAsSpend.value).savingsPaise }
+    val lastMonthSavingsPaise: StateFlow<Long> = combine(transactions, countCashAsSpend) { txns, cash -> InsightsEngine.summarize(txns, Periods.month(-1), cash).savingsPaise }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
     fun saveGoal(g: com.pft.financetracker.domain.goals.Goal) = viewModelScope.launch(Dispatchers.IO) { c.goals.save(g) }
     fun deleteGoal(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.goals.delete(id) }

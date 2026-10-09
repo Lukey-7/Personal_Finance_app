@@ -55,8 +55,36 @@ data class ActivityFilter(
 
     fun apply(txns: List<Transaction>, query: String, hidden: Set<Long>): List<Transaction> = txns.filter { matches(it, query, hidden) }
 
+    /** The filter as plain strings, so it survives leaving the screen and the app being closed in the background. */
+    fun encode(): ArrayList<String> = arrayListOf(
+        categories.joinToString(SEP) { it.name }, accounts.joinToString(SEP), flows.joinToString(SEP) { it.name },
+        fromDay?.toString() ?: "", toDay?.toString() ?: "", showReversed.toString(),
+    )
+
     companion object {
         private const val DAY = 86_400_000L
+        private const val SEP = "\u001F"
+
+        private fun parts(s: String): List<String> = if (s.isEmpty()) emptyList() else s.split(SEP)
+
+        /** The filter [encode] wrote; anything it can't read (a category since removed) is dropped. */
+        fun decode(saved: List<String>): ActivityFilter = runCatching {
+            ActivityFilter(
+                categories = parts(saved[0]).mapNotNull { n -> Category.entries.firstOrNull { it.name == n } }.toSet(),
+                accounts = parts(saved[1]).toSet(),
+                flows = parts(saved[2]).mapNotNull { n -> Flow.entries.firstOrNull { it.name == n } }.toSet(),
+                fromDay = saved[3].toLongOrNull(),
+                toDay = saved[4].toLongOrNull(),
+                showReversed = saved[5] == "true",
+            )
+        }.getOrDefault(ActivityFilter())
+
+        /** For rememberSaveable. */
+        @Suppress("UNCHECKED_CAST")
+        val Saver: androidx.compose.runtime.saveable.Saver<ActivityFilter, Any> = androidx.compose.runtime.saveable.Saver(
+            save = { it.encode() },
+            restore = { decode(it as List<String>) },
+        )
 
         /** Accounts that appear in [txns], most used first (ties alphabetical), for the sheet's account choices. */
         fun accountsIn(txns: List<Transaction>): List<String> =
@@ -118,6 +146,8 @@ data class Selection(val ids: Set<Long> = emptySet()) {
     val active: Boolean get() = ids.isNotEmpty()
     fun toggle(id: Long) = Selection(if (id in ids) ids - id else ids + id)
     fun selectAll(all: List<Long>) = Selection(all.toSet())
+    /** Only the chosen rows still on screen: a search or filter that hides a row also unselects it. */
+    fun keepOnly(visible: Set<Long>): Selection = if (ids.all { it in visible }) this else Selection(ids.filterTo(HashSet()) { it in visible })
     operator fun contains(id: Long) = id in ids
 }
 
