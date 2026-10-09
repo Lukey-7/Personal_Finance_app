@@ -65,15 +65,24 @@ agent checks the code read-only (prompt at the end). I fix what it confirms.
 
 ## Phase 3 · Books (in-process)
 
-- [ ] New `domain/books/Books.kt`: `Books.of(payments, rules)`, interface:
-      `summary(period)`, `payments(period, figure)`, `budgets(month, limits)`, `trends(current, previous)`, `tips(...)`.
-- [ ] InsightsEngine's counting functions become Books' implementation; the cash flag leaves every interface.
-- [ ] AppViewModel exposes one `books` flow (payments + counting rules). Home, Insights, Budgets, drill-down, Ask
-      (rules, Nano, ChatGPT facts), widget, goals and the AI summary read from it.
-- [ ] Tests: `BooksTest` invariant over generated data: for every figure, the figure equals the sum of
-      `payments(period, figure)` (net of refunds), with cash counted and not counted. Existing Insights tests move to
-      Books, same numbers.
-- [ ] Grep check: no `includeCash` / `isSpend(` outside `domain/books`.
+- [x] New `domain/books/Books.kt`: `Books.of(payments, rules)` with `summary(period)` (worked out once per period),
+      `payments(period, bucket, category)`, `Books.total(list, bucket)`, `budgets(limits, month)`, `trends(current,
+      previous)`, `tips(budgets, now)`, `isSpend(t)`, and `all`. `CountingRules(cashIsSpend)` holds the counting rules.
+- [x] InsightsEngine's counting moved into Books verbatim; InsightsEngine keeps the shared types, periods and the
+      merchant key. The cash flag left every interface (Ask's context, the widget, Home's figures).
+- [x] AppViewModel exposes one `books` flow (payments + rules); `loaded` now reads it, so once a screen shows figures the
+      books it reads are loaded too. Home, Insights, Budgets, drill-down, Ask (rules, Nano, ChatGPT facts), the widget,
+      goals' "last month's savings" and the AI summary read from it. The unused `vm.summary`/`vm.drillDown` are gone
+      (the latter ignored the cash setting).
+- [x] Changed on purpose (the books' promise found it): Home's "Transfers & card bill payments", "Transfers in" and
+      "Paid back by friends" all opened one list of both directions, and "Investments" listed redemptions too, so the
+      list's total never matched the row tapped. Each now opens its own figure's payments (`TRANSFERS_OUT`,
+      `TRANSFERS_IN`, `PAID_BACK`, money-out `INVESTMENTS`).
+- [x] `BooksTest`: on 40 generated months, each under both rules, every figure equals the total of its payments (net
+      spend, each category, refunds, income, transfers out/in, paid back, investments, cash, counts); budgets read the
+      summary's category figures; cash counts only under its rule. Existing Insights, monthly summary, period compare,
+      recurring tips, split and Home tests moved to Books with the same assertions.
+- [x] Grep: no `includeCash` anywhere; `isSpend` only inside Books (Ask asks `books.isSpend`).
 
 ## Phase 4 · Verify
 

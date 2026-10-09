@@ -24,7 +24,7 @@ object NanoPrompt {
             m.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH)))
         val lines = mutableListOf<String>()
         for ((name, m) in listOf("This month" to ym, "Last month" to ym.minusMonths(1), "Two months ago" to ym.minusMonths(2))) {
-            val s = InsightsEngine.summarize(c.txns, period(m), c.includeCash)
+            val s = c.books.summary(period(m))
             lines += "$name (${s.period.label}): spent ${rupees(s.netSpendPaise)}, income ${rupees(s.incomePaise)}, saved ${rupees(s.savingsPaise)}."
             if (s.byCategory.isNotEmpty()) lines += "  By category: " + s.byCategory.sortedByDescending { it.amountPaise }.take(8).joinToString(", ") { "${it.category.label} ${rupees(it.amountPaise)}" } + "."
             if (s.byMerchant.isNotEmpty()) lines += "  Top payees: " + s.byMerchant.take(6).joinToString(", ") { "${it.merchant} ${rupees(it.amountPaise)} (${it.count}x)" } + "."

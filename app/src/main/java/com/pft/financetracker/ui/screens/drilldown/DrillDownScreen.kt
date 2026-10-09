@@ -71,14 +71,13 @@ fun DrillDownScreen(
     /** The period the tapping screen showed; null follows Home's period. */
     range: Period? = null,
 ) {
-    val txns by vm.transactions.collectAsState()
+    val books by vm.books.collectAsState()
     val choice by vm.period.collectAsState()
     val loaded by vm.loaded.collectAsState()
-    val includeCash by vm.countCashAsSpend.collectAsState()
     val period = range ?: choice.period()
     // Spend lists its refunds too, so the total is the same net figure the tapping screen showed.
-    val list = remember(txns, choice, range, bucket, category, includeCash) { InsightsEngine.drillDown(txns, period, bucket, category, includeCash) }
-    val total = InsightsEngine.drillTotal(list, bucket)
+    val list = remember(books, choice, range, bucket, category) { books.payments(period, bucket, category) }
+    val total = com.pft.financetracker.domain.books.Books.total(list, bucket)
     val refunds = if (bucket == InsightsEngine.Bucket.SPEND) list.count { it.flow == com.pft.financetracker.domain.model.Flow.REFUND } else 0
     val name = category?.label ?: bucketLabel(bucket)
     val days = list.groupBy { dayOf(it.timestamp) }
@@ -152,6 +151,9 @@ private fun bucketLabel(b: Bucket): String = when (b) {
     Bucket.REFUNDS -> "Refunds"
     Bucket.INCOME -> "Income"
     Bucket.TRANSFERS -> "Transfers"
+    Bucket.TRANSFERS_OUT -> "Transfers & card bill payments"
+    Bucket.TRANSFERS_IN -> "Transfers in"
+    Bucket.PAID_BACK -> "Paid back by friends"
     Bucket.INVESTMENTS -> "Investments"
     Bucket.CASH -> "Cash withdrawals"
     Bucket.ALL -> "Everything"
@@ -161,7 +163,7 @@ private fun bucketLabel(b: Bucket): String = when (b) {
 @Composable
 private fun heroColor(b: Bucket): Color = when (b) {
     Bucket.INCOME, Bucket.REFUNDS -> Income
-    Bucket.TRANSFERS, Bucket.INVESTMENTS -> Neutral
+    Bucket.TRANSFERS, Bucket.TRANSFERS_OUT, Bucket.TRANSFERS_IN, Bucket.PAID_BACK, Bucket.INVESTMENTS -> Neutral
     else -> MaterialTheme.colorScheme.onBackground
 }
 

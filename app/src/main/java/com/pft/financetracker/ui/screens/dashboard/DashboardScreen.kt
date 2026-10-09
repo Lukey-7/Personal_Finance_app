@@ -75,6 +75,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.pft.financetracker.domain.books.Books
+import com.pft.financetracker.domain.books.CountingRules
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.InsightsEngine.Bucket
 import com.pft.financetracker.domain.insights.Period
@@ -154,12 +156,11 @@ fun DashboardScreen(
     onOpenTools: () -> Unit = {},
     onOpenRoute: (String) -> Unit = {},
 ) {
-    val txns by vm.transactions.collectAsState()
+    val books by vm.books.collectAsState()
     val budgets by vm.budgets.collectAsState()
     val reviewCount by vm.reviewCount.collectAsState()
     val importState by vm.importState.collectAsState()
     val choice by vm.period.collectAsState()
-    val includeCash by vm.countCashAsSpend.collectAsState()
     val suggestions by vm.splitSuggestions.collectAsState()
     val loaded by vm.loaded.collectAsState()
     val snackbar = remember { SnackbarHostState() }
@@ -170,11 +171,11 @@ fun DashboardScreen(
     // Worked out once per change of data or period, off the main thread's hot path of every recomposition.
     // Worked out on a background thread, only from loaded data; the previous figures stay on screen until the new
     // ones are ready, and the skeleton shows until the first ones are (never a flash of ₹0).
-    val computed by androidx.compose.runtime.produceState<HomeFigures?>(null, txns, budgets, choice, includeCash) {
-        if (com.pft.financetracker.ui.isLoaded(txns) && com.pft.financetracker.ui.isLoaded(budgets))
-            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { HomeFigures.of(txns, budgets, choice, includeCash) }
+    val computed by androidx.compose.runtime.produceState<HomeFigures?>(null, books, budgets, choice) {
+        if (com.pft.financetracker.ui.isLoaded(books.all) && com.pft.financetracker.ui.isLoaded(budgets))
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { HomeFigures.of(books, budgets, choice) }
     }
-    val placeholder = remember(choice) { HomeFigures.of(emptyList(), emptyList(), choice, includeCash) }
+    val placeholder = remember(choice) { HomeFigures.of(Books.of(emptyList()), emptyList(), choice) }
     val view = computed ?: placeholder
     val period = view.period
     val summary = view.summary
@@ -438,7 +439,7 @@ fun DashboardScreen(
             // ---- Money that moved but is not spend ----
             val paidBack = summary.settlementsInPaise
             val movedIn = summary.transfersInPaise - paidBack
-            val cashOut = if (includeCash) 0L else summary.cashPaise
+            val cashOut = if (books.rules.cashIsSpend) 0L else summary.cashPaise
             if (summary.transfersOutPaise + summary.transfersInPaise + summary.investmentsPaise + cashOut > 0) item(key = "notcounted") {
                 ExpandableCard(
                     title = "Not counted as spend",
@@ -448,9 +449,9 @@ fun DashboardScreen(
                     modifier = Modifier.padding(horizontal = Gutter),
                     stateKey = "home-notcounted",
                 ) {
-                    if (summary.transfersOutPaise > 0) AmountRow("Transfers & card bill payments", summary.transfersOutPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS, null) }
-                    if (movedIn > 0) AmountRow("Transfers in", movedIn, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS, null) }
-                    if (paidBack > 0) AmountRow("Paid back by friends", paidBack, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS, null) }
+                    if (summary.transfersOutPaise > 0) AmountRow("Transfers & card bill payments", summary.transfersOutPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS_OUT, null) }
+                    if (movedIn > 0) AmountRow("Transfers in", movedIn, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.TRANSFERS_IN, null) }
+                    if (paidBack > 0) AmountRow("Paid back by friends", paidBack, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.PAID_BACK, null) }
                     if (summary.investmentsPaise > 0) AmountRow("Investments", summary.investmentsPaise, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.INVESTMENTS, null) }
                     if (cashOut > 0) AmountRow("Cash withdrawals", cashOut, Neutral, labelColor = MaterialTheme.colorScheme.onSurface) { onDrill(Bucket.CASH, null) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -487,7 +488,7 @@ fun DashboardScreen(
                 // A past period lists its own latest payments, not this week's.
                 SectionHeader(if (now in period) "Recent" else "Latest in ${period.label}", Modifier.padding(top = Space.md)) { TextAction("See all", onOpenTransactions) }
             }
-            if (recent.isEmpty() && txns.isNotEmpty()) item(key = "recent-none") {
+            if (recent.isEmpty() && books.all.isNotEmpty()) item(key = "recent-none") {
                 Text(
                     "No payments in ${period.label}.",
                     Modifier.padding(horizontal = Gutter),
@@ -495,7 +496,7 @@ fun DashboardScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (txns.isEmpty()) item(key = "recent-empty") {
+            if (books.all.isEmpty()) item(key = "recent-empty") {
                 EmptyState(
                     Icons.AutoMirrored.Outlined.ReceiptLong,
                     "No transactions yet",
@@ -628,26 +629,26 @@ internal class HomeFigures(
 ) {
     companion object {
         fun of(
-            txns: List<com.pft.financetracker.domain.model.Transaction>,
+            books: Books,
             budgets: List<com.pft.financetracker.domain.model.Budget>,
             choice: PeriodChoice,
-            includeCash: Boolean,
             now: Long = System.currentTimeMillis(),
         ): HomeFigures {
             val period = choice.period(now)
-            val summary = InsightsEngine.summarize(txns, period, includeCash)
+            val summary = books.summary(period)
             // Six days into a month compares with the first six days of the last one, not all of it.
             val comparedWith = Periods.sameSpanBefore(period, choice.previous(now), now)
-            val previous = InsightsEngine.summarize(txns, comparedWith, includeCash)
+            val previous = books.summary(comparedWith)
             // Budgets are monthly limits: show the month the chosen period ends in.
             val budgetPeriod = if (choice is PeriodChoice.Month) period else Periods.month(0, minOf(period.end - 1, now))
-            val budgetStatus = InsightsEngine.budgetStatus(txns, budgets, budgetPeriod, includeCash)
+            val budgetStatus = books.budgets(budgets, budgetPeriod)
+            val txns = books.all
             val recent = if (now in period) txns.take(6) else txns.asSequence().filter { it.timestamp in period }.take(6).toList()
             val spark = sparkChoices(choice)
             val sparkPeriods = spark.map { it.period(now) }
             val weekly = choice is PeriodChoice.Week
             val bars = sparkPeriods.map { p ->
-                ChartBar(sparkLabel(p, weekly), InsightsEngine.summarize(txns, p, includeCash).netSpendPaise, current = p.start == period.start)
+                ChartBar(sparkLabel(p, weekly), books.summary(p).netSpendPaise, current = p.start == period.start)
             }
             return HomeFigures(now, period, summary, comparedWith, previous, budgetPeriod, budgetStatus, recent, spark, sparkPeriods, bars)
         }

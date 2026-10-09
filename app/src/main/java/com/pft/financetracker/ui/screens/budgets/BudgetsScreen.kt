@@ -78,11 +78,10 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
-    val txns by vm.transactions.collectAsState()
+    val books by vm.books.collectAsState()
     val budgets by vm.budgets.collectAsState()
     val loaded by vm.loaded.collectAsState()
-    val includeCash by vm.countCashAsSpend.collectAsState()
-    val summary = InsightsEngine.summarize(txns, Periods.month(), includeCash)
+    val summary = books.summary(Periods.month())
     var editing by remember { mutableStateOf<Category?>(null) }
     var input by remember { mutableStateOf("") }
 

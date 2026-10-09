@@ -117,10 +117,9 @@ fun InsightsScreen(
     /** Opens the payments behind a row, for the period this screen shows (not Home's). */
     onDrill: (Bucket, Category?, Period) -> Unit = { _, _, _ -> },
 ) {
-    val txns by vm.transactions.collectAsState()
+    val books by vm.books.collectAsState()
     val budgets by vm.budgets.collectAsState()
     val loaded by vm.loaded.collectAsState()
-    val includeCash by vm.countCashAsSpend.collectAsState()
     var weekly by rememberSaveable { mutableStateOf(false) }
     var selected by remember(weekly) { mutableStateOf<Int?>(null) }
     val dismissed = rememberSaveable(
@@ -129,15 +128,15 @@ fun InsightsScreen(
 
     val now = System.currentTimeMillis()
     val periods = if (weekly) (5 downTo 0).map { Periods.week(-it) } else (5 downTo 0).map { Periods.month(-it) }
-    val bars = periods.mapIndexed { i, p -> ChartBar(shortLabel(p, weekly, i, periods), InsightsEngine.summarize(txns, p, includeCash).netSpendPaise, current = now in p) }
+    val bars = periods.mapIndexed { i, p -> ChartBar(shortLabel(p, weekly, i, periods), books.summary(p).netSpendPaise, current = now in p) }
     // Category rows compare like with like, the same way as the trend line: this period so far against the same days before.
     val current = if (weekly) Periods.week() else Periods.month()
     val before = Periods.sameSpanBefore(current, if (weekly) Periods.week(-1) else Periods.month(-1), now)
-    val trends = InsightsEngine.categoryTrends(txns, current, before, includeCash).sortedByDescending { it.magnitude }
-    val curByCat = InsightsEngine.summarize(txns, current, includeCash).byCategory.associate { it.category to it.amountPaise }
-    val prevByCat = InsightsEngine.summarize(txns, before, includeCash).byCategory.associate { it.category to it.amountPaise }
+    val trends = books.trends(current, before).sortedByDescending { it.magnitude }
+    val curByCat = books.summary(current).byCategory.associate { it.category to it.amountPaise }
+    val prevByCat = books.summary(before).byCategory.associate { it.category to it.amountPaise }
     val biggest = trends.maxOfOrNull { t -> t.category?.let { curByCat[it] } ?: 0L }?.coerceAtLeast(1L) ?: 1L
-    val suggestions = InsightsEngine.suggestions(txns, budgets, now, includeCash)
+    val suggestions = books.tips(budgets, now)
     // Tips look at this month, so their payments open on this month.
     val tipsPeriod = Periods.month(0, now)
 
@@ -177,7 +176,7 @@ fun InsightsScreen(
                 return@LazyColumn
             }
 
-            if (txns.isEmpty()) {
+            if (books.all.isEmpty()) {
                 item(key = "empty") {
                     EmptyState(
                         Icons.Outlined.Insights,
@@ -202,9 +201,9 @@ fun InsightsScreen(
                         caption = { i -> periods[i].label },
                     )
                     // The current period is still running, so it is compared with the same days of the one before.
-                    val cur = InsightsEngine.summarize(txns, periods.last(), includeCash).netSpendPaise
+                    val cur = books.summary(periods.last()).netSpendPaise
                     val span = Periods.sameSpanBefore(periods.last(), periods[periods.lastIndex - 1], now)
-                    val spanSpend = InsightsEngine.summarize(txns, span, includeCash).netSpendPaise
+                    val spanSpend = books.summary(span).netSpendPaise
                     val change = InsightsEngine.changePercent(cur, spanSpend)
                     if (change != null) {
                         Hairline()

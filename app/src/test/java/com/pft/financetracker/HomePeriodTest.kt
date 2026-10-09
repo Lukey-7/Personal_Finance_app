@@ -1,5 +1,6 @@
 package com.pft.financetracker
 
+import com.pft.financetracker.domain.books.Books
 import com.pft.financetracker.ui.model.DrillPeriod
 import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.domain.model.Budget
@@ -106,7 +107,7 @@ class HomePeriodTest {
             spend(2_000_00, at(2026, 6, 10)),
         ).sortedByDescending { it.timestamp }
         val budgets = listOf(Budget(Category.FOOD, 2_000_00))
-        val f = HomeFigures.of(txns, budgets, PeriodChoice.Month(-3), includeCash = true, now = now)
+        val f = HomeFigures.of(Books.of(txns), budgets, PeriodChoice.Month(-3), now = now)
         assertEquals(2_500_00L, f.summary.netSpendPaise)       // July only, net of the refund
         assertEquals(2_000_00L, f.previous.netSpendPaise)      // all of June
         assertEquals(day(2026, 7, 1), f.budgetPeriod.start)    // July's budget, not October's
@@ -117,7 +118,7 @@ class HomePeriodTest {
     }
 
     @Test fun aWeekShowsTheBudgetOfTheMonthItEndsIn() {
-        val f = HomeFigures.of(emptyList(), emptyList(), PeriodChoice.Week(0), includeCash = true, now = now)
+        val f = HomeFigures.of(Books.of(emptyList()), emptyList(), PeriodChoice.Week(0), now = now)
         assertEquals(Periods.month(0, now).start, f.budgetPeriod.start)
     }
 

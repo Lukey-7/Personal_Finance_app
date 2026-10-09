@@ -15,3 +15,8 @@ The words the code and the docs use for money ideas. Keep names in code matching
   never run twice at once.
 - **Correction**: a change a person made to a payment (`userEdited`); automatic rewrites leave it alone. A split
   shrinking a payment is a **reshape**, not a correction.
+- **Books**: the payments read through the counting rules (`domain/books/Books.kt`). Every figure on every screen comes
+  from here, and each can list the payments that add up to it.
+- **Counting rules**: what counts as spend and income. Today: whether ATM cash counts as spend (Settings).
+- **Figure**: one number on screen (net spend, a category, income, transfers out…). Its **bucket** names the payments
+  behind it; the drill-down list of a figure always totals to the figure.

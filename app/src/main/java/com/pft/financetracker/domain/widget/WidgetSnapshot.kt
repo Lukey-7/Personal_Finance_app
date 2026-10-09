@@ -2,7 +2,8 @@ package com.pft.financetracker.domain.widget
 
 import com.pft.financetracker.domain.bills.Bill
 import com.pft.financetracker.domain.bills.BillState
-import com.pft.financetracker.domain.insights.InsightsEngine
+import com.pft.financetracker.domain.books.Books
+import com.pft.financetracker.domain.books.CountingRules
 import com.pft.financetracker.domain.insights.Period
 import com.pft.financetracker.domain.model.Budget
 import com.pft.financetracker.domain.model.Transaction
@@ -21,12 +22,12 @@ object WidgetSnapshot {
 
     fun build(
         txns: List<Transaction>, budgets: List<Budget>, bills: List<Pair<Bill, BillState>>, hideAmounts: Boolean,
-        includeCash: Boolean = true, now: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault(),
+        rules: CountingRules = CountingRules(), now: Long = System.currentTimeMillis(), zone: ZoneId = ZoneId.systemDefault(),
     ): WidgetText {
         val ym = YearMonth.from(Instant.ofEpochMilli(now).atZone(zone))
         val start = ym.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
         val end = ym.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val summary = InsightsEngine.summarize(txns, Period(start, end, ""), includeCash)
+        val summary = Books.of(txns, rules).summary(Period(start, end, ""))
         // Whole rupees: at 26sp on the smallest widget, paise pushed the figure off the edge.
         fun rupees(p: Long) = if (hideAmounts) "₹••••" else com.pft.financetracker.domain.model.Rupees.format(p, com.pft.financetracker.domain.model.Paise.NEVER)
 

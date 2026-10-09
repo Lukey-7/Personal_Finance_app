@@ -1,5 +1,7 @@
 package com.pft.financetracker
 
+import com.pft.financetracker.domain.books.Books
+import com.pft.financetracker.domain.books.CountingRules
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.pft.financetracker.data.local.AppDatabase
@@ -85,7 +87,7 @@ class SplitEngineTest {
 
     private suspend fun byMerchant(m: String) = repo.getAll().first { it.merchant.equals(m, true) }
     private fun summary(all: List<com.pft.financetracker.domain.model.Transaction>) =
-        InsightsEngine.summarize(all, Periods.custom(at(0, 0), at(6, 0)), true)
+        Books.of(all).summary(Periods.custom(at(0, 0), at(6, 0)))
 
     @Test fun ronaksWeekendFromRealSms() = runBlocking {
         weekend().forEach { importer.process(it) }

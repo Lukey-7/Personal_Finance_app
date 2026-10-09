@@ -1,5 +1,7 @@
 package com.pft.financetracker
 
+import com.pft.financetracker.domain.books.Books
+import com.pft.financetracker.domain.books.CountingRules
 import org.junit.Assert.assertTrue
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.Periods
@@ -34,7 +36,7 @@ class InsightsEngineTest {
 
     @Test
     fun grossNetRefundsIncomeSavings() {
-        val s = InsightsEngine.summarize(data, month)
+        val s = Books.of(data).summary(month)
         assertEquals(1_200_00 + 800_00 + 2_500_00 + 2_000_00L, s.grossSpendPaise)
         assertEquals(500_00L, s.refundsPaise)
         assertEquals(6_000_00L, s.netSpendPaise)
@@ -46,14 +48,14 @@ class InsightsEngineTest {
 
     @Test
     fun cashCanBeExcluded() {
-        val s = InsightsEngine.summarize(data, month, includeCash = false)
+        val s = Books.of(data, CountingRules(cashIsSpend = false)).summary(month)
         assertEquals(4_500_00L, s.grossSpendPaise)
         assertEquals(2_000_00L, s.cashPaise)
     }
 
     @Test
     fun refundReducesMatchingCategory() {
-        val s = InsightsEngine.summarize(data, month)
+        val s = Books.of(data).summary(month)
         assertEquals(2_000_00L, s.byCategory.first { it.category == Category.SHOPPING }.amountPaise)
         assertEquals(2_000_00L, s.byCategory.first { it.category == Category.FOOD }.amountPaise)
         assertNull(s.byCategory.firstOrNull { it.category == Category.TRANSFER })
@@ -61,43 +63,43 @@ class InsightsEngineTest {
 
     @Test
     fun categoriesSumToNetSpend() {
-        val s = InsightsEngine.summarize(data, month)
+        val s = Books.of(data).summary(month)
         assertEquals(s.netSpendPaise, s.byCategory.sumOf { it.amountPaise })
     }
 
     @Test
     fun drillDownMatchesHeadline() {
-        val s = InsightsEngine.summarize(data, month)
+        val s = Books.of(data).summary(month)
         // Spend lists its refunds too, so the drill-down adds up to the net figure Home shows.
-        val spend = InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.SPEND)
-        assertEquals(s.netSpendPaise, InsightsEngine.drillTotal(spend, InsightsEngine.Bucket.SPEND))
+        val spend = Books.of(data).payments(month, InsightsEngine.Bucket.SPEND)
+        assertEquals(s.netSpendPaise, Books.total(spend, InsightsEngine.Bucket.SPEND))
         for (c in s.byCategory) {
-            val list = InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.SPEND, c.category)
-            assertEquals(c.category.label, c.amountPaise, InsightsEngine.drillTotal(list, InsightsEngine.Bucket.SPEND))
+            val list = Books.of(data).payments(month, InsightsEngine.Bucket.SPEND, c.category)
+            assertEquals(c.category.label, c.amountPaise, Books.total(list, InsightsEngine.Bucket.SPEND))
         }
         // Leaving cash out of spend leaves it out of the drill-down and the budgets as well.
-        val noCash = InsightsEngine.summarize(data, month, includeCash = false)
-        assertEquals(noCash.netSpendPaise, InsightsEngine.drillTotal(InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.SPEND, includeCash = false), InsightsEngine.Bucket.SPEND))
-        assertEquals(s.refundsPaise, InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.REFUNDS).sumOf { it.amountPaise })
-        assertEquals(s.transfersOutPaise, InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.TRANSFERS).sumOf { it.amountPaise })
+        val noCash = Books.of(data, CountingRules(cashIsSpend = false)).summary(month)
+        assertEquals(noCash.netSpendPaise, Books.total(Books.of(data, CountingRules(cashIsSpend = false)).payments(month, InsightsEngine.Bucket.SPEND), InsightsEngine.Bucket.SPEND))
+        assertEquals(s.refundsPaise, Books.of(data).payments(month, InsightsEngine.Bucket.REFUNDS).sumOf { it.amountPaise })
+        assertEquals(s.transfersOutPaise, Books.of(data).payments(month, InsightsEngine.Bucket.TRANSFERS).sumOf { it.amountPaise })
     }
 
     @Test
     fun topMerchant() {
-        val s = InsightsEngine.summarize(data, month)
+        val s = Books.of(data).summary(month)
         assertEquals("Amazon", s.byMerchant.first().merchant)
     }
 
     @Test
     fun reviewItemsNeverCount() {
         val withReview = data + t(99_999_00, TransactionType.DEBIT, Flow.EXPENSE, Category.OTHER).copy(needsReview = true)
-        assertEquals(InsightsEngine.summarize(data, month).netSpendPaise, InsightsEngine.summarize(withReview, month).netSpendPaise)
+        assertEquals(Books.of(data).summary(month).netSpendPaise, Books.of(withReview).summary(month).netSpendPaise)
     }
 
     @Test
     fun dailyAverageAndProjection() {
         val now = month.start + 9 * 86_400_000L + 3600_000L // day 10 of the month
-        val s = InsightsEngine.summarize(data, month)
+        val s = Books.of(data).summary(month)
         assertEquals(s.netSpendPaise / 10, s.dailyAveragePaise(now))
         val days = Calendar.getInstance().apply { timeInMillis = month.start }.getActualMaximum(Calendar.DAY_OF_MONTH)
         assertEquals(s.netSpendPaise / 10 * days, s.projectedPaise(now))
@@ -116,8 +118,8 @@ class InsightsEngineTest {
             t(1_000_00, TransactionType.DEBIT, Flow.CASH, Category.ATM, "ATM", at = on(Calendar.SEPTEMBER, 3)),
             t(5_000_00, TransactionType.DEBIT, Flow.CASH, Category.ATM, "ATM", at = on(Calendar.OCTOBER, 3)),
         )
-        assertTrue(InsightsEngine.categoryTrends(cash, cur, prev).any { it.category == Category.ATM })
-        assertTrue(InsightsEngine.categoryTrends(cash, cur, prev, includeCash = false).none { it.category == Category.ATM })
+        assertTrue(Books.of(cash).trends(cur, prev).any { it.category == Category.ATM })
+        assertTrue(Books.of(cash, CountingRules(cashIsSpend = false)).trends(cur, prev).none { it.category == Category.ATM })
     }
 
     @Test
@@ -128,7 +130,7 @@ class InsightsEngineTest {
             t(500_00, TransactionType.DEBIT, Flow.EXPENSE, Category.FOOD, "Swiggy", at = on(Calendar.OCTOBER, 2)),
             t(1_800_00, TransactionType.CREDIT, Flow.REFUND, Category.FOOD, "Swiggy", at = on(Calendar.OCTOBER, 3)),
         )
-        val trends = InsightsEngine.categoryTrends(list, cur, prev)
+        val trends = Books.of(list).trends(cur, prev)
         assertTrue(trends.joinToString { it.title }, trends.none { it.category == Category.FOOD })
         assertTrue(trends.all { it.magnitude in 0..10_000 && !it.title.contains("-") })
     }
@@ -137,7 +139,7 @@ class InsightsEngineTest {
     fun aCategoryThatStoppedIsDeliberatelyNotListed() {
         val cur = Periods.month(0, oct6); val prev = Periods.month(-1, oct6)
         val list = listOf(t(2_000_00, TransactionType.DEBIT, Flow.EXPENSE, Category.ENTERTAINMENT, "Netflix", at = on(Calendar.SEPTEMBER, 3)))
-        assertTrue(InsightsEngine.categoryTrends(list, cur, prev).isEmpty())
+        assertTrue(Books.of(list).trends(cur, prev).isEmpty())
     }
 
     @Test
@@ -147,14 +149,14 @@ class InsightsEngineTest {
             t(1_000_00, TransactionType.DEBIT, Flow.EXPENSE, Category.FOOD, "Swiggy", at = on(Calendar.SEPTEMBER, 3)),
             t(400_00, TransactionType.DEBIT, Flow.EXPENSE, Category.FOOD, "Swiggy", at = on(Calendar.OCTOBER, 3)),
         )
-        assertEquals("Food & Dining down 60%", InsightsEngine.categoryTrends(list, cur, prev).single().title)
+        assertEquals("Food & Dining down 60%", Books.of(list).trends(cur, prev).single().title)
     }
 
     @Test
     fun budgetTipsFollowTheCashSetting() {
         val list = listOf(t(2_000_00, TransactionType.DEBIT, Flow.CASH, Category.ATM, "ATM", at = on(Calendar.OCTOBER, 3)))
         val budgets = listOf(com.pft.financetracker.domain.model.Budget(Category.ATM, 1_000_00))
-        assertTrue(InsightsEngine.suggestions(list, budgets, oct6).any { it.title.startsWith("Over budget") })
-        assertTrue(InsightsEngine.suggestions(list, budgets, oct6, includeCash = false).none { it.title.startsWith("Over budget") })
+        assertTrue(Books.of(list).tips(budgets, oct6).any { it.title.startsWith("Over budget") })
+        assertTrue(Books.of(list, CountingRules(cashIsSpend = false)).tips(budgets, oct6).none { it.title.startsWith("Over budget") })
     }
 }

@@ -13,6 +13,8 @@ import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.data.sms.ImportStats
 import com.pft.financetracker.domain.ai.OpenAiClient
 import com.pft.financetracker.domain.export.CsvExporter
+import com.pft.financetracker.domain.books.Books
+import com.pft.financetracker.domain.books.CountingRules
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.Period
 import com.pft.financetracker.domain.insights.Periods
@@ -134,6 +136,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val transactions: StateFlow<List<Transaction>> = c.transactions.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     val budgets: StateFlow<List<Budget>> = c.budgets.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
+    /** The payments read through the counting rules. Every figure on every screen comes from here. */
+    val books: StateFlow<Books> = combine(transactions, c.settings.countCashAsSpend) { t, cash -> Books.of(t, CountingRules(cashIsSpend = cash)) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Books.of(notLoaded()))
     val reviewQueue: StateFlow<List<ReviewItemEntity>> = c.transactions.reviewQueue.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     val reviewCount: StateFlow<Int> = c.transactions.reviewCount.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
     val smsLog: StateFlow<List<SmsLogEntity>> = c.smsLog.recent.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
@@ -152,7 +157,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val recentPeople: StateFlow<List<String>> = c.splits.recentPeople.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** False until the database has answered for transactions, splits and budgets, so screens show a spinner, not "nothing yet". */
-    val loaded: StateFlow<Boolean> = combine(transactions, splits, budgets) { a, b, d -> isLoaded(a) && isLoaded(b) && isLoaded(d) }
+    // From the books, not the raw list: once this is true the books on screen hold the loaded payments too.
+    val loaded: StateFlow<Boolean> = combine(books, splits, budgets) { a, b, d -> isLoaded(a.all) && isLoaded(b) && isLoaded(d) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val hasApiKey: StateFlow<Boolean> = c.settings.hasApiKey
@@ -290,21 +296,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun smsBody(e: SmsLogEntity): String? = withContext(Dispatchers.IO) { runCatching { c.importer.readBody(e.sender, e.receivedAt, e.smsHash) }.getOrNull() }
     fun flagLogEntry(logId: Long, onDone: (Boolean) -> Unit) = viewModelScope.launch { onDone(c.importer.sendToReview(logId)) }
 
-    // ---- Summary helpers ----
-    fun summary(period: Period) = InsightsEngine.summarize(transactions.value, period, countCashAsSpend.value)
-    fun drillDown(period: Period, bucket: InsightsEngine.Bucket, category: Category?) = InsightsEngine.drillDown(transactions.value, period, bucket, category)
-
     // ---- AI ----
     fun setApiKey(key: String?) = c.settings.setApiKey(key)
 
     /** Aggregated payload preview so users can see exactly what would be sent. */
     fun aiPayloadPreview(): String {
-        val all = transactions.value
+        val books = books.value
         // A month still running is compared with the same days of the last one, as on Home and in monthInWords.
         val now = System.currentTimeMillis()
         val before = Periods.sameSpanBefore(Periods.month(0, now), Periods.month(-1, now), now)
-        val cur = InsightsEngine.summarize(all, Periods.month(0, now), countCashAsSpend.value)
-        val prev = InsightsEngine.summarize(all, before, countCashAsSpend.value)
+        val cur = books.summary(Periods.month(0, now))
+        val prev = books.summary(before)
         return OpenAiClient().buildPayload(cur, prev, budgets.value)
     }
 
@@ -466,7 +468,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             c.goals.progressOf(goals, contributions, day)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), notLoaded())
     /** Income minus net spend last month: the natural amount to move into a goal. */
-    val lastMonthSavingsPaise: StateFlow<Long> = combine(transactions, countCashAsSpend) { txns, cash -> InsightsEngine.summarize(txns, Periods.month(-1), cash).savingsPaise }
+    val lastMonthSavingsPaise: StateFlow<Long> = books.map { it.summary(Periods.month(-1)).savingsPaise }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0L)
     fun saveGoal(g: com.pft.financetracker.domain.goals.Goal) = viewModelScope.launch(Dispatchers.IO) { c.goals.save(g) }
     fun deleteGoal(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.goals.delete(id) }
@@ -521,7 +523,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun ask(question: String, history: List<Pair<String, String>> = emptyList()): com.pft.financetracker.domain.ask.AskAnswer = withContext(Dispatchers.Default) {
         val ctx = com.pft.financetracker.domain.ask.AskContext(
             txns = transactions.value, budgets = budgets.value, recurring = c.recurring.book(), bills = c.bills.states(),
-            includeCash = countCashAsSpend.value,
+            rules = books.value.rules,
         )
         val rules = com.pft.financetracker.domain.ask.AskEngine.answer(question, ctx)
         // With a key and the switch on, ChatGPT answers every question from a summary of the payments; the rules'
@@ -562,12 +564,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     /** This month in a few written lines, worked out on the phone (no key, no network). */
     suspend fun monthInWords(): String = withContext(Dispatchers.Default) {
-        val all = transactions.value
+        val books = books.value
         // A month still running is compared with the same days of the last one ("1–6 Sep"), as on Home.
         val now = System.currentTimeMillis()
         val before = Periods.sameSpanBefore(Periods.month(), Periods.month(-1), now)
         com.pft.financetracker.domain.ask.MonthlySummary.write(
-            InsightsEngine.summarize(all, Periods.month(), countCashAsSpend.value), InsightsEngine.summarize(all, before, countCashAsSpend.value),
+            books.summary(Periods.month()), books.summary(before),
             budgets.value, c.recurring.book(),
         )
     }

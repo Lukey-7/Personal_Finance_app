@@ -2,6 +2,8 @@ package com.pft.financetracker.domain.ask
 
 import com.pft.financetracker.domain.bills.Bill
 import com.pft.financetracker.domain.bills.BillState
+import com.pft.financetracker.domain.books.Books
+import com.pft.financetracker.domain.books.CountingRules
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.Period
 import com.pft.financetracker.domain.model.Budget
@@ -26,10 +28,13 @@ data class AskContext(
     val budgets: List<Budget>,
     val recurring: RecurringBook,
     val bills: List<Pair<Bill, BillState>>,
-    val includeCash: Boolean = true,
+    val rules: CountingRules = CountingRules(),
     val now: Long = System.currentTimeMillis(),
     val zone: ZoneId = ZoneId.systemDefault(),
-)
+) {
+    /** The payments read through the counting rules: every figure Ask gives comes from here, as on Home. */
+    val books: Books by lazy { Books.of(txns, rules) }
+}
 
 /**
  * An answer in plain words, and the transactions behind it (for "show me"). [understood] is false when the rules did
@@ -75,7 +80,7 @@ object AskEngine {
     fun answer(question: String, c: AskContext): AskAnswer {
         val q = question.lowercase(Locale.ROOT).replace(Regex("""[^a-z0-9 ]"""), " ").replace(Regex("""\s+"""), " ").trim()
         val period = period(q, c)
-        val s = InsightsEngine.summarize(c.txns, period, c.includeCash)
+        val s = c.books.summary(period)
         // "Financial health" is about money overall, not the Health category.
         val category = category(q.replace("financial health", " "))
         val words = q.split(' ')
@@ -145,7 +150,7 @@ object AskEngine {
     private fun budget(c: AskContext, asked: Period): AskAnswer {
         if (c.budgets.isEmpty()) return AskAnswer("No budgets set. Set them in Insights > Budgets.")
         val month = if (isWholeMonth(asked, c)) asked else period("", c)
-        val s = InsightsEngine.summarize(c.txns, month, c.includeCash)
+        val s = c.books.summary(month)
         val spent = c.budgets.sumOf { b -> s.byCategory.firstOrNull { it.category == b.category }?.amountPaise?.coerceAtLeast(0) ?: 0L }
         val left = c.budgets.sumOf { it.monthlyLimitPaise } - spent
         val running = c.now in month
@@ -163,7 +168,7 @@ object AskEngine {
         return from.dayOfMonth == 1 && from.plusMonths(1).atStartOfDay(c.zone).toInstant().toEpochMilli() == p.end
     }
 
-    private fun spends(c: AskContext, p: Period) = c.txns.filter { it.timestamp in p && !it.needsReview && InsightsEngine.isSpend(it, c.includeCash) }
+    private fun spends(c: AskContext, p: Period) = c.txns.filter { it.timestamp in p && !it.needsReview && c.books.isSpend(it) }
 
     private fun category(q: String): Category? = Category.entries.filter { it != Category.OTHER && it != Category.INCOME }.firstOrNull { cat ->
         val names = setOf(cat.name.lowercase(Locale.ROOT)) + cat.label.lowercase(Locale.ROOT).split(Regex("""[^a-z]+""")).filter { it.length >= 4 }

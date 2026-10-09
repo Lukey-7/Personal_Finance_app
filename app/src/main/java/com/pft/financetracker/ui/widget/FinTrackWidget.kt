@@ -62,7 +62,8 @@ class FinTrackWidget : GlanceAppWidget() {
         val txns = c.db.transactionDao().getAll().map { it.toDomain() }
         val marks = c.db.billDao().allMarks().groupBy({ it.billId }, { LocalDate.ofEpochDay(it.dueDay) })
         val bills = c.bills.statesOf(c.db.billDao().getAll().map { it.toDomain() }, txns, marks, LocalDate.now())
-        return WidgetSnapshot.build(txns, c.budgets.getAll(), bills, c.settings.widgetHideAmounts.value, c.settings.countCashAsSpend.value)
+        return WidgetSnapshot.build(txns, c.budgets.getAll(), bills, c.settings.widgetHideAmounts.value,
+            com.pft.financetracker.domain.books.CountingRules(cashIsSpend = c.settings.countCashAsSpend.value))
     }
 
     @Composable

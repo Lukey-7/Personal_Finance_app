@@ -44,12 +44,12 @@ object AskAiPrompt {
         )
         val out = StringBuilder()
         out.append("Today is ").append(Instant.ofEpochMilli(c.now).atZone(zone).toLocalDate().format(dayFmt)).append(".\n")
-        out.append(if (c.includeCash) "ATM cash counts as spend.\n" else "ATM cash is not counted as spend.\n")
+        out.append(if (c.rules.cashIsSpend) "ATM cash counts as spend.\n" else "ATM cash is not counted as spend.\n")
 
         out.append("\nMonthly totals (spent is after refunds; transfers between own accounts, card bill payments and investments are not spend):\n")
         for (i in 0 until MONTHS) {
             val m = ym.minusMonths(i.toLong())
-            val s = InsightsEngine.summarize(c.txns, period(m), c.includeCash)
+            val s = c.books.summary(period(m))
             if (i > 0 && s.count == 0) continue
             out.append("- ").append(m.format(monthFmt)).append(if (i == 0) " (so far)" else "")
                 .append(": spent ").append(r(s.netSpendPaise))
@@ -60,14 +60,14 @@ object AskAiPrompt {
         }
 
         for ((name, m) in listOf("This month" to ym, "Last month" to ym.minusMonths(1))) {
-            val s = InsightsEngine.summarize(c.txns, period(m), c.includeCash)
+            val s = c.books.summary(period(m))
             if (s.byCategory.isEmpty()) continue
             out.append("\n").append(name).append(" by category: ")
                 .append(s.byCategory.joinToString(", ") { "${it.category.label} ${r(it.amountPaise)} (${it.count})" }).append(".\n")
         }
 
         val threeMonths = Period(period(ym.minusMonths(2)).start, period(ym).end, "last three months")
-        val payees = InsightsEngine.summarize(c.txns, threeMonths, c.includeCash).byMerchant.take(25)
+        val payees = c.books.summary(threeMonths).byMerchant.take(25)
         if (payees.isNotEmpty()) {
             out.append("\nMain payees over the last three months: ")
                 .append(payees.joinToString(", ") { "${payee(it.merchant)} ${r(it.amountPaise)} (${it.count}x, ${it.category.label})" }).append(".\n")
