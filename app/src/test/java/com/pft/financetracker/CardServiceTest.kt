@@ -2,6 +2,7 @@ package com.pft.financetracker
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.pft.financetracker.data.cards.CardSave
 import com.pft.financetracker.data.cards.CardService
 import com.pft.financetracker.data.local.AppDatabase
 import com.pft.financetracker.data.local.toEntity
@@ -34,10 +35,30 @@ class CardServiceTest {
     }
 
     @Test fun aCardRoundTripsAndOneCardPerLast4() = runBlocking {
-        val id = cards.save(Card(last4 = "1234", name = "Millennia", statementDay = 15, dueDay = 5, rewardBp = 150))
+        val id = (cards.save(Card(last4 = "1234", name = "Millennia", statementDay = 15, dueDay = 5, rewardBp = 150)) as CardSave.Saved).id
         assertEquals(Card(id, "1234", "Millennia", 15, 5, 150), cards.all().single())
-        cards.save(Card(id = id, last4 = "1234", name = "Millennia", statementDay = 16, dueDay = 6))
+        assertTrue(cards.save(Card(id = id, last4 = "1234", name = "Millennia", statementDay = 16, dueDay = 6)) is CardSave.Saved)
         assertEquals(16, cards.all().single().statementDay)
+    }
+
+    @Test fun aSecondCardWithTheSameLast4IsRefusedNotSwappedIn() = runBlocking {
+        val first = Card(last4 = "1234", name = "Millennia", statementDay = 15, dueDay = 5)
+        val id = (cards.save(first) as CardSave.Saved).id
+        assertEquals(CardSave.Duplicate(first.copy(id = id)), cards.save(Card(last4 = "1234", name = "Regalia", statementDay = 1, dueDay = 20)))
+        assertEquals("Millennia", cards.all().single().name)
+    }
+
+    @Test fun changingACardsDigitsToAnotherCardsIsRefused() = runBlocking {
+        cards.save(Card(last4 = "1234", name = "Millennia", statementDay = 15, dueDay = 5))
+        val other = (cards.save(Card(last4 = "5678", name = "Amazon Pay", statementDay = 1, dueDay = 20)) as CardSave.Saved).id
+        assertTrue(cards.save(Card(id = other, last4 = "1234", name = "Amazon Pay", statementDay = 1, dueDay = 20)) is CardSave.Duplicate)
+        assertEquals(setOf("1234", "5678"), cards.all().map { it.last4 }.toSet())
+    }
+
+    @Test fun onlyFourDigitsAreEverStored() = runBlocking {
+        assertEquals(CardSave.NotLast4, cards.save(Card(last4 = "4111111111111234", name = "Full number", statementDay = 1, dueDay = 20)))
+        assertEquals(CardSave.NotLast4, cards.save(Card(last4 = "12a4", name = "Typo", statementDay = 1, dueDay = 20)))
+        assertTrue(cards.all().isEmpty())
     }
 
     @Test fun accountsSeenRecentlyAreSuggestedMostUsedFirstExceptExistingCards() = runBlocking {
