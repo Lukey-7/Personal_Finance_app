@@ -20,6 +20,8 @@ import com.pft.financetracker.domain.parser.SmsMessage
 import com.pft.financetracker.domain.parser.SmsParser
 import com.pft.financetracker.domain.split.PayerClassifier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class ImportStats(val runId: Long, val scanned: Int, val inserted: Int, val queuedForReview: Int, val ignored: Int, val duplicates: Int)
@@ -77,6 +79,17 @@ class SmsImporter(
 
     enum class Outcome { INSERTED, REVIEW, IGNORED, DUPLICATE }
 
+    companion object {
+        /** One importer at a time across the app: the SMS receiver and an inbox scan each build their own calls. */
+        private val processLock = Mutex()
+
+        /**
+         * The log key that remembers a deleted statement row. Its own prefix, so the v1.0.0 tombstone lookup (which
+         * matches "deleted:%") never lets a statement deletion swallow an SMS.
+         */
+        fun statementTombstone(rowHash: String) = "stmtdeleted:$rowHash"
+    }
+
     /** The live receiver and an inbox scan see one message within seconds; identical alerts further apart are separate payments. */
     private val sameMessageWindowMs = 5 * 60_000L
 
@@ -112,6 +125,14 @@ class SmsImporter(
      */
     suspend fun forgetDeleted(t: Transaction) {
         val hash = t.smsHash ?: return
+        // A statement row: remember its row hash, so importing the same statement again does not bring it back.
+        if (t.source == Transaction.Source.STATEMENT) {
+            if (hash.startsWith("stmt:")) log.log(
+                SmsLogEntity(sender = "Statement", receivedAt = t.timestamp, outcome = Outcomes.IGNORED, reason = Outcomes.DELETED_BY_USER,
+                    amountPaise = t.amountPaise, type = t.type.name, transactionId = null, smsHash = statementTombstone(hash), runId = System.currentTimeMillis())
+            )
+            return
+        }
         if (log.updateOutcome(hash, Outcomes.IGNORED, Outcomes.DELETED_BY_USER, null) > 0 || t.source != Transaction.Source.SMS) return
         log.log(
             SmsLogEntity(sender = t.bankName ?: t.merchant, receivedAt = t.timestamp, outcome = Outcomes.IGNORED, reason = Outcomes.DELETED_BY_USER,
@@ -144,7 +165,53 @@ class SmsImporter(
         log.updateOutcome(logged.smsHash, Outcomes.SAVED, "repaired_${p.merchant}", existing.id)
     }
 
-    suspend fun process(sms: SmsMessage, runId: Long = System.currentTimeMillis()): Outcome {
+    /**
+     * Keep one record for a payment two messages reported. The richer row's descriptive fields, with what only the other
+     * had filled in; never this parse's amount or note (a split may have shrunk the amount on purpose). A weaker second
+     * alert must not undo what the first one knew: a specific category stays unless it was Other or the direction turned
+     * out wrong, and a transfer, investment, cash or refund flow stays when this parse only fell back to expense/income.
+     */
+    private fun mergeDuplicate(existing: Transaction, candidate: Transaction): Transaction {
+        val base = repo.richer(existing, candidate)
+        val other = if (base === existing) candidate else existing
+        val sameDirection = existing.type == candidate.type
+        // A v1.0.0 row (midnight, flow guessed from its category) or a statement row (flow guessed from the narration)
+        // knew less than the SMS we hold now: this parse decides.
+        val weakExisting = existing.source == Transaction.Source.STATEMENT ||
+            existing.timestamp == com.pft.financetracker.data.repository.TransactionRepository.startOfDay(existing.timestamp)
+        val candidateFellBack = candidate.flow == Flow.EXPENSE || candidate.flow == Flow.INCOME
+        val flowFitsDirection = sameDirection || existing.flow == Flow.TRANSFER || existing.flow == Flow.INVESTMENT
+        val flow = when {
+            // A split owns a settled transfer's flow: re-reading its SMS must not make it income again.
+            existing.flow == Flow.SETTLEMENT -> existing.flow
+            !weakExisting && candidateFellBack && flowFitsDirection &&
+                existing.flow in setOf(Flow.TRANSFER, Flow.INVESTMENT, Flow.CASH, Flow.REFUND) -> existing.flow
+            else -> candidate.flow
+        }
+        val category = when {
+            weakExisting || !sameDirection -> candidate.category
+            existing.category == com.pft.financetracker.domain.model.Category.OTHER -> candidate.category
+            else -> existing.category
+        }
+        val merchant = if (repo.isGenericMerchant(base.merchant) && !repo.isGenericMerchant(other.merchant)) other.merchant else base.merchant
+        return base.copy(
+            id = existing.id, smsHash = existing.smsHash, type = candidate.type, flow = flow, category = category, merchant = merchant,
+            amountPaise = existing.amountPaise, originalAmountPaise = existing.originalAmountPaise, note = existing.note,
+            refNumber = base.refNumber ?: other.refNumber, accountRef = base.accountRef ?: other.accountRef, bankName = base.bankName ?: other.bankName,
+            counterpartyKind = existing.counterpartyKind ?: candidate.counterpartyKind, importBatchId = existing.importBatchId,
+            source = existing.source, userEdited = existing.userEdited, confidence = existing.confidence, needsReview = existing.needsReview,
+            // A statement row only knew the day; the SMS knows the minute.
+            timestamp = if (existing.source == Transaction.Source.STATEMENT) candidate.timestamp else existing.timestamp,
+        )
+    }
+
+    /**
+     * The live receiver and an inbox scan can run at once. Both check for a duplicate and then insert, so without one
+     * lock a bank alert and its UPI-app twin arriving together could both be inserted.
+     */
+    suspend fun process(sms: SmsMessage, runId: Long = System.currentTimeMillis()): Outcome = processLock.withLock { processUnlocked(sms, runId) }
+
+    private suspend fun processUnlocked(sms: SmsMessage, runId: Long): Outcome {
         val hash = when (val s = seen(Hashing.smsHash(sms.sender, sms.body, sms.receivedAt), sms.receivedAt)) {
             is Seen.New -> s.hash
             is Seen.Settled -> { s.log?.let { repairIfWrong(sms, it) }; return Outcome.DUPLICATE }
@@ -185,18 +252,7 @@ class SmsImporter(
                         // A person corrected this row: only fill in identifiers it lacks.
                         existing.copy(refNumber = existing.refNumber ?: candidate.refNumber, accountRef = existing.accountRef ?: candidate.accountRef)
                     } else {
-                        // Keep the richer descriptive fields, take this parse's direction/flow/category (we hold the
-                        // full SMS body), but never the amount or note: a split may have shrunk the amount on purpose.
-                        repo.richer(existing, candidate).copy(
-                            // A split owns a settled transfer's flow: re-reading its SMS must not make it income again.
-                            id = existing.id, smsHash = existing.smsHash, type = candidate.type,
-                            flow = if (existing.flow == Flow.SETTLEMENT) existing.flow else candidate.flow, category = candidate.category,
-                            amountPaise = existing.amountPaise, originalAmountPaise = existing.originalAmountPaise, note = existing.note,
-                            counterpartyKind = existing.counterpartyKind ?: candidate.counterpartyKind, importBatchId = existing.importBatchId,
-                            source = existing.source,
-                            // A statement row only knew the day; the SMS knows the minute.
-                            timestamp = if (existing.source == Transaction.Source.STATEMENT) candidate.timestamp else existing.timestamp,
-                        )
+                        mergeDuplicate(existing, candidate)
                     }
                     if (merged != existing) repo.update(merged)
                     val why = if (candidate.refNumber != null && candidate.refNumber == existing.refNumber) "same_ref_${existing.id}" else "same_amount_within_10min_${existing.id}"

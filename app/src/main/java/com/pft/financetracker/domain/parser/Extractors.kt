@@ -18,7 +18,14 @@ import java.util.regex.Pattern
 object TextFilters {
     /** If ANY of these match, the message is not a completed transaction. Order = first reason wins. */
     val ignoreRules: List<Pair<String, Regex>> = listOf(
-        "not_moved" to Regex("""\b(?:not|never)\s+(?:been\s+)?(?:debited|credited|deducted|charged|processed)\b|\bwasn'?t\s+(?:debited|charged)\b""", RegexOption.IGNORE_CASE),
+        "not_moved" to Regex(
+            """\b(?:not|never)\s+(?:been\s+)?(?:debited|credited|deducted|charged|processed)\b|\bwasn'?t\s+(?:debited|charged)\b""" +
+                // "No amount has been debited", "no money was debited", "no amount is deducted from your account".
+                """|\bno\s+(?:amount|money|funds?)\s+(?:has\s+been|have\s+been|had\s+been|was|were|is|got)\s+(?:debited|deducted|charged)\b""" +
+                // A failed payment whose money "will be refunded within 5 days": nothing to count now.
+                """|\b(?:failed|declined|unsuccessful)\b.{0,80}?\bwill\s+be\s+(?:refunded|reversed)\s+within\b""",
+            RegexOption.IGNORE_CASE,
+        ),
         "otp" to Regex("""\b(otp|one[\s-]?time[\s-]?password|verification code|passcode)\b""", RegexOption.IGNORE_CASE),
         "promo" to Regex("""\b(offer|cashback up ?to|apply now|pre-?approved|avail now|hurry|limited period|click|t&c|tnc apply|congratulations|win|voucher|coupon|discount|sale|exclusive|upgrade to|get up ?to)\b""", RegexOption.IGNORE_CASE),
         "future" to Regex("""\b(will be (debited|credited|deducted|refunded|reversed)|autopay (?:will|is) (?:scheduled|due)|is scheduled (?:for|on))\b""", RegexOption.IGNORE_CASE),
@@ -32,12 +39,19 @@ object TextFilters {
 
     /** Strong hints that the message is transactional. */
     val transactionHints = Regex(
-        """\b(debited|credited|spent|paid|payment|purchase|txn|transaction|withdrawn|transferred|received|sent|deposited|upi|a/c|acct|card)\b""",
+        """\b(debited|credited|debit|spent|paid|payment|purchase|txn|transaction|withdrawn|transferred|received|sent|deposited|upi|a/c|acct|card)\b""",
         RegexOption.IGNORE_CASE
     )
 
     /** A verb that only appears once money has actually moved. */
-    val completedVerb = Regex("""\b(debited|credited|spent|withdrawn|deducted|paid|received|transferred|refunded|reversed)\b""", RegexOption.IGNORE_CASE)
+    val completedVerb = Regex(
+        """\b(debited|credited|spent|withdrawn|deducted|paid|received|transferred|refunded|reversed)\b""" +
+            // "Sent Rs.500 to ...", "Rs 500 sent to ...": only next to an amount, so "OTP sent to your mobile" never counts.
+            """|\bsent(?=\s+(?:rs\.?|inr|₹)\s*\d)|(?:\brs\.?|\binr|₹)\s*[\d,]+(?:\.\d{1,2})?\s+(?:has\s+been\s+|was\s+)?sent\b""" +
+            // "after debit of INR 500"
+            """|(?<!\bof\s)\bdebit(?=\s+of\s+(?:rs\.?|inr|₹)\s*\d)""",
+        RegexOption.IGNORE_CASE,
+    )
 
     /** "will be debited", "to be refunded", "if amount debited": the verb describes something that has not happened. */
     private val notYet = Regex("""\b(?:will|shall|would|to\s+be|if|in\s+case)\b[^.;,]{0,20}$""", RegexOption.IGNORE_CASE)
@@ -84,22 +98,27 @@ object TypeDetector {
      * Cashback of Rs 20 credited"). Counting keywords let those later mentions outvote the real direction.
      */
     private val primaryVerb = Regex(
-        """\b(debited|spent|withdrawn|deducted|paid|sent|charged|transferred|credited|received|deposited|refunded|refund)\b|(?:rs\.?|inr|₹)\s*[\d,]+(?:\.\d{1,2})?\s*(dr|cr)\b""",
+        """\b(debited|spent|withdrawn|deducted|paid|sent|charged|transferred|credited|received|deposited|refunded|refund|(?<!\bof\s)debit(?=\s+of\b))\b|(?:rs\.?|inr|₹)\s*[\d,]+(?:\.\d{1,2})?\s*(dr|cr)\b""",
         RegexOption.IGNORE_CASE
     )
     private val toCounterparty = Regex("""^\s*to\s+(?:the\s+)?(?:beneficiary|payee|[\w.\-]+@[a-z]+)""", RegexOption.IGNORE_CASE)
     private val intoOwnAccount = Regex("""^\s*(?:to|into|in)\s+(?:your|ur)\b""", RegexOption.IGNORE_CASE)
-    /** "paid you", "paid to you"; not "paid to your card", which is the customer paying. */
-    private val toYou = Regex("""^\s*(?:to\s+)?you\b""", RegexOption.IGNORE_CASE)
+    /** "transferred from RAHUL to your a/c": someone else's money arriving. Not "from your a/c XX1 to RAHUL". */
+    private val fromOtherIntoOwn = Regex("""^\s*from\s+(?!your\b|ur\b|a/?c\b|acct\b|account\b)[^.;]{1,40}?\s+(?:to|into|in)\s+(?:your|ur)\b""", RegexOption.IGNORE_CASE)
+    /**
+     * "paid you", "paid to you", "sent you Rs 500", "sent Rs.500 to you"; not "paid to your card", which is the customer
+     * paying ("your" never matches "you\b").
+     */
+    private val toYou = Regex("""^\s*(?:(?:rs\.?|inr|₹)\s*[\d,]+(?:\.\d{1,2})?\s+)?(?:to\s+)?you\b""", RegexOption.IGNORE_CASE)
 
     fun primaryDirection(body: String): TransactionType? {
         val m = primaryVerb.find(body) ?: return null
         val word = (m.groups[1]?.value ?: m.groups[2]?.value ?: return null).lowercase(Locale.ROOT)
-        val after = body.substring(m.range.last + 1, minOf(body.length, m.range.last + 41))
+        val after = body.substring(m.range.last + 1, minOf(body.length, m.range.last + 61))
         return when (word) {
-            "paid" -> if (toYou.containsMatchIn(after)) TransactionType.CREDIT else TransactionType.DEBIT
-            "debited", "spent", "withdrawn", "deducted", "sent", "charged", "dr" -> TransactionType.DEBIT
-            "transferred" -> if (intoOwnAccount.containsMatchIn(after)) TransactionType.CREDIT else TransactionType.DEBIT
+            "paid", "sent" -> if (toYou.containsMatchIn(after)) TransactionType.CREDIT else TransactionType.DEBIT
+            "debited", "spent", "withdrawn", "deducted", "charged", "dr", "debit" -> TransactionType.DEBIT
+            "transferred" -> if (intoOwnAccount.containsMatchIn(after) || fromOtherIntoOwn.containsMatchIn(after)) TransactionType.CREDIT else TransactionType.DEBIT
             "credited" -> if (toCounterparty.containsMatchIn(after)) TransactionType.DEBIT else TransactionType.CREDIT
             else -> TransactionType.CREDIT // received, deposited, refunded, refund, cr
         }
@@ -143,12 +162,18 @@ object AmountExtractor {
     private const val NUM = """(\d+(?:,\d{2,3})*(?:\.\d{1,2})?)"""
     val patterns: List<Regex> = listOf(
         Regex("""(?<![a-z])(?:inr|rs\.?|₹|rupees?)\s*:?\s*$NUM""", RegexOption.IGNORE_CASE),
-        Regex("""$NUM\s*(?:inr|rs\.?|rupees?|/-)""", RegexOption.IGNORE_CASE),
+        // "500 Rs", "500/-". The number must stand alone: "On 05-10-26 Rs 500" is not Rs 26.
+        Regex("""(?<![\d.,/:\-])$NUM\s*(?:inr\b|rs\b\.?|rupees?\b|/-)""", RegexOption.IGNORE_CASE),
         Regex("""(?:amount|amt)\s*(?:of)?\s*:?\s*$NUM""", RegexOption.IGNORE_CASE),
+        // A bare number right after the verb: "debited by 20.0", "is debited for 500.00". Never a date ("on 05-10-26").
+        Regex("""\b(?:debited|credited|spent|paid|deducted|withdrawn|transferred|received|charged)\s+(?:for|by|of|with)\s+$NUM(?![\d.,]*[\-/:]\d)(?!\d)""", RegexOption.IGNORE_CASE),
     )
 
     /** Words that, if they directly precede an amount, mean it is a balance/limit rather than the txn amount. */
-    private val balanceContext = Regex("""(bal|balance|avl|available|limit|lmt|outstanding|o/s|total due|min due|clr bal)\W{0,12}$""", RegexOption.IGNORE_CASE)
+    private val balanceContext = Regex(
+        """(bal|balance|avl|available|limit|lmt|outstanding|o/s|total due|min due|clr bal)(?:\s+(?:is|was|of|now|as on [\w\-/]+))?\W{0,12}$""",
+        RegexOption.IGNORE_CASE,
+    )
 
     /** A number glued to a card/account mask ("XX1234 Rs 750", "A/c 1234 Rs 750") is the account, not the amount. */
     private val accountLead = Regex("""(?:[x*]|(?:a/?c|acct|account|card)(?:\s*(?:no\.?|number))?\s*[:#\-]?\s*)$""", RegexOption.IGNORE_CASE)
@@ -262,26 +287,33 @@ object BankExtractor {
 // Layer 5: merchant / payee. Ordered list of patterns; first hit wins. Append new shapes at the right priority.
 // ---------------------------------------------------------------------------------------------
 object MerchantExtractor {
-    private const val STOP = """(?=\s+(?:on|dt|dated|ref|refno|ref no|upi ref|txn|txnid|txn id|via|using|from|avl|available|bal|balance|info|is|\.|,|-|\(|;|\||$)|\s*$|\.\s|,)"""
+    private const val STOP = """(?=\s+(?:on|dt|dated|ref|refno|ref no|upi ref|txn|txnid|txn id|via|using|from|avl|available|bal|balance|info|is|has\b|have\b|was\b|failed\b|not\s+you\b|not\s+u\b|(?:to|for)\s+(?:your|ur)\b|\.|,|-|\(|;|\||$)|\s*$|\.\s|,)"""
+
+    /** Rails and filler that follow "by", "for" or "from" but never name the other party: "by NEFT from ACME CORP". */
+    private const val JUNK = """(?:neft|imps|rtgs|upi|transfer|transaction|txn)\b"""
 
     val patterns: List<Regex> = listOf(
+        // A person paying you: "Rahul has sent Rs.500 to you", "Rahul paid you Rs 500".
+        Regex("""^\s*(?:dear\s+\w+,?\s+)?([A-Za-z][A-Za-z .]{1,40}?)\s+(?:has\s+)?(?:sent|paid)\s+(?:(?:to\s+)?you\b|(?:rs\.?|inr|₹)\s*[\d,]+(?:\.\d{1,2})?\s+to\s+you\b)""", RegexOption.IGNORE_CASE),
         // ICICI: "Acct XX123 debited for Rs 240.00 on 28-Mar-24; DAKSHIN CAFE credited." The payee precedes "credited".
         Regex(""";\s*([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)\s+credited\b"""),
         // UPI VPA e.g. "to VPA merchant@okaxis", "paid to swiggy@ybl"
         Regex("""(?:to|for|at|vpa|payee)\s*:?\s*(?:vpa\s*)?([a-z0-9._\-]+@[a-z]{2,})""", RegexOption.IGNORE_CASE),
+        // Axis and others: "UPI/P2M/428612345678/ZOMATO LTD Not you? ...", "UPI/P2A/428612345679/RAHUL SHARMA".
+        Regex("""\bUPI/(?:P2[AM]|P2PM|[A-Z]{2,4})/(?:\d{6,22})/([A-Za-z][A-Za-z0-9 .&'\-]{1,40}?)(?=\s+not\s+you\b|\s+not\s+u\b|\s*[/?|;,]|\.\s|\.$|\s+on\b|\s+ref\b|\s+sms\b|\s+call\b|\s+avl\b|\s*$)""", RegexOption.IGNORE_CASE),
         // "UPI/P2M/123456/Merchant Name" or "UPI-Merchant Name-..."
-        Regex("""UPI[/:\-]\s*(?:P2[AM][/\-])?(?:\d{6,}[/\-])?([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)(?=[/\-]|\s+on|\s+ref|$)"""),
+        Regex("""UPI[/:\-]\s*(?:P2[AM][/\-])?(?:\d{6,}[/\-])?(?!P2[AM]\b)([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)(?=[/\-]|\s+on|\s+ref|\s+not\s+you\b|$)"""),
         // "Info: MERCHANT" / "Info- MERCHANT"
         Regex("""\bInfo\s*[:\-]\s*([A-Za-z0-9][A-Za-z0-9 .&'\-]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
         // "at MERCHANT on", "at MERCHANT."
         Regex("""\bat\s+([A-Za-z0-9][A-Za-z0-9 .&'\-*]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
         // "to MERCHANT on", "paid to MERCHANT", "sent to MERCHANT", "transferred to MERCHANT"
-        Regex("""\b(?:paid |sent |transferred |credited )?to\s+(?!your|ur|a/c|account|card)([A-Za-z0-9][A-Za-z0-9 .&'\-*]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:paid |sent |transferred |credited )?to\s+(?!your|ur|a/c|account|card|you\b)([A-Za-z0-9][A-Za-z0-9 .&'\-*]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
         // "towards MERCHANT", "for MERCHANT"
         // "your ..." is the customer's own account, never a payee: "towards your HDFC Credit Card XX3344".
-        Regex("""\b(?:towards|for)\s+(?!rs|inr|₹|a/c|account|card|your|ur\b|my\b)([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:towards|for)\s+(?!rs|inr|₹|a/c|account|card|your|ur\b|my\b|$JUNK)([A-Za-z][A-Za-z0-9 .&'\-]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
         // Credits: "from MERCHANT", "by MERCHANT", "received from"
-        Regex("""\b(?:from|by)\s+(?!your|ur|a/c|account|card|rs\.?\s*\d|inr\s*\d|₹)([A-Za-z0-9][A-Za-z0-9 .&'\-*@]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
+        Regex("""\b(?:from|by)\s+(?!your|ur|a/c|account|card|rs\.?\s*\d|inr\s*\d|₹|$JUNK)([A-Za-z0-9][A-Za-z0-9 .&'\-*@]{2,40}?)$STOP""", RegexOption.IGNORE_CASE),
     )
 
     private val noise = Regex("""\b(upi|imps|neft|rtgs|pos|ecom|txn|ref|no|id|payment|via|the|mr|ms|mrs)\b""", RegexOption.IGNORE_CASE)
@@ -289,12 +321,17 @@ object MerchantExtractor {
     fun extract(body: String, type: TransactionType?): String? {
         val ordered = if (type == TransactionType.CREDIT) patterns.sortedByDescending { it.pattern.contains("from|by") } else patterns
         for (rx in ordered) {
-            val m = rx.find(body) ?: continue
-            val cleaned = clean(m.groupValues[1])
-            if (cleaned.length >= 3 && !cleaned.all { it.isDigit() }) return cleaned
+            // A pattern's first hit can clean down to filler ("by NEFT"); its next hit may still name the payee.
+            for (m in rx.findAll(body)) {
+                val cleaned = clean(m.groupValues[1])
+                if (cleaned.length >= 3 && !cleaned.all { it.isDigit() } && cleaned.lowercase(Locale.ROOT) !in fillers) return cleaned
+            }
         }
         return null
     }
+
+    /** What is left of "for NEFT transaction" or "by transfer": never a merchant. */
+    private val fillers = setOf("transaction", "transfer", "fund transfer", "funds transfer", "transfer from", "transaction via", "account", "bank", "credit", "debit")
 
     fun clean(raw: String): String {
         var s = raw.trim().trimEnd('.', ',', '-', ':', ';')
@@ -314,29 +351,55 @@ object MerchantExtractor {
 // Layer 6: date inside the body (fallback: SMS received timestamp).
 // ---------------------------------------------------------------------------------------------
 object DateExtractor {
-    private val formats = listOf(
+    private val dateFormats = listOf(
         "dd-MM-yy", "dd-MM-yyyy", "dd/MM/yy", "dd/MM/yyyy", "dd-MMM-yy", "dd-MMM-yyyy", "ddMMMyy", "ddMMMyyyy",
-        "dd MMM yy", "dd MMM yyyy", "dd.MM.yy", "dd.MM.yyyy", "yyyy-MM-dd", "MMM dd, yyyy", "dd-MMM-yy HH:mm", "dd/MM/yy HH:mm",
+        "dd MMM yy", "dd MMM yyyy", "dd.MM.yy", "dd.MM.yyyy", "yyyy-MM-dd", "MMM dd yyyy",
     )
-    private val dateRx = Regex("""\b(\d{1,2}[-/. ]?(?:\d{1,2}|[A-Za-z]{3})[-/. ]?\d{2,4}(?:[ ,T]+\d{1,2}:\d{2}(?::\d{2})?)?|\d{4}-\d{2}-\d{2}|[A-Za-z]{3}\s\d{1,2},\s\d{4})\b""")
+    /**
+     * Date and time first: SimpleDateFormat stops reading once its pattern is satisfied, so a date-only pattern would
+     * happily read "12-10-24 13:45:12" and drop the time.
+     */
+    private val dateTimeFormats = dateFormats.flatMap { listOf("$it HH:mm:ss", "$it HH:mm") }
+    private val dateRx = Regex(
+        """\b(\d{4}-\d{2}-\d{2}(?:[ T:]+\d{1,2}:\d{2}(?::\d{2})?)?|\d{1,2}[-/. ]?(?:\d{1,2}|[A-Za-z]{3})[-/. ]?\d{2,4}(?:[ ,T]+\d{1,2}:\d{2}(?::\d{2})?)?|[A-Za-z]{3}\s\d{1,2},\s\d{4}(?:[ ,]+\d{1,2}:\d{2}(?::\d{2})?)?)\b"""
+    )
+
+    /** "12-10-24, 13:45:12", "2026-10-05:14:22:10", "2026-10-05T14:22" all become "<date> <time>". */
+    private fun tidy(raw: String): String = raw.trim()
+        .replace(Regex("""^(\d{4}-\d{2}-\d{2})[T:]"""), "$1 ")
+        .replace(Regex("""^([A-Za-z]{3}\s\d{1,2}),"""), "$1")
+        .replace(Regex("""(?<=\d)T(?=\d)"""), " ")
+        .replace(Regex("""\s*,\s*|\s+"""), " ")
 
     fun extract(body: String, fallback: Long): Long {
         val now = System.currentTimeMillis()
         for (m in dateRx.findAll(body)) {
-            val text = m.value.trim()
+            val text = tidy(m.value)
+            val formats = if (text.contains(':')) dateTimeFormats + dateFormats else dateFormats
             for (f in formats) {
                 val sdf = SimpleDateFormat(f, Locale.ENGLISH).apply { isLenient = false }
                 val d = runCatching { sdf.parse(text) }.getOrNull() ?: continue
                 var t = d.time
                 // Reject absurd years (two-digit-year parsing oddities) and future dates.
                 if (t !in (now - 10L * 365 * 24 * 3600 * 1000)..(now + 24 * 3600 * 1000)) continue
-                // Body dates rarely carry a time. Midnight breaks ordering and the duplicate window, so when the
-                // SMS arrived on the same calendar day, keep the date from the body and the time from the SMS.
-                if (!f.contains("HH") && sameDay(t, fallback)) t = fallback
+                // Body dates rarely carry a time, and midnight breaks ordering and the duplicate window (and looks like a
+                // v1.0.0 row). Same day as the SMS: the SMS's own time. An earlier day: that day at the SMS's time of day.
+                if (!f.contains("HH")) t = if (sameDay(t, fallback)) fallback else withTimeOf(t, fallback)
                 return t
             }
         }
         return fallback
+    }
+
+    private fun withTimeOf(day: Long, time: Long): Long {
+        val c = java.util.Calendar.getInstance().apply { timeInMillis = time }
+        return java.util.Calendar.getInstance().apply {
+            timeInMillis = day
+            set(java.util.Calendar.HOUR_OF_DAY, c.get(java.util.Calendar.HOUR_OF_DAY))
+            set(java.util.Calendar.MINUTE, c.get(java.util.Calendar.MINUTE))
+            set(java.util.Calendar.SECOND, c.get(java.util.Calendar.SECOND))
+            set(java.util.Calendar.MILLISECOND, c.get(java.util.Calendar.MILLISECOND))
+        }.timeInMillis
     }
 
     private fun sameDay(a: Long, b: Long): Boolean {
@@ -351,6 +414,8 @@ object DateExtractor {
 // ---------------------------------------------------------------------------------------------
 object RefExtractor {
     val patterns: List<Regex> = listOf(
+        // Axis and others: the RRN sits between the UPI kind and the payee, "UPI/P2M/428612345678/ZOMATO LTD".
+        Regex("""\bUPI/(?:P2[AM]|P2PM)/(\d{9,22})\b""", RegexOption.IGNORE_CASE),
         Regex("""\b(?:upi|imps|neft|rtgs)?\s*(?:ref(?:erence)?(?:\s*no\.?|\s*number|\s*id)?|rrn|txn\s*id|transaction\s*id|utr|upi)\s*[:#.\-]?\s*([A-Za-z0-9]{6,22})\b""", RegexOption.IGNORE_CASE),
     )
 
@@ -364,15 +429,69 @@ object RefExtractor {
         }
         return null
     }
+
+    /**
+     * One spelling of a reference for comparing two sources: banks pad statement refs with zeros ("000427712345678") or
+     * prefix them. Null for placeholders ("0000000000", "NA", "-") that would make unrelated payments look the same.
+     */
+    fun normalize(ref: String?): String? {
+        val s = ref?.uppercase(Locale.ROOT)?.filter { it.isLetterOrDigit() } ?: return null
+        if (s.count { it.isDigit() } < 4) return null
+        val v = if (s.all { it.isDigit() }) s.trimStart('0') else s
+        return v.takeIf { it.length >= 4 }
+    }
+
+    /** Whether two references name the same payment. Long numeric refs compare on their last 12 digits (the UPI RRN). */
+    fun same(a: String?, b: String?): Boolean {
+        val x = normalize(a) ?: return false
+        val y = normalize(b) ?: return false
+        if (x == y) return true
+        val xs = x.filter { it.isDigit() }
+        val ys = y.filter { it.isDigit() }
+        return xs.length >= 12 && ys.length >= 12 && xs.takeLast(12) == ys.takeLast(12)
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
 // Layer 8: what the transaction means for your money (see [Flow]). Decides what counts as "spend".
 // ---------------------------------------------------------------------------------------------
 object FlowClassifier {
-    private val cardBillPayment = Regex("""\b(payment (?:of .{0,20})?(?:received|credited) (?:towards|to|for) your .{0,20}(?:credit )?card|credit card (?:bill )?payment|cc (?:bill )?payment|card bill|bill ?desk.{0,30}card|towards your (?:credit )?card|payment to (?:your )?(?:credit )?card|cred club|cred\.club)""", RegexOption.IGNORE_CASE)
+    /** A credit card named as such, or "card ending 1234" / "Card XX1234"; never a debit card. */
+    private const val CARD = """(?:credit\s*card|(?<!debit\s)card\s*(?:ending|no\b|number|[x*]{2,}|\d{4}))"""
+    private const val AMT = """(?:rs\.?|inr|₹)?\s*[\d,]+(?:\.\d{1,2})?"""
+    private val cardBillPayment = Regex(
+        """\b(payment (?:of .{0,20})?(?:received|credited) (?:towards|to|for) your .{0,20}(?:credit )?card|credit card (?:bill )?payment|cc (?:bill )?payment|card bill|bill ?desk.{0,30}card|towards your (?:credit )?card|payment to (?:your )?(?:credit )?card|cred club|cred\.club)""" +
+            // Card issuer receipts: "Payment of Rs 15,000.00 has been credited to your SBI Card ending 1234", "Payment of INR
+            // 15,000.00 received on your Axis Bank Credit Card XX1234", "... received for Axis Bank Credit Card no. XX1234".
+            """|\bpayment\s+(?:of\s+$AMT\s+)?(?:has\s+been\s+|is\s+|was\s+)?(?:received|credited)\s+(?:towards|to|for|on|in|into|against)\s+(?:your\s+)?(?:[\w.&]+\s+){0,4}?$CARD""" +
+            // "We have received payment of Rs.15,000.00 towards your SBI Credit Card ending with 1234"
+            """|\b(?:received|credited)\s+(?:a\s+|the\s+|your\s+)?payment\s+of\s+$AMT\s+(?:towards|to|for|on|in|against)\s+(?:your\s+)?(?:[\w.&]+\s+){0,4}?$CARD""" +
+            // The bank side: "Payment of Rs 15,000 to your Credit Card XX4455 was successful", "Rs 5,000 paid to your HDFC
+            // Bank Credit Card", a CRED or ccpay UPI handle paying a card.
+            """|\bpayment\s+of\s+$AMT\s+(?:towards|to)\s+your\s+(?:[\w.&]+\s+){0,4}?$CARD""" +
+            """|\bpaid\s+(?:to|towards)\s+your\s+(?:[\w.&]+\s+){0,4}?$CARD""" +
+            // "paid to CRED for your HDFC Bank Credit Card", but not "via CRED Pay using your credit card at Swiggy".
+            """|\bccpay\b|\bcred\b.{0,20}?\s(?:for|towards)\s+(?:your\s+)?(?:[\w.&]+\s+){0,4}?$CARD""",
+        RegexOption.IGNORE_CASE,
+    )
     private val selfTransfer = Regex("""\b(self[\s-]?transfer|own account|to self|own a/?c|added to (?:your )?wallet|add(?:ed)? money|wallet (?:top[\s-]?up|load))\b""", RegexOption.IGNORE_CASE)
     private val investment = Regex("""\b(mutual fund|sip|zerodha|groww|upstox|kuvera|smallcase|icclearing|indian clearing|cdsl|nsdl|ppf|nps|fixed deposit|fd|rd|etmoney|angel one|5paisa|nse|bse)\b""", RegexOption.IGNORE_CASE)
+
+    /** Bank footers sell deposits and funds ("Earn 7% on FD", "Invest in ...", "T&C apply"). They say nothing about this payment. */
+    private val marketing = Regex("""\b(?:earn|t\s*&\s*c|tnc|apply\s+now|offers?|download|know\s+more|visit|click|open\s+(?:an?\s+)?(?:fd|rd|account)|book\s+(?:an?\s+)?(?:fd|rd))\b""", RegexOption.IGNORE_CASE)
+    /** "Invest in ..." / "Invest now" only as a whole sentence: "debited to invest in a fund" is the payment itself. */
+    private val investPitch = Regex("""^\s*invest\s+(?:in|now|today)\b""", RegexOption.IGNORE_CASE)
+    private val sentences = Regex("""(?<=[.!?|])\s+""")
+
+    /**
+     * The body without its marketing: a sentence that reports no money moving and sells something is dropped, and a
+     * sentence that reports the payment is cut where the sales pitch starts. What the investment words may look at.
+     */
+    fun transactionClause(body: String): String = body.split(sentences).mapNotNull { s ->
+        if (investPitch.containsMatchIn(s)) return@mapNotNull null
+        val cut = marketing.find(s)?.range?.first ?: return@mapNotNull s
+        s.substring(0, cut).takeIf { TextFilters.completedVerb.containsMatchIn(it) }
+    }.joinToString(" ")
     private val refund = Regex("""\b(refund|refunded|reversal|reversed|cashback|charge ?back)\b""", RegexOption.IGNORE_CASE)
     private val income = Regex("""\b(salary|payroll|interest|dividend|bonus|stipend|pension)\b""", RegexOption.IGNORE_CASE)
     private val cash = Regex("""\b(atm|cash (?:wdl|withdrawal|withdrawn)|cwdr)\b""", RegexOption.IGNORE_CASE)
@@ -382,13 +501,16 @@ object FlowClassifier {
      * category, used as a secondary hint (e.g. INVESTMENT category => INVESTMENT flow).
      */
     fun classify(type: TransactionType, body: String, merchant: String, category: Category): Flow {
-        val text = "$body $merchant"
+        val clean = SmsText.normalize(body)
+        val text = "$clean $merchant"
+        // Investment words are read from the payment itself, not from a footer selling FDs.
+        val invested = investment.containsMatchIn("${transactionClause(clean)} $merchant")
         return when (type) {
             TransactionType.DEBIT -> when {
                 cardBillPayment.containsMatchIn(text) -> Flow.TRANSFER
                 selfTransfer.containsMatchIn(text) -> Flow.TRANSFER
                 cash.containsMatchIn(text) || category == Category.ATM -> Flow.CASH
-                investment.containsMatchIn(text) || category == Category.INVESTMENT -> Flow.INVESTMENT
+                invested || category == Category.INVESTMENT -> Flow.INVESTMENT
                 category == Category.TRANSFER -> Flow.TRANSFER
                 else -> Flow.EXPENSE
             }
@@ -396,7 +518,7 @@ object FlowClassifier {
                 cardBillPayment.containsMatchIn(text) -> Flow.TRANSFER
                 refund.containsMatchIn(text) -> Flow.REFUND
                 selfTransfer.containsMatchIn(text) -> Flow.TRANSFER
-                investment.containsMatchIn(text) -> Flow.INVESTMENT
+                invested -> Flow.INVESTMENT
                 income.containsMatchIn(text) -> Flow.INCOME
                 else -> Flow.INCOME
             }

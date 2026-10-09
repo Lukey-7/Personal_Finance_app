@@ -19,6 +19,7 @@ import com.pft.financetracker.domain.model.Budget
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
+import com.pft.financetracker.domain.parser.RefExtractor
 import com.pft.financetracker.domain.split.BillItem
 import com.pft.financetracker.domain.split.PayerClassifier
 import com.pft.financetracker.domain.split.Split
@@ -54,7 +55,14 @@ class TransactionRepository(
      * different merchants from the same bank within ten minutes are kept.
      */
     suspend fun findLikelyDuplicate(candidate: Transaction, windowMillis: Long = 10 * 60_000L, isClaimed: suspend (Long) -> Boolean = { false }): Transaction? {
-        candidate.refNumber?.let { ref -> findByRef(ref, candidate.type)?.let { return it } }
+        // A shared reference is the strongest sign, but only for the same amount within a few days: some banks reuse
+        // short refs, and a ref alone once paired payments weeks and rupees apart.
+        candidate.refNumber?.let { ref ->
+            dao.findAllByRef(ref).map { it.toDomain() }
+                .filter { it.type == candidate.type && sameAmount(it, candidate.amountPaise) && kotlin.math.abs(it.timestamp - candidate.timestamp) <= REF_MATCH_DAYS * 86_400_000L }
+                .minByOrNull { kotlin.math.abs(it.timestamp - candidate.timestamp) }
+                ?.let { return it }
+        }
 
         // Search the whole calendar day as well as the window: a transaction imported by v1.0.0 sits at
         // midnight (its parser dropped the time of day), so the same message re-parsed now lands hours away.
@@ -68,7 +76,7 @@ class TransactionRepository(
         val sameDayUnique = similar.count { it.type == candidate.type && it.source == Transaction.Source.STATEMENT } == 1
         return similar.sortedBy { it.type != candidate.type }.firstOrNull { existing ->
             // Two references that both exist and disagree mean two genuinely different payments.
-            if (existing.refNumber != null && candidate.refNumber != null && existing.refNumber != candidate.refNumber) return@firstOrNull false
+            if (refsDiffer(existing.refNumber, candidate.refNumber)) return@firstOrNull false
             val sameMerchant = InsightsEngine.normalizeMerchant(existing.merchant) == InsightsEngine.normalizeMerchant(candidate.merchant)
             val genericMerchant = isGeneric(existing.merchant) || isGeneric(candidate.merchant)
             when {
@@ -92,6 +100,9 @@ class TransactionRepository(
     }
 
     companion object {
+        /** A shared reference only proves one payment for rows at most this many days apart. */
+        const val REF_MATCH_DAYS = 3L
+
         fun startOfDay(t: Long): Long = java.util.Calendar.getInstance().apply {
             timeInMillis = t
             set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
@@ -100,6 +111,40 @@ class TransactionRepository(
     }
 
     private fun isGeneric(m: String) = m.startsWith("Payment") || m.startsWith("Credit") || m.length < 3
+
+    /** "Payment (HDFC Bank)", "Credit (SBI)": the placeholder the parser uses when an SMS names no merchant. */
+    fun isGenericMerchant(m: String) = isGeneric(m)
+
+    private fun isMidnight(t: Transaction) = t.timestamp == startOfDay(t.timestamp)
+
+    /** Same amount, or the bank amount a split shrank this row from; a few paise of rounding allowed. */
+    private fun sameAmount(t: Transaction, paise: Long) = kotlin.math.abs(t.amountPaise - paise) <= 5 || t.originalAmountPaise == paise
+
+    private fun refsAgree(a: String?, b: String?) = a != null && b != null && (a == b || RefExtractor.same(a, b))
+
+    /** Two references that both exist and name different payments. */
+    private fun refsDiffer(a: String?, b: String?) = a != null && b != null && !refsAgree(a, b)
+
+    /**
+     * A message the person confirmed from the review queue. Runs the same duplicate check as an import, so approving a
+     * bank alert whose UPI-app twin was already saved does not count the payment twice, and fills in the reference
+     * and account the review screen does not ask for from [body]. Returns the id of the row now holding the payment:
+     * the new one, or the stored one it matched (which only gains identifiers it lacked).
+     */
+    suspend fun insertReviewed(t: Transaction, body: String? = null, isClaimed: suspend (Long) -> Boolean = { false }): Long {
+        val text = body?.let { com.pft.financetracker.domain.parser.SmsText.normalize(it) }
+        val filled = t.copy(
+            refNumber = t.refNumber ?: text?.let { RefExtractor.extract(it) },
+            accountRef = t.accountRef ?: text?.let { com.pft.financetracker.domain.parser.AccountExtractor.extract(it) },
+        )
+        val existing = findLikelyDuplicate(filled, isClaimed = isClaimed)
+        if (existing != null) {
+            val merged = existing.copy(refNumber = existing.refNumber ?: filled.refNumber, accountRef = existing.accountRef ?: filled.accountRef)
+            if (merged != existing) update(merged)
+            return existing.id
+        }
+        return insert(filled)
+    }
 
     /** Prefer the record with more detail (merchant, account, ref). */
     fun richer(a: Transaction, b: Transaction): Transaction {
@@ -117,15 +162,18 @@ class TransactionRepository(
      * counterpart to [findLikelyDuplicate]: rows imported before the duplicate rules existed are still
      * sitting in the database, and no amount of re-importing removes them.
      *
-     * Two rows pair up when the amount, direction and calendar day match and either their references
-     * agree, a different bank/app reported each, or one carries no real merchant. References that both
-     * exist and disagree mean two genuine payments, so those are never paired.
+     * The same rules as the import check: amount and direction match, and either the references agree (within
+     * [REF_MATCH_DAYS]), or the two are minutes apart and a different bank/app reported each, the merchant matches or
+     * one carries no real merchant. A v1.0.0 row (midnight, time of day lost) pairs with a same-day row of the same
+     * merchant. References that both exist and disagree mean two genuine payments, so those are never paired, and the
+     * same merchant hours apart is two payments: two coffees are two coffees.
      */
-    suspend fun findExistingDuplicates(): List<DuplicatePair> {
+    suspend fun findExistingDuplicates(windowMillis: Long = 10 * 60_000L): List<DuplicatePair> {
         val all = dao.getAll().map { it.toDomain() }.filter { it.source == Transaction.Source.SMS && !it.needsReview }
         val pairs = mutableListOf<DuplicatePair>()
         val consumed = mutableSetOf<Long>()
-        val byKey = all.groupBy { Triple(it.amountPaise, it.type, startOfDay(it.timestamp)) }
+        val byKey = all.groupBy { it.amountPaise to it.type }
+        val refWindow = REF_MATCH_DAYS * 86_400_000L
         for ((_, group) in byKey) {
             if (group.size < 2) continue
             val ordered = group.sortedBy { it.timestamp }
@@ -134,13 +182,22 @@ class TransactionRepository(
                 if (a.id in consumed) continue
                 for (j in i + 1 until ordered.size) {
                     val b = ordered[j]
+                    val gap = b.timestamp - a.timestamp
+                    if (gap > refWindow) break
                     if (b.id in consumed) continue
-                    if (a.refNumber != null && b.refNumber != null && a.refNumber != b.refNumber) continue
+                    if (refsDiffer(a.refNumber, b.refNumber)) continue
                     val sameMerchant = InsightsEngine.normalizeMerchant(a.merchant) == InsightsEngine.normalizeMerchant(b.merchant)
                     val differentReporter = a.bankName != b.bankName
                     val generic = isGeneric(a.merchant) || isGeneric(b.merchant)
-                    val sameRef = a.refNumber != null && a.refNumber == b.refNumber
-                    if (!(sameRef || sameMerchant || differentReporter || generic)) continue
+                    val sameRef = refsAgree(a.refNumber, b.refNumber)
+                    val legacy = (isMidnight(a) || isMidnight(b)) && startOfDay(a.timestamp) == startOfDay(b.timestamp)
+                    val paired = when {
+                        sameRef -> true
+                        legacy -> sameMerchant || generic
+                        gap <= windowMillis -> sameMerchant || differentReporter || generic
+                        else -> false
+                    }
+                    if (!paired) continue
                     val keep = richer(a, b)
                     val drop = if (keep === a) b else a
                     pairs += DuplicatePair(keep, drop)

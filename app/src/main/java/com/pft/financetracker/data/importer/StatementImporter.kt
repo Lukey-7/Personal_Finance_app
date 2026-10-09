@@ -11,6 +11,7 @@ import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.domain.importer.ParsedStatement
 import com.pft.financetracker.domain.importer.StatementRow
 import com.pft.financetracker.domain.model.Transaction
+import com.pft.financetracker.domain.parser.RefExtractor
 import com.pft.financetracker.domain.split.PayerClassifier
 import java.security.MessageDigest
 
@@ -31,27 +32,37 @@ class StatementImporter(
         val newRows: List<StatementRow>,
         /** A row and the stored transaction it matched. */
         val duplicates: List<Pair<StatementRow, Transaction>>,
+        /** Rows from an earlier import of this statement that the person deleted since: not added again. */
+        val deletedBefore: List<StatementRow> = emptyList(),
     )
 
     suspend fun preview(statement: ParsedStatement, fileName: String): Preview {
         val newRows = mutableListOf<StatementRow>()
         val dupes = mutableListOf<Pair<StatementRow, Transaction>>()
+        val deleted = mutableListOf<StatementRow>()
         val consumed = mutableSetOf<Long>()
         for (r in statement.rows) {
+            if (wasDeleted(r)) { deleted += r; continue }
             val match = findExisting(r, consumed)
             if (match != null) { dupes += r to match; consumed += match.id } else newRows += r
         }
-        return Preview(statement, fileName, newRows, dupes)
+        return Preview(statement, fileName, newRows, dupes, deleted)
     }
+
+    /** The person deleted the row an earlier import of this same statement added (see SmsImporter.forgetDeleted). */
+    private suspend fun wasDeleted(r: StatementRow): Boolean =
+        smsLog?.getByHash(com.pft.financetracker.data.sms.SmsImporter.statementTombstone(hash(r))) != null
 
     private suspend fun findExisting(r: StatementRow, consumed: Set<Long>): Transaction? {
         // The same file (or an overlapping one) imported before.
         txDao.getByHash(hash(r))?.let { return it.toDomain() }
-        // The same reference number, amount and (within a week) date. The date guard matters: some banks reuse
-        // cheque-style numbers, and a ref alone once matched a payment months away.
-        r.ref?.let { ref ->
-            txDao.findAllByRef(ref).map { it.toDomain() }
-                .firstOrNull { it.id !in consumed && (it.amountPaise == r.amountPaise || it.originalAmountPaise == r.amountPaise) && kotlin.math.abs(it.timestamp - r.date) <= 7 * DAY }
+        // The same reference number, direction, amount and (within a week) date. The date guard matters: some banks
+        // reuse cheque-style numbers, and a ref alone once matched a payment months away. Statements pad or prefix refs
+        // ("000427712345678" for the SMS's "427712345678"), so refs are compared normalised.
+        if (RefExtractor.normalize(r.ref) != null) {
+            txDao.findSameAmount(r.amountPaise, r.type.name, r.date - 7 * DAY, r.date + 7 * DAY).map { it.toDomain() }
+                .filter { it.id !in consumed && RefExtractor.same(it.refNumber, r.ref) }
+                .minByOrNull { kotlin.math.abs(it.timestamp - r.date) }
                 ?.let { return it }
         }
         // Same amount and direction within a day either side (statements book some payments a day late). Names
@@ -76,6 +87,7 @@ class StatementImporter(
         val consumed = p.duplicates.map { it.second.id }.toMutableSet()
         val lateDuplicates = mutableListOf<Pair<StatementRow, Transaction>>()
         for (r in p.newRows) {
+            if (wasDeleted(r)) continue
             val late = findExisting(r, consumed)
             if (late != null) { lateDuplicates += r to late; consumed += late.id; continue }
             val t = Transaction(
