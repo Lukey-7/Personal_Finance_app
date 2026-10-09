@@ -30,7 +30,8 @@ data class GoalProgress(
 
 object GoalMath {
     fun progress(g: Goal, contributions: List<Long>, today: LocalDate): GoalProgress {
-        val saved = contributions.sum()
+        // Money taken out is capped at what was in (see [canChange]); never show less than nothing saved.
+        val saved = contributions.sum().coerceAtLeast(0)
         val remaining = (g.targetPaise - saved).coerceAtLeast(0)
         val done = g.targetPaise > 0 && saved >= g.targetPaise
         val percent = if (g.targetPaise <= 0) 0 else (saved.coerceAtLeast(0) * 100 / g.targetPaise).toInt().coerceAtMost(100)
@@ -50,6 +51,12 @@ object GoalMath {
         }
         return GoalProgress(g, saved, remaining, percent, monthsLeft, monthly, done, late, onTrack)
     }
+
+    /** The most that can be taken out of a goal: what is saved in it. */
+    fun maxWithdrawal(savedPaise: Long): Long = savedPaise.coerceAtLeast(0)
+
+    /** Whether [amountPaise] (negative to take money out) can go into a goal holding [savedPaise]. */
+    fun canChange(amountPaise: Long, savedPaise: Long): Boolean = amountPaise > 0 || (amountPaise < 0 && -amountPaise <= maxWithdrawal(savedPaise))
 
     /** Last month's savings as the natural top-up, never negative and never more than what is left. */
     fun suggestedTopUp(lastMonthSavingsPaise: Long, remainingPaise: Long): Long = lastMonthSavingsPaise.coerceIn(0, remainingPaise.coerceAtLeast(0))

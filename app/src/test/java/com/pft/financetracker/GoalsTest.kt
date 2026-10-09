@@ -50,4 +50,16 @@ class GoalsTest {
         assertTrue(GoalMath.progress(started, listOf(25_000_00L), today).onTrack)
         assertFalse(GoalMath.progress(started, listOf(10_000_00L), today).onTrack)
     }
+
+    @Test fun noMoreCanBeTakenOutThanIsSaved() {
+        assertTrue(GoalMath.canChange(-5_000_00L, savedPaise = 5_000_00L))
+        assertFalse(GoalMath.canChange(-5_000_01L, savedPaise = 5_000_00L))
+        assertFalse(GoalMath.canChange(-1L, savedPaise = 0L))
+        assertTrue(GoalMath.canChange(1_00L, savedPaise = 0L))
+        assertFalse(GoalMath.canChange(0L, savedPaise = 5_000_00L))
+        assertEquals(0L, GoalMath.maxWithdrawal(-3_00L))
+    }
+
+    @Test fun savedNeverShowsBelowZero() =
+        assertEquals(0L, GoalMath.progress(trip, listOf(1_000_00L, -3_000_00L), today).savedPaise)
 }

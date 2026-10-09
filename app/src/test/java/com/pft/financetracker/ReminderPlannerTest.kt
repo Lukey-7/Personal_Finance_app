@@ -4,6 +4,8 @@ import com.pft.financetracker.domain.reminders.Reminder
 import com.pft.financetracker.domain.reminders.ReminderPlanner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import com.pft.financetracker.domain.reminders.BackupNudge
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
@@ -67,5 +69,33 @@ class ReminderPlannerTest {
         val oct = ReminderPlanner.plan(listOf(netflix), now = at("2026-10-09"), alreadySent = emptySet(), zone = zone)
         val later = ReminderPlanner.plan(emptyList(), now = at("2027-01-20"), alreadySent = oct.sent, zone = zone)
         assertTrue(later.sent.isEmpty())
+    }
+
+    // ---- Backup nudge ----
+
+    private val lastBackup = at("2026-09-01", 20)
+
+    @Test fun theBackupNudgeWaitsAMonthThenFiresOnceAWeek() {
+        assertNull(BackupNudge.reminder(lastBackup, at("2026-09-30")))
+        assertNull(BackupNudge.reminder(0L, at("2026-12-01")))
+        var sent = emptySet<String>()
+        val fired = mutableListOf<String>()
+        var day = LocalDate.parse("2026-10-01")
+        while (!day.isAfter(LocalDate.parse("2026-10-21"))) {
+            for (hour in listOf(9, 21)) {
+                val now = at(day.toString(), hour)
+                val plan = ReminderPlanner.plan(listOfNotNull(BackupNudge.reminder(lastBackup, now)), now, sent, zone)
+                if (plan.toNotify.isNotEmpty()) fired += "$day $hour"
+                sent = plan.sent
+            }
+            day = day.plusDays(1)
+        }
+        // Day 30 is 1 Oct at 20:00: the 21:00 run sends it, then nothing until a week later, then a week after that.
+        assertEquals(listOf("2026-10-01 21", "2026-10-08 21", "2026-10-15 21"), fired)
+    }
+
+    @Test fun aNewBackupStopsTheNudge() {
+        val after = at("2026-10-05")
+        assertNull(BackupNudge.reminder(after, at("2026-10-20")))
     }
 }

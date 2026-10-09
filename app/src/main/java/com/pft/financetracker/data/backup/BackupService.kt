@@ -28,11 +28,15 @@ class BackupService(private val db: AppDatabase, private val codec: BackupCodec 
     fun export(passphrase: CharArray): ByteArray {
         val sql = db.openHelper.readableDatabase
         val tables = JSONObject()
-        for (t in tables()) {
-            sql.query("SELECT * FROM `$t`").use { c ->
-                val rows = JSONArray()
-                while (c.moveToNext()) rows.put(JSONArray().apply { for (i in 0 until c.columnCount) put(value(c, i)) })
-                tables.put(t, JSONObject().put("columns", JSONArray(c.columnNames.toList())).put("rows", rows))
+        // One transaction around every read, so an import or edit running meanwhile cannot leave the backup with half
+        // of a change (a payment without its split, a bill mark without its bill).
+        db.runInTransaction {
+            for (t in tables()) {
+                sql.query("SELECT * FROM `$t`").use { c ->
+                    val rows = JSONArray()
+                    while (c.moveToNext()) rows.put(JSONArray().apply { for (i in 0 until c.columnCount) put(value(c, i)) })
+                    tables.put(t, JSONObject().put("columns", JSONArray(c.columnNames.toList())).put("rows", rows))
+                }
             }
         }
         val doc = JSONObject().put("app", APP).put("schema", sql.version).put("createdAt", System.currentTimeMillis()).put("tables", tables)
