@@ -149,8 +149,9 @@ fun InsightsScreen(
                 title = { Text("Insights") },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 actions = {
-                    IconButton(onClick = onOpenTools) { Icon(Icons.Outlined.Apps, "Money tools") }
-                    IconButton(onClick = onOpenBudgets) { Icon(Icons.Outlined.Savings, "Budgets") }
+                    // Named, not bare icons: a new user can see where budgets and the other tools are.
+                    androidx.compose.material3.TextButton(onClick = onOpenBudgets) { Text("Budgets", maxLines = 1) }
+                    androidx.compose.material3.TextButton(onClick = onOpenTools) { Text("Tools", maxLines = 1) }
                 },
             )
         },

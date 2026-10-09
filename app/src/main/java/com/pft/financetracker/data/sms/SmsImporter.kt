@@ -223,17 +223,19 @@ class SmsImporter(
         return when (val r = parser.parse(sms)) {
             is ParseResult.Success -> {
                 val p = r.transaction
-                val category = Categorizer.categorize(p.merchant, p.type, p.bankName)
+                val guessed = Categorizer.categorize(p.merchant, p.type, p.bankName)
+                val flow = FlowClassifier.classify(p.type, sms.body, p.merchant, guessed)
+                val category = FlowClassifier.categoryFor(flow, guessed)
                 val candidate = Transaction(
                     amountPaise = p.amountPaise,
                     type = p.type,
-                    merchant = p.merchant,
+                    merchant = FlowClassifier.nameFor(flow, sms.body, p.merchant, p.bankName),
                     category = category,
                     timestamp = p.timestamp,
                     bankName = p.bankName,
                     accountRef = p.accountRef,
                     source = Transaction.Source.SMS,
-                    flow = FlowClassifier.classify(p.type, sms.body, p.merchant, category),
+                    flow = flow,
                     smsHash = hash,
                     refNumber = p.refNumber,
                     confidence = p.confidence,
@@ -297,12 +299,13 @@ class SmsImporter(
     }
 
     /** Re-read one message's body from the phone's inbox (for the log detail screen). Nothing is stored. */
-    fun readBody(sender: String, receivedAt: Long): String? = SmsReader.readOne(context, sender, receivedAt)
+    /** The message's text from the inbox; [hash] picks the exact one when the same sender sent several close together. */
+    fun readBody(sender: String, receivedAt: Long, hash: String? = null): String? = SmsReader.readOne(context, sender, receivedAt, hash)
 
     /** The user says an ignored/duplicate message was actually a transaction: put it in the review queue. */
     suspend fun sendToReview(logId: Long): Boolean {
         val e = log.getById(logId) ?: return false
-        val body = readBody(e.sender, e.receivedAt) ?: return false
+        val body = readBody(e.sender, e.receivedAt, e.smsHash) ?: return false
         val ok = repo.enqueueReview(ReviewItemEntity(sender = e.sender, body = body, receivedAt = e.receivedAt, smsHash = e.smsHash, guessedAmountPaise = e.amountPaise, guessedType = e.type, reason = "user_flagged"))
         if (ok) log.updateOutcome(e.smsHash, Outcomes.REVIEW, "user_flagged", null)
         return ok
@@ -343,7 +346,7 @@ object SmsReader {
     }
 
     /** Fetch one body by sender + timestamp (±2 min, to cover sent/received skew). */
-    fun readOne(context: Context, sender: String, at: Long): String? {
+    fun readOne(context: Context, sender: String, at: Long, hash: String? = null): String? {
         val projection = arrayOf(Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.DATE_SENT)
         val cursor = context.contentResolver.query(
             Telephony.Sms.Inbox.CONTENT_URI, projection,
@@ -351,7 +354,29 @@ object SmsReader {
             arrayOf(sender, (at - 120_000).toString(), (at + 120_000).toString(), (at - 120_000).toString(), (at + 120_000).toString()),
             "${Telephony.Sms.DATE} ASC"
         ) ?: return null
-        cursor.use { c -> return if (c.moveToFirst()) c.getString(c.getColumnIndexOrThrow(Telephony.Sms.BODY)) else null }
+        val found = mutableListOf<InboxCandidate>()
+        cursor.use { c ->
+            val bodyCol = c.getColumnIndexOrThrow(Telephony.Sms.BODY)
+            val dateCol = c.getColumnIndexOrThrow(Telephony.Sms.DATE)
+            val sentCol = c.getColumnIndexOrThrow(Telephony.Sms.DATE_SENT)
+            while (c.moveToNext()) {
+                val sent = c.getLong(sentCol).takeIf { it > 0 } ?: c.getLong(dateCol)
+                found += InboxCandidate(c.getString(bodyCol) ?: continue, sent)
+            }
+        }
+        return pick(found, sender, at, hash)
+    }
+
+    class InboxCandidate(val body: String, val sentAt: Long)
+
+    /**
+     * The message meant: the one whose fingerprint is [hash] (ignoring a "#n" repeat suffix), else the one closest in
+     * time. Taking simply the first in the window showed a neighbouring message from the same bank.
+     */
+    fun pick(found: List<InboxCandidate>, sender: String, at: Long, hash: String?): String? {
+        val base = hash?.substringBefore('#')
+        if (base != null) found.firstOrNull { com.pft.financetracker.domain.parser.Hashing.smsHash(sender, it.body, it.sentAt) == base }?.let { return it.body }
+        return found.minByOrNull { kotlin.math.abs(it.sentAt - at) }?.body
     }
 
     /** Sender IDs like "VM-HDFCBK", "AX-ICICIB-S", "JD-PAYTMB" contain letters; personal numbers do not. */

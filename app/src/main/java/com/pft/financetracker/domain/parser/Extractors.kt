@@ -500,6 +500,20 @@ object FlowClassifier {
      * [body] is the SMS text when available (pass "" for manual entries). [category] is the rule-based
      * category, used as a secondary hint (e.g. INVESTMENT category => INVESTMENT flow).
      */
+    /**
+     * Money moved between your own accounts or to a card bill is not income or spend, so it should not sit under
+     * Income or Other: it gets the Transfers category unless something more specific was found.
+     */
+    fun categoryFor(flow: Flow, guessed: Category): Category =
+        if (flow == Flow.TRANSFER && (guessed == Category.INCOME || guessed == Category.OTHER)) Category.TRANSFER else guessed
+
+    /** A card bill payment whose payee could not be read is named for what it is ("Card bill (SBI)"), not "Credit (SBI)". */
+    fun nameFor(flow: Flow, body: String, merchant: String, bank: String?): String {
+        val generic = merchant.startsWith("Credit (") || merchant.startsWith("Payment (") || merchant.startsWith("Debit (")
+        if (flow != Flow.TRANSFER || !generic || !cardBillPayment.containsMatchIn(SmsText.normalize(body).lowercase())) return merchant
+        return if (bank != null) "Card bill ($bank)" else "Card bill"
+    }
+
     fun classify(type: TransactionType, body: String, merchant: String, category: Category): Flow {
         val clean = SmsText.normalize(body)
         val text = "$clean $merchant"

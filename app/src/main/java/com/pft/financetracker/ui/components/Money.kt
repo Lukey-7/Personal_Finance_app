@@ -118,7 +118,11 @@ fun RollingText(text: String, style: TextStyle, color: Color, up: Boolean = true
     if (!sameShape) {
         AnimatedContent(
             targetState = text,
-            transitionSpec = { fadeIn(Motion.effects()) togetherWith fadeOut(Motion.effects()) },
+            // Out, then in: the old and new figures never overlap, so there is no moment of "₹0/9".
+            transitionSpec = {
+                fadeIn(androidx.compose.animation.core.tween(120, delayMillis = 120)) togetherWith
+                    fadeOut(androidx.compose.animation.core.tween(120)) using SizeTransform(clip = false)
+            },
             modifier = modifier,
             label = "figure",
         ) { t -> Text(t, style = style, color = color, maxLines = 1, softWrap = false) }

@@ -298,7 +298,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun clearDuplicates() { _duplicates.value = emptyList(); _duplicatesScanned.value = false }
 
     // ---- SMS log ----
-    suspend fun smsBody(e: SmsLogEntity): String? = withContext(Dispatchers.IO) { runCatching { c.importer.readBody(e.sender, e.receivedAt) }.getOrNull() }
+    suspend fun smsBody(e: SmsLogEntity): String? = withContext(Dispatchers.IO) { runCatching { c.importer.readBody(e.sender, e.receivedAt, e.smsHash) }.getOrNull() }
     fun flagLogEntry(logId: Long, onDone: (Boolean) -> Unit) = viewModelScope.launch { onDone(c.importer.sendToReview(logId)) }
 
     // ---- Summary helpers ----
