@@ -19,7 +19,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.pft.financetracker.MainActivity
 import com.pft.financetracker.R
-import com.pft.financetracker.appContainer
+import com.pft.financetracker.appContainerOrNull
 import com.pft.financetracker.domain.reminders.DayClock
 import com.pft.financetracker.domain.reminders.Reminder
 import com.pft.financetracker.domain.reminders.ReminderPlanner
@@ -36,7 +36,7 @@ fun interface ReminderSource {
  */
 class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val c = applicationContext.appContainer
+        val c = applicationContext.appContainerOrNull ?: return Result.success()
         // Twice a day is also the widget's clock: "this month" and "next bill" move on even without new SMS.
         com.pft.financetracker.ui.widget.FinTrackWidget.refresh(applicationContext)
         if (!c.settings.remindersEnabled.value || !Reminders.canPost(applicationContext)) return Result.success()

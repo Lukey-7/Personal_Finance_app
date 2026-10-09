@@ -11,6 +11,7 @@ import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -206,5 +207,11 @@ class BillsTest {
         assertEquals(BillState.Overdue(d("2027-01-31"), 24), BillTracker.state(rent, d("2027-02-24"), emptyList(), emptySet(), zone))
         assertEquals(BillState.Upcoming(d("2027-02-28"), 3), BillTracker.state(rent, d("2027-02-25"), emptyList(), emptySet(), zone))
         assertEquals(listOf(3, 1), BillTracker.reminder(rent, d("2027-02-25"), emptyList(), emptySet(), zone)!!.leadDays)
+    }
+
+    @Test fun aShortKeywordStartsALongerPayeeOnlyWhenTheAmountGuardsIt() {
+        assertTrue(BillTracker.keywordMatches(listOf("jio"), "JIOMOBILITY", prefixOk = true))
+        assertFalse(BillTracker.keywordMatches(listOf("jio"), "JIOMOBILITY", prefixOk = false))
+        assertTrue(BillTracker.keywordMatches(listOf("jio"), "Jio Prepaid"))
     }
 }

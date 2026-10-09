@@ -526,7 +526,7 @@ internal fun DataSection(vm: AppViewModel, snackbar: SnackbarHostState) {
             TintedSquare(Icons.Outlined.Lock)
             Spacer(Modifier.width(Space.md))
             Text(
-                "All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting.",
+                "All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting. Ask and the AI features send summaries to OpenAI only while they are on.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),

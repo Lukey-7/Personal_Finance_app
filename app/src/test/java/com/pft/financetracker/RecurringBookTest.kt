@@ -92,4 +92,14 @@ class RecurringBookTest {
         assertEquals(listOf("rec:netflix"), b.current.map { it.item.key })
         assertTrue(b.stopped.isEmpty())
     }
+
+    @Test fun choicesSavedUnderAnOldNameStillApply() {
+        // Saved before brand names were merged: "Disney Hotstar" was its own key; it is "hotstar" now.
+        val b = RecurringBook.of(listOf(item("rec:hotstar", 299_00, 3), item("rec:spotify", 119_00, 3)), listOf(
+            RecurringDecision("rec:disneyhotstar", RecurringStatus.DISMISSED, 1L),
+            RecurringDecision("rec:spotifyab", RecurringStatus.CONFIRMED, 1L),
+        ))
+        assertEquals(listOf("rec:spotify"), b.shown.map { it.item.key })
+        assertEquals(RecurringStatus.CONFIRMED, b.shown.single().status)
+    }
 }

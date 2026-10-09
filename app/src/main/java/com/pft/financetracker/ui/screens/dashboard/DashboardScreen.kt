@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.outlined.QuestionAnswer
@@ -226,7 +227,16 @@ fun DashboardScreen(
                 }
             )
         },
-        floatingActionButton = { AddButton(onAdd, listState, Modifier.padding(bottom = barPad)) },
+        // The grid of tools starts with Add, so the floating button steps aside while the grid is on screen and
+        // never covers a tile; it comes back once the grid scrolls away.
+        floatingActionButton = {
+            val toolsShown by remember { androidx.compose.runtime.derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == "tools" } } }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !toolsShown,
+                enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.scaleIn(),
+                exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.scaleOut(),
+            ) { AddButton(onAdd, listState, Modifier.padding(bottom = barPad)) }
+        },
         snackbarHost = { FinSnackbarHost(snackbar, Modifier.padding(bottom = barPad)) }
     ) { padding ->
         LazyColumn(
@@ -302,7 +312,7 @@ fun DashboardScreen(
             item(key = "tiles") { Tiles(summary, onDrill) }
 
             // Every feature one tap from Home, named, so nobody has to find it behind an icon.
-            item(key = "tools") { ToolShortcuts(onOpenRoute, onOpenTools) }
+            item(key = "tools") { ToolShortcuts(onOpenRoute, onAdd) }
 
             // ---- Cards, most urgent first ----
             if (reviewCount > 0) item(key = "review") {
@@ -646,10 +656,11 @@ internal class HomeFigures(
 
 private data class Shortcut(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val route: String?)
 
-/** Two rows of four named shortcuts: budgets, bills, cards, subscriptions, goals, tax, Ask and all tools. */
+/** Two rows of four named shortcuts: add a payment, budgets, bills, cards, subscriptions, goals, tax and Ask. */
 @Composable
-private fun ToolShortcuts(onOpenRoute: (String) -> Unit, onOpenTools: () -> Unit) {
+private fun ToolShortcuts(onOpenRoute: (String) -> Unit, onAdd: () -> Unit) {
     val items = listOf(
+        Shortcut("Add", Icons.Outlined.Add, null),
         Shortcut("Budgets", Icons.Outlined.Savings, com.pft.financetracker.ui.nav.Routes.BUDGETS),
         Shortcut("Bills", Icons.AutoMirrored.Outlined.ReceiptLong, com.pft.financetracker.ui.nav.Routes.BILLS),
         Shortcut("Cards", Icons.Outlined.CreditCard, com.pft.financetracker.ui.nav.Routes.CARDS),
@@ -657,7 +668,6 @@ private fun ToolShortcuts(onOpenRoute: (String) -> Unit, onOpenTools: () -> Unit
         Shortcut("Goals", Icons.Outlined.Flag, com.pft.financetracker.ui.nav.Routes.GOALS),
         Shortcut("Tax", Icons.Outlined.AccountBalance, com.pft.financetracker.ui.nav.Routes.TAX),
         Shortcut("Ask", Icons.Outlined.QuestionAnswer, com.pft.financetracker.ui.nav.Routes.ASK),
-        Shortcut("All tools", Icons.Outlined.Apps, null),
     )
     Column(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         CapsLabel("Money tools")
@@ -666,7 +676,7 @@ private fun ToolShortcuts(onOpenRoute: (String) -> Unit, onOpenTools: () -> Unit
                 row.forEach { s ->
                     Column(
                         Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
-                            .clickable(role = Role.Button) { if (s.route != null) onOpenRoute(s.route) else onOpenTools() }
+                            .clickable(role = Role.Button) { if (s.route != null) onOpenRoute(s.route) else onAdd() }
                             .padding(vertical = Space.sm),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp),

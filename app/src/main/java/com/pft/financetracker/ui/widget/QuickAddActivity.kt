@@ -11,6 +11,7 @@ import androidx.compose.runtime.produceState
 import androidx.lifecycle.lifecycleScope
 import com.pft.financetracker.MainActivity
 import com.pft.financetracker.appContainer
+import com.pft.financetracker.appContainerOrNull
 import com.pft.financetracker.data.local.toDomain
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.ui.model.QuickAddDraft
@@ -28,6 +29,12 @@ class QuickAddActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // The data could not be opened: the app explains why, instead of a sheet that can't save.
+        if (appContainerOrNull == null) {
+            startActivity(android.content.Intent(this, com.pft.financetracker.MainActivity::class.java).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            finish()
+            return
+        }
         val cash = intent.getBooleanExtra(EXTRA_CASH, false)
         val cashCounted = appContainer.settings.countCashAsSpend.value
         setContent {

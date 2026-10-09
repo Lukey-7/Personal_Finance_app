@@ -68,14 +68,49 @@ class AppContainer(context: Context) {
 }
 
 class FinanceApp : Application() {
-    lateinit var container: AppContainer
+    /** Null only when the database's key could not be read; [startupError] says why, and MainActivity explains. */
+    var container: AppContainer? = null
+        private set
+    var startupError: Throwable? = null
         private set
 
     override fun onCreate() {
         super.onCreate()
-        container = AppContainer(this)
-        seedBuiltInApiKey()
         Reminders.ensureChannel(this)
+        start()
+    }
+
+    /** Opens the data. False when the secure key store can't give the key; the data is left exactly as it was. */
+    fun start(): Boolean {
+        val c = try {
+            AppContainer(this)
+        } catch (e: com.pft.financetracker.data.local.DbKeyUnavailable) {
+            startupError = e
+            return false
+        }
+        startupError = null
+        container = c
+        onStarted(c)
+        return true
+    }
+
+    /**
+     * The person chose to start again after the key store broke: the unreadable database is moved aside (kept on the
+     * phone, never deleted) and a new key and an empty database are made. A backup can then be restored in Settings.
+     */
+    fun startFresh(): Boolean {
+        val db = getDatabasePath(com.pft.financetracker.data.local.DbKey.DB_NAME)
+        val kept = com.pft.financetracker.data.local.KeyRecovery.keptName(System.currentTimeMillis())
+        for (suffix in listOf("", "-wal", "-shm", "-journal")) {
+            val f = java.io.File(db.path + suffix)
+            if (f.exists() && !f.renameTo(java.io.File(db.parentFile, kept + suffix))) return false
+        }
+        com.pft.financetracker.data.local.DbKey.reset(this)
+        return start()
+    }
+
+    private fun onStarted(container: AppContainer) {
+        seedBuiltInApiKey()
         container.reminderSources += ReminderSource { now -> container.recurring.book(now).reminders() }
         container.reminderSources += ReminderSource { now -> container.bills.reminders(now) }
         // Only for people who already keep backups: a nudge when the last one is a month old, then at most weekly.
@@ -109,9 +144,13 @@ class FinanceApp : Application() {
     private fun seedBuiltInApiKey() {
         val seed = BuildConfig.SEED_OPENAI_KEY
         if (seed.isBlank()) return
-        container.settings.seedApiKey(seed)
+        container?.settings?.seedApiKey(seed)
     }
 }
 
 val Context.appContainer: AppContainer
+    get() = (applicationContext as FinanceApp).container ?: error("FinTrack could not open its data.")
+
+/** The container, or null when the data could not be opened (background work then simply skips). */
+val Context.appContainerOrNull: AppContainer?
     get() = (applicationContext as FinanceApp).container

@@ -217,7 +217,7 @@ object BillTracker {
 
     private fun matches(b: Bill, t: Transaction, key: List<String>?, amount: Long?): Boolean {
         if (key != null) {
-            if (!keywordMatches(key, t.merchant)) return false
+            if (!keywordMatches(key, t.merchant, prefixOk = amount != null)) return false
             return amount == null || kotlin.math.abs(t.amountPaise - amount) * 100 <= amount * AMOUNT_SLACK_PERCENT
         }
         if (amount == null) return false
@@ -232,12 +232,14 @@ object BillTracker {
      * True when the merchant names the keyword: as whole words ("No Broker" for "nobroker" too), or as the start of a
      * word when the keyword is 4 letters or more ("airtel" in "AIRTELPOSTPAID"), or followed only by digits.
      */
-    internal fun keywordMatches(key: List<String>, merchant: String): Boolean {
+    internal fun keywordMatches(key: List<String>, merchant: String, prefixOk: Boolean = false): Boolean {
         val joined = key.joinToString("")
         val words = tokens(merchant)
         for (i in words.indices) {
             val w = words[i]
-            if (w.startsWith(joined) && (joined.length >= 4 || w.drop(joined.length).all { it.isDigit() })) return true
+            // A 3-letter keyword may start a longer word only when the amount check guards it (JioMart's ₹50 is not
+            // a ₹999 Jio bill), so "jio" still finds "JIOMOBILITY" or "JIOFIBER".
+            if (w.startsWith(joined) && (joined.length >= 4 || prefixOk || w.drop(joined.length).all { it.isDigit() })) return true
             val run = StringBuilder()
             for (j in i until words.size) {
                 run.append(words[j])

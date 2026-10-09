@@ -148,6 +148,16 @@ object RecurringDetector {
         return brand(raw) ?: raw.take(16)
     }
 
+    /**
+     * A stored decision key in today's form. Keys saved before brand aliases ("rec:disneyhotstar", "rec:spotifyab",
+     * "rec:amazonprimemembe") map to the key the same service gets now ("rec:hotstar", "rec:spotify", "rec:amazonprime").
+     */
+    fun canonicalKey(key: String): String {
+        if (!key.startsWith("rec:")) return key
+        val rest = key.removePrefix("rec:")
+        return "rec:" + (brand(rest) ?: rest)
+    }
+
     /** The next charge after [lastAt] for [period]: calendar months for monthly and longer plans, so it does not drift. */
     fun nextAfter(lastAt: Long, period: Period, zone: ZoneId = ZoneId.systemDefault()): Long {
         val z = Instant.ofEpochMilli(lastAt).atZone(zone)

@@ -52,7 +52,7 @@ abstract class AppDatabase : RoomDatabase() {
             instance ?: run {
                 System.loadLibrary("sqlcipher")
                 val factory = SupportOpenHelperFactory(DbKey.getOrCreate(context.applicationContext))
-                Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "fintrack.db")
+                Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, DbKey.DB_NAME)
                     .openHelperFactory(factory)
                     .addCallback(object : Callback() {
                         override fun onOpen(db: SupportSQLiteDatabase) {
@@ -340,12 +340,44 @@ abstract class AppDatabase : RoomDatabase() {
     }
 }
 
+/**
+ * The phone's secure key store could not give FinTrack the key to its database (a broken or reset Android Keystore).
+ * The data is still on the phone but cannot be read without that key; nothing has been deleted.
+ */
+class DbKeyUnavailable(cause: Throwable) : Exception("The secure key store could not be opened.", cause)
+
 /** Holds the SQLCipher passphrase. Kept in its own encrypted file so clearing settings never orphans the database. */
-private object DbKey {
+internal object DbKey {
     private const val FILE = "fintrack_db_key"
     private const val KEY = "db_passphrase"
+    const val DB_NAME = "fintrack.db"
 
+    /**
+     * The key, reading it from the secure store. The Keystore can be briefly unavailable just after boot, so a failure
+     * is retried. If it still fails: with no database yet there is nothing to lose, so the store is rebuilt; with a
+     * database, [DbKeyUnavailable] is thrown and nothing is deleted.
+     */
     fun getOrCreate(context: Context): ByteArray {
+        var last: Throwable? = null
+        repeat(3) { attempt ->
+            try { return read(context) } catch (e: Exception) { last = e; Thread.sleep(300L * (attempt + 1)) }
+        }
+        val dbExists = context.getDatabasePath(DB_NAME).exists()
+        if (!KeyRecovery.mayRebuild(dbExists)) throw DbKeyUnavailable(last!!)
+        reset(context)
+        return read(context)
+    }
+
+    /** Throws away the key store and its master key. Only for when there is no database, or the person chose to start fresh. */
+    fun reset(context: Context) {
+        context.deleteSharedPreferences(FILE)
+        runCatching {
+            val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            if (ks.containsAlias(MasterKey.DEFAULT_MASTER_KEY_ALIAS)) ks.deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
+        }
+    }
+
+    private fun read(context: Context): ByteArray {
         val masterKey = MasterKey.Builder(context).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
         val prefs = EncryptedSharedPreferences.create(
             context, FILE, masterKey,

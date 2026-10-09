@@ -202,8 +202,8 @@ private fun StepPage(page: Int, active: Boolean) {
                 Lead("Your money is nobody else's business, so FinTrack is built to keep it that way.")
                 Point(Icons.Outlined.Lock, "Encrypted, in a database on this phone")
                 Point(Icons.Outlined.PersonOff, "No account to create")
-                Point(Icons.Outlined.CloudOff, "No cloud, no analytics, no tracking")
-                Point(Icons.Outlined.AutoAwesome, "AI is optional, and only with your own key")
+                Point(Icons.Outlined.CloudOff, "No cloud sync, no analytics, no tracking")
+                Point(Icons.Outlined.AutoAwesome, "Ask answers with ChatGPT, using the built-in key or your own; turn it off in Settings")
             }
         }
     }

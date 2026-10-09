@@ -48,7 +48,8 @@ class RecurringBook private constructor(val shown: List<RecurringView>, val comp
         val EMPTY = RecurringBook(emptyList(), computed = false)
 
         fun of(items: List<RecurringItem>, decisions: List<RecurringDecision>): RecurringBook {
-            val byKey = decisions.associateBy { it.key }
+            // Old decisions are read under today's keys; when two map to one service, the latest choice wins.
+            val byKey = decisions.sortedBy { it.decidedAt }.associateBy { RecurringDetector.canonicalKey(it.key) }
             val views = items.mapNotNull { i ->
                 val d = byKey[i.key]
                 if (d?.status == RecurringStatus.DISMISSED) return@mapNotNull null
