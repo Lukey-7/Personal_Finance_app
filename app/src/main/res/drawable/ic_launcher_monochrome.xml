@@ -1,23 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Launcher icon: a white rupee in a faint coin ring, with a mint dot for "up to date". Inside the 66dp safe zone. -->
+<!-- Themed (Android 13+) launcher icon: the rupee alone; the system tints it. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:pathData="M54,25a29,29 0,1 1,0 58a29,29 0,1 1,0 -58z"
-        android:strokeWidth="2.5"
-        android:strokeColor="#2EFFFFFF"
-        android:fillColor="#00000000" />
-    <path
         android:pathData="M41,36H67M41,45.5H67M47,36C58,36 61.5,40.5 61.5,45.5C61.5,51.5 56.5,55.5 47,55.5H44L62,73"
         android:strokeWidth="5.5"
-        android:strokeColor="#FFFFFFFF"
+        android:strokeColor="#FF000000"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:fillColor="#00000000" />
-    <path
-        android:pathData="M71,69m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"
-        android:fillColor="#FF7EE8B4" />
 </vector>

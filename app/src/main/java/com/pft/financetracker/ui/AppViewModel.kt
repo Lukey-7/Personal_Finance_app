@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.pft.financetracker.appContainer
 import com.pft.financetracker.data.bills.toDomain
 import com.pft.financetracker.data.cards.toDomain
-import com.pft.financetracker.data.networth.toDomain
 import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.data.local.SmsLogEntity
 import com.pft.financetracker.data.repository.TransactionRepository
@@ -72,34 +71,60 @@ sealed class StatementUiState {
     data class Error(val message: String) : StatementUiState()
 }
 
-/** Reading a mutual-fund CAS PDF: (password) -> done. */
-sealed class CasUiState {
-    data object Idle : CasUiState()
-    data object Reading : CasUiState()
-    data class NeedsPassword(val uri: Uri, val wrong: Boolean) : CasUiState()
-    data class Done(val count: Int) : CasUiState()
-    data class Error(val message: String) : CasUiState()
-}
-
-/** Which period the dashboard shows. Kept in the view model so it survives tab switches. */
+/**
+ * Which period the dashboard shows. Kept in the view model so it survives tab switches. A month or a week is held by
+ * how far back it is (0 = this one, -1 = the one before), so stepping back and forth and comparing with the period
+ * before are always whole calendar months or weeks; a picked range is held as its first and last local day.
+ */
 sealed class PeriodChoice {
-    data object ThisMonth : PeriodChoice()
-    data object LastMonth : PeriodChoice()
-    data object ThisWeek : PeriodChoice()
+    data class Month(val offset: Int = 0) : PeriodChoice()
+    data class Week(val offset: Int = 0) : PeriodChoice()
     data class Custom(val start: Long, val endInclusive: Long) : PeriodChoice()
 
-    fun period(): Period = when (this) {
-        ThisMonth -> Periods.month()
-        LastMonth -> Periods.month(-1)
-        ThisWeek -> Periods.week()
-        is Custom -> Periods.custom(start, endInclusive)
+    fun period(now: Long = System.currentTimeMillis()): Period = when (this) {
+        is Month -> Periods.month(offset, now)
+        is Week -> Periods.week(offset, now)
+        is Custom -> Periods.custom(start, endInclusive, now)
     }
 
-    fun previous(): Period = when (this) {
-        ThisMonth -> Periods.month(-1)
-        LastMonth -> Periods.month(-2)
-        ThisWeek -> Periods.week(-1)
-        is Custom -> { val len = endInclusive - start + 86_400_000L; Periods.custom(start - len, start - 1) }
+    /** The whole period just before this one: the month before, the week before, or as many days before a range. */
+    fun previous(now: Long = System.currentTimeMillis()): Period = when (this) {
+        is Month -> Periods.month(offset - 1, now)
+        is Week -> Periods.week(offset - 1, now)
+        is Custom -> Periods.before(period(now), now)
+    }
+
+    /** One step earlier (-1) or later (+1); null past the current month or week, and for a picked range. */
+    fun step(delta: Int): PeriodChoice? = when (this) {
+        is Month -> (offset + delta).takeIf { it <= 0 }?.let { Month(it) }
+        is Week -> (offset + delta).takeIf { it <= 0 }?.let { Week(it) }
+        is Custom -> null
+    }
+
+    /** "This month", "Last week", "September 2026", "Week of 21 Sep" or the picked range. */
+    fun title(now: Long = System.currentTimeMillis()): String = when (this) {
+        is Month -> when (offset) {
+            0 -> "This month"
+            -1 -> "Last month"
+            else -> java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.ENGLISH).format(java.util.Date(period(now).start))
+        }
+        is Week -> when (offset) {
+            0 -> "This week"
+            -1 -> "Last week"
+            else -> period(now).label.replace("Wk of", "Week of")
+        }
+        is Custom -> period(now).label
+    }
+
+    companion object {
+        /**
+         * The date-range picker gives UTC midnights; read them as calendar days and hold the local start of each, so
+         * 1–31 Jul in India is 1 Jul 00:00 to 31 Jul, not 05:30 on each day.
+         */
+        fun fromPicker(utcStart: Long, utcEnd: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Custom {
+            fun local(ms: Long) = java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneOffset.UTC).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+            return Custom(local(utcStart), local(utcEnd))
+        }
     }
 }
 
@@ -137,7 +162,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val countCashAsSpend: StateFlow<Boolean> = c.settings.countCashAsSpend
     val myName: StateFlow<String> = c.settings.myName
 
-    private val _period = MutableStateFlow<PeriodChoice>(PeriodChoice.ThisMonth)
+    private val _period = MutableStateFlow<PeriodChoice>(PeriodChoice.Month(0))
     val period: StateFlow<PeriodChoice> = _period
     fun setPeriod(p: PeriodChoice) { _period.value = p }
 
@@ -429,34 +454,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun clearTaxTag(txId: Long) = viewModelScope.launch(Dispatchers.IO) { c.tax.clearTag(txId) }
     suspend fun taxCsv(fy: com.pft.financetracker.domain.tax.FinancialYear): String = withContext(Dispatchers.IO) { c.tax.csv(fy) }
 
-    val assets: StateFlow<List<com.pft.financetracker.domain.networth.Asset>> = c.db.netWorthDao().observeAssets()
-        .map { l -> l.map { it.toDomain() } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val accountBalances = c.db.netWorthDao().observeBalances().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val holdings = c.db.netWorthDao().observeHoldings().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val netWorthHistory = c.db.netWorthDao().observeSnapshots().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    val netWorth: StateFlow<com.pft.financetracker.domain.networth.NetWorthSummary> =
-        combine(c.db.netWorthDao().observeAssets(), c.db.netWorthDao().observeBalances(), c.db.netWorthDao().observeHoldings(), c.db.billDao().observeAll()) { a, b, h, bills ->
-            c.netWorth.summaryOf(a, b, h, bills.map { it.toDomain() }, java.time.LocalDate.now())
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.networth.NetWorthSummary(0, 0, emptyMap()))
-    fun saveAsset(a: com.pft.financetracker.domain.networth.Asset) = viewModelScope.launch(Dispatchers.IO) { c.netWorth.saveAsset(a); c.netWorth.snapshot() }
-    fun deleteAsset(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.netWorth.deleteAsset(id); c.netWorth.snapshot() }
-
-    private val _casState = MutableStateFlow<CasUiState>(CasUiState.Idle)
-    val casState: StateFlow<CasUiState> = _casState
-    fun resetCas() { _casState.value = CasUiState.Idle }
-    fun importCas(uri: Uri, password: String?) = viewModelScope.launch {
-        _casState.value = CasUiState.Reading
-        _casState.value = when (val r = c.statementFiles.readPdfText(uri, password)) {
-            is StatementFiles.TextRead.NeedsPassword -> CasUiState.NeedsPassword(uri, r.wrong)
-            is StatementFiles.TextRead.Error -> CasUiState.Error(r.message)
-            is StatementFiles.TextRead.Ok -> {
-                val h = withContext(Dispatchers.Default) { com.pft.financetracker.domain.networth.CasParser.parse(r.text) }
-                if (h.isEmpty()) CasUiState.Error("No fund holdings found. Use a CAMS or KFintech Consolidated Account Statement (detailed).")
-                else { withContext(Dispatchers.IO) { c.netWorth.replaceHoldings(h); c.netWorth.snapshot() }; CasUiState.Done(h.size) }
-            }
-        }
-    }
-
     val lastBackupAt: StateFlow<Long> = c.settings.lastBackupAt
     private val _backupBusy = MutableStateFlow<String?>(null)
     /** "Locking your backup…" / "Opening the backup…" while it runs; null otherwise. */
@@ -485,19 +482,37 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * Answers a question about the person's own numbers, on the phone: the rules first (exact figures), then, for a
      * question they do not understand, Gemini Nano with the phone's totals, where the phone has it.
      */
-    suspend fun ask(question: String): com.pft.financetracker.domain.ask.AskAnswer = withContext(Dispatchers.Default) {
-        // Read fresh: the netWorth flow only runs while its screen is open.
-        val nw = c.netWorth.summary()
+    suspend fun ask(question: String, history: List<Pair<String, String>> = emptyList()): com.pft.financetracker.domain.ask.AskAnswer = withContext(Dispatchers.Default) {
         val ctx = com.pft.financetracker.domain.ask.AskContext(
             txns = transactions.value, budgets = budgets.value, recurring = c.recurring.book(), bills = c.bills.states(),
-            netWorthPaise = if (nw.ownPaise == 0L && nw.owePaise == 0L) null else nw.totalPaise, includeCash = countCashAsSpend.value,
+            includeCash = countCashAsSpend.value,
         )
         val rules = com.pft.financetracker.domain.ask.AskEngine.answer(question, ctx)
+        // With a key and the switch on, ChatGPT answers every question from a summary of the payments; the rules'
+        // payments (if any) stay attached so "Show payments" still works. Offline or on error, the phone answers.
+        val key = if (c.settings.askUseOpenAi.value) c.settings.getApiKey() else null
+        if (key != null) {
+            val facts = com.pft.financetracker.domain.ask.AskAiPrompt.facts(ctx)
+            val messages = buildList {
+                add("user" to "Here is my money data from FinTrack:\n$facts")
+                add("assistant" to "Got it. What would you like to know?")
+                history.takeLast(6).forEach { (q, a) -> add("user" to q); add("assistant" to a) }
+                add("user" to question)
+            }
+            when (val r = OpenAiClient().chat(key, com.pft.financetracker.domain.ask.AskAiPrompt.system, messages)) {
+                is OpenAiClient.Result.Ok -> return@withContext com.pft.financetracker.domain.ask.AskAnswer(
+                    r.text, transactionIds = if (rules.understood) rules.transactionIds else emptyList(), byAi = true, byOpenAi = true,
+                )
+                is OpenAiClient.Result.Error -> if (rules.understood) return@withContext rules.copy(text = rules.text + "\n\nChatGPT couldn't answer (${r.message}), so this is from the phone.")
+            }
+        }
         if (rules.understood || !c.settings.useNano.value) return@withContext rules
         c.nano.answer(question, com.pft.financetracker.domain.ask.NanoPrompt.facts(ctx))
             ?.let { com.pft.financetracker.domain.ask.AskAnswer(it, understood = true, byAi = true) } ?: rules
     }
 
+    val askUseOpenAi: StateFlow<Boolean> = c.settings.askUseOpenAi
+    fun setAskUseOpenAi(v: Boolean) = c.settings.setAskUseOpenAi(v)
     val useNano: StateFlow<Boolean> = c.settings.useNano
     fun setUseNano(v: Boolean) = c.settings.setUseNano(v)
     private val _nanoStatus = MutableStateFlow<com.pft.financetracker.data.ai.NanoAi.Status?>(null)

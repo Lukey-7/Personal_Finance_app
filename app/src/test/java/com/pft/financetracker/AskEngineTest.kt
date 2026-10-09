@@ -37,7 +37,7 @@ class AskEngineTest {
         txns = txns, budgets = listOf(Budget(Category.FOOD, 5_000_00)),
         recurring = RecurringBook.of(RecurringDetector.detect(txns, now), emptyList()),
         bills = listOf(Bill(id = 1, name = "Rent", amountPaise = 25_000_00, dueDay = 25, keyword = null) to BillState.Upcoming(LocalDate.of(2026, 10, 25), 5)),
-        netWorthPaise = null, now = now, zone = zone,
+        now = now, zone = zone,
     )
     private fun ask(q: String) = AskEngine.answer(q, ctx)
 
@@ -75,11 +75,5 @@ class AskEngineTest {
         val a = ask("what is the meaning of life")
         assertTrue(a.text.contains("Try"))
         assertTrue(a.transactionIds.isEmpty())
-    }
-
-    @Test fun aNegativeFigurePutsTheSignBeforeTheRupee() {
-        val a = AskEngine.answer("what is my net worth", ctx.copy(netWorthPaise = -2_00_000_00))
-        assertTrue(a.text, a.text.contains("-₹2,00,000"))
-        assertTrue(a.text, !a.text.contains("₹-"))
     }
 }

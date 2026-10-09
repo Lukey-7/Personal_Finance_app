@@ -355,6 +355,7 @@ internal fun AiSection(vm: AppViewModel) {
     val keyBuiltIn by vm.apiKeyBuiltIn.collectAsState()
     val aiState by vm.aiState.collectAsState()
     val useNano by vm.useNano.collectAsState()
+    val askOpenAi by vm.askUseOpenAi.collectAsState()
     val nanoStatus by vm.nanoStatus.collectAsState()
     var keyInput by remember { mutableStateOf("") }
     var changingKey by remember { mutableStateOf(false) }
@@ -380,6 +381,17 @@ internal fun AiSection(vm: AppViewModel) {
     }
 
     SettingsGroup("OpenAI (optional)") {
+        CardTitle("Ask with ChatGPT", Icons.Outlined.AutoAwesome)
+        SwitchRow("Answer Ask with ChatGPT", askOpenAi && hasKey, { vm.setAskUseOpenAi(it) }, enabled = hasKey)
+        LearnMore(
+            if (hasKey) "Each question goes to OpenAI with a summary of your payments, so answers can use all your numbers."
+            else "Needs an OpenAI key, below.",
+            "What Ask sends",
+            "Your question, the last few questions and answers, a year of monthly totals, categories, your main payees " +
+                "and your latest 120 payments (date, payee, category and amount). Never SMS text, account numbers, " +
+                "reference numbers or notes. With this off, Ask answers on the phone.",
+        )
+        Hairline()
         CardTitle("AI monthly summary", Icons.Outlined.AutoAwesome)
         LearnMore(
             "Uses your own OpenAI key. Nothing is sent until you tap Generate.",

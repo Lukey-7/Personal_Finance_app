@@ -210,8 +210,8 @@ fun ExpandableCard(
             TintedSquare(icon, tint, 36.dp)
             Spacer(Modifier.width(Space.md + Space.xs))
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
-                Text(summary, style = MaterialTheme.typography.bodySmall, color = summaryColor, maxLines = 2)
+                Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() }, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = summaryColor, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(Space.sm))
             Icon(Icons.Outlined.ExpandMore, null, Modifier.size(24.dp).rotate(turn), tint = MaterialTheme.colorScheme.onSurfaceVariant)

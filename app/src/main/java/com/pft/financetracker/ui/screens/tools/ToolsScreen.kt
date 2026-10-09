@@ -25,7 +25,6 @@ import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.QuestionAnswer
-import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -104,12 +103,10 @@ fun ToolsScreen(vm: AppViewModel, onOpen: (route: String) -> Unit, onBack: () ->
     val goals by vm.goalProgress.collectAsState()
     val tax by vm.taxSummary.collectAsState()
     val fy by vm.taxYear.collectAsState()
-    val worth by vm.netWorth.collectAsState()
     val columns = if (LocalDensity.current.fontScale > 1.3f) 1 else 2
     // The tool figures are worked out from flows that start empty when this page opens; give them a moment before
     // showing "None found yet" in place of a number that is about to arrive.
-    val anyData = book.shown.isNotEmpty() || bills.isNotEmpty() || cards.isNotEmpty() || goals.isNotEmpty() || tax.isNotEmpty() ||
-        worth.ownPaise != 0L || worth.owePaise != 0L
+    val anyData = book.shown.isNotEmpty() || bills.isNotEmpty() || cards.isNotEmpty() || goals.isNotEmpty() || tax.isNotEmpty()
     var settled by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(400); settled = true }
 
@@ -165,14 +162,6 @@ fun ToolsScreen(vm: AppViewModel, onOpen: (route: String) -> Unit, onBack: () ->
             else ToolTile(
                 "Goals", Icons.Outlined.Flag, Routes.GOALS, TileValue.Figure("${top.percent}%"),
                 top.goal.name + if (goals.size > 1) " · ${goals.size - 1} more" else "",
-            )
-        )
-
-        add(
-            if (worth.ownPaise == 0L && worth.owePaise == 0L) ToolTile("Net worth", Icons.Outlined.ShowChart, Routes.NET_WORTH, TileValue.Words("Accounts, funds, FDs and loans"), null)
-            else ToolTile(
-                "Net worth", Icons.Outlined.ShowChart, Routes.NET_WORTH, TileValue.Figure(money(worth.totalPaise), warn = worth.totalPaise < 0),
-                "You own ${money(worth.ownPaise)} · owe ${money(worth.owePaise)}",
             )
         )
 

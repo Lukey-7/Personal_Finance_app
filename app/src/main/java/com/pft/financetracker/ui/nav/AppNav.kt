@@ -130,7 +130,6 @@ object Routes {
     const val CARDS = "cards"
     const val GOALS = "goals"
     const val TAX = "tax"
-    const val NET_WORTH = "networth"
     const val ASK = "ask"
 }
 
@@ -241,6 +240,7 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                             onDrill = { bucket, cat -> nav.navigate(Routes.drill(bucket, cat)) },
                             onOpenSplit = { nav.navigate(Routes.splitDetail(it)) },
                             onOpenTools = { nav.navigate(Routes.TOOLS) },
+                            onOpenRoute = { nav.navigate(it) },
                         )
                     }
                     screen(Routes.TRANSACTIONS) {
@@ -278,7 +278,6 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                     }
                     screen(Routes.TOOLS) { ToolsScreen(vm, onOpen = { nav.navigate(it) }, onBack = { nav.popBackStack() }) }
                     screen(Routes.ASK) { com.pft.financetracker.ui.screens.ask.AskScreen(vm, onOpenTransaction = openTxn) { nav.popBackStack() } }
-                    screen(Routes.NET_WORTH) { com.pft.financetracker.ui.screens.networth.NetWorthScreen(vm) { nav.popBackStack() } }
                     screen(Routes.TAX) { com.pft.financetracker.ui.screens.tax.TaxScreen(vm) { nav.popBackStack() } }
                     screen(Routes.GOALS) { com.pft.financetracker.ui.screens.goals.GoalsScreen(vm) { nav.popBackStack() } }
                     screen(Routes.CARDS) { com.pft.financetracker.ui.screens.cards.CardsScreen(vm) { nav.popBackStack() } }

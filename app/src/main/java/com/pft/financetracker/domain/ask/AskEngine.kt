@@ -24,7 +24,6 @@ data class AskContext(
     val budgets: List<Budget>,
     val recurring: RecurringBook,
     val bills: List<Pair<Bill, BillState>>,
-    val netWorthPaise: Long?,
     val includeCash: Boolean = true,
     val now: Long = System.currentTimeMillis(),
     val zone: ZoneId = ZoneId.systemDefault(),
@@ -34,11 +33,18 @@ data class AskContext(
  * An answer in plain words, and the transactions behind it (for "show me"). [understood] is false when the rules did
  * not recognise the question, so an on-device model may try; [byAi] marks an answer the model wrote.
  */
-data class AskAnswer(val text: String, val transactionIds: List<Long> = emptyList(), val understood: Boolean = true, val byAi: Boolean = false)
+data class AskAnswer(
+    val text: String,
+    val transactionIds: List<Long> = emptyList(),
+    val understood: Boolean = true,
+    val byAi: Boolean = false,
+    /** Written by ChatGPT (OpenAI), from the summary in [AskAiPrompt]; otherwise by the rules or Gemini Nano on the phone. */
+    val byOpenAi: Boolean = false,
+)
 
 /**
  * Answers everyday questions about your money with rules that run on the phone: spend on a category or at a
- * merchant in a period, income, savings, the biggest merchant, subscriptions, bills due, budget left and net worth.
+ * merchant in a period, income, savings, the biggest merchant, subscriptions, bills due and budget left.
  * Nothing is sent anywhere. Questions it does not understand get a short list of ones it does.
  */
 object AskEngine {
@@ -62,8 +68,6 @@ object AskEngine {
             has("subscription", "subscriptions", "recurring", "autopay") -> subscriptions(c)
             has("due", "emi", "emis", "upcoming") || (has("bill", "bills") && category == null && !has("spend", "spent")) -> bills(c)
             has("budget", "budgets") -> budget(c, s)
-            has("net worth", "worth") -> c.netWorthPaise?.let { AskAnswer("Your net worth is ${rupees(it)} (what you own minus what you owe).") }
-                ?: AskAnswer("Set up Net worth in Money tools first: bank balances come from SMS, funds from a CAS statement.")
             has("earn", "earned", "income", "salary") -> AskAnswer("You received ${rupees(s.incomePaise)} of income ${period.label}.")
             has("save", "saved", "saving", "savings") -> AskAnswer(
                 "You saved ${rupees(s.savingsPaise)} ${period.label}: income ${rupees(s.incomePaise)} minus spend ${rupees(s.netSpendPaise)}."

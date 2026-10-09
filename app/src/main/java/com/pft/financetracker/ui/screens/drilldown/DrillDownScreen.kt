@@ -24,6 +24,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,9 +65,12 @@ fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: C
     val txns by vm.transactions.collectAsState()
     val choice by vm.period.collectAsState()
     val loaded by vm.loaded.collectAsState()
+    val includeCash by vm.countCashAsSpend.collectAsState()
     val period = choice.period()
-    val list = InsightsEngine.drillDown(txns, period, bucket, category)
-    val total = list.sumOf { it.amountPaise }
+    // Spend lists its refunds too, so the total is the same net figure Home showed.
+    val list = remember(txns, choice, bucket, category, includeCash) { InsightsEngine.drillDown(txns, period, bucket, category, includeCash) }
+    val total = InsightsEngine.drillTotal(list, bucket)
+    val refunds = if (bucket == InsightsEngine.Bucket.SPEND) list.count { it.flow == com.pft.financetracker.domain.model.Flow.REFUND } else 0
     val name = category?.label ?: bucketLabel(bucket)
     val days = list.groupBy { dayOf(it.timestamp) }
 
@@ -101,6 +105,7 @@ fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: C
                     Spacer(Modifier.height(Space.sm))
                     Text(
                         if (list.isEmpty()) "Nothing in this period"
+                        else if (refunds > 0) "${countLabel(list.size - refunds, "payment")} less ${countLabel(refunds, "refund")} · the amounts below"
                         else "${countLabel(list.size, "payment")} · the sum of the amounts below",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

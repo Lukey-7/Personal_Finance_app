@@ -19,8 +19,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.AccountBalance
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.outlined.QuestionAnswer
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.EventRepeat
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.DonutLarge
@@ -50,6 +59,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -59,7 +69,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.insights.InsightsEngine
@@ -137,6 +149,7 @@ fun DashboardScreen(
     onDrill: (Bucket, Category?) -> Unit,
     onOpenSplit: (Long) -> Unit = {},
     onOpenTools: () -> Unit = {},
+    onOpenRoute: (String) -> Unit = {},
 ) {
     val txns by vm.transactions.collectAsState()
     val budgets by vm.budgets.collectAsState()
@@ -151,15 +164,17 @@ fun DashboardScreen(
     var sparkSelected by remember(choice) { mutableStateOf<Int?>(null) }
     val listState = rememberLazyListState()
 
-    val period = choice.period()
-    val summary = InsightsEngine.summarize(txns, period, includeCash)
-    // Six days into a month compares with the first six days of the last one, not all of it.
-    val now = System.currentTimeMillis()
-    val comparedWith = Periods.sameSpanBefore(period, choice.previous(), now)
-    val prev = InsightsEngine.summarize(txns, comparedWith, includeCash)
-    val budgetStatus = InsightsEngine.budgetStatus(txns, budgets, period)
-    val recent = txns.take(6)
-    val spark = sparkPeriods(choice)
+    // Worked out once per change of data or period, off the main thread's hot path of every recomposition.
+    val view = remember(txns, budgets, choice, includeCash) { HomeFigures.of(txns, budgets, choice, includeCash) }
+    val period = view.period
+    val summary = view.summary
+    val now = view.now
+    val comparedWith = view.comparedWith
+    val prev = view.previous
+    val budgetPeriod = view.budgetPeriod
+    val budgetStatus = view.budgetStatus
+    val recent = view.recent
+    val spark = view.spark
 
     LaunchedEffect(importState) {
         val s = importState
@@ -192,7 +207,11 @@ fun DashboardScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 actions = {
-                    IconButton(onClick = onOpenTools) { Icon(Icons.Outlined.Apps, "Money tools") }
+                    TextButton(onClick = onOpenTools) {
+                        Icon(Icons.Outlined.Apps, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(Space.xs))
+                        Text("Tools", maxLines = 1)
+                    }
                     if (importState is ImportUiState.Running) CircularProgressIndicator(Modifier.padding(14.dp).size(20.dp).semantics { contentDescription = "Scanning SMS" }, strokeWidth = 2.dp)
                     else IconButton(onClick = { vm.scanInbox() }) { Icon(Icons.Outlined.Sync, "Scan SMS") }
                 }
@@ -210,9 +229,9 @@ fun DashboardScreen(
         ) {
             item {
                 SegmentedControl(
-                    options = listOf("This month", "Last month", "This week"),
-                    selected = when (choice) { PeriodChoice.ThisMonth -> 0; PeriodChoice.LastMonth -> 1; PeriodChoice.ThisWeek -> 2; is PeriodChoice.Custom -> -1 },
-                    onSelect = { vm.setPeriod(listOf(PeriodChoice.ThisMonth, PeriodChoice.LastMonth, PeriodChoice.ThisWeek)[it]) },
+                    options = listOf("Month", "Week"),
+                    selected = when (choice) { is PeriodChoice.Month -> 0; is PeriodChoice.Week -> 1; is PeriodChoice.Custom -> -1 },
+                    onSelect = { vm.setPeriod(if (it == 0) PeriodChoice.Month(0) else PeriodChoice.Week(0)) },
                     modifier = Modifier.padding(horizontal = Gutter),
                     trailing = Icons.Outlined.DateRange,
                     trailingLabel = if (choice is PeriodChoice.Custom) "Custom range: ${period.label}" else "Pick a custom range",
@@ -220,6 +239,7 @@ fun DashboardScreen(
                     onTrailing = { showRange = true },
                 )
             }
+            item(key = "stepper") { PeriodStepper(choice, onChoose = vm::setPeriod, onPickRange = { showRange = true }) }
 
             // Until the database answers, every figure below would read ₹0: show the page's shape instead.
             if (!loaded) {
@@ -258,20 +278,22 @@ fun DashboardScreen(
             }
 
             item(key = "spark") {
-                val bars = spark.mapIndexed { i, p -> ChartBar(sparkLabel(p, choice is PeriodChoice.ThisWeek), InsightsEngine.summarize(txns, p, includeCash).netSpendPaise, current = p.start == period.start) }
                 SpendChart(
-                    bars,
+                    view.sparkBars,
                     Modifier.padding(horizontal = Gutter),
                     height = 64.dp,
                     selected = sparkSelected,
                     onSelect = { sparkSelected = it },
-                    onOpen = { i -> vm.setPeriod(choiceFor(spark[i], choice is PeriodChoice.ThisWeek)) },
+                    onOpen = { i -> vm.setPeriod(spark[i]) },
                     compact = true,
-                    caption = { i -> spark[i].label },
+                    caption = { i -> view.sparkPeriods[i].label },
                 )
             }
 
             item(key = "tiles") { Tiles(summary, onDrill) }
+
+            // Every feature one tap from Home, named, so nobody has to find it behind an icon.
+            item(key = "tools") { ToolShortcuts(onOpenRoute, onOpenTools) }
 
             // ---- Cards, most urgent first ----
             if (reviewCount > 0) item(key = "review") {
@@ -316,16 +338,17 @@ fun DashboardScreen(
             item(key = "budgets") {
                 val over = budgetStatus.any { it.over }
                 ExpandableCard(
-                    title = "Budgets",
+                    // Budgets are monthly: a week or a range shows the month it ends in, and says which.
+                    title = if (budgetPeriod.start == Periods.month(0, now).start) "Budgets" else "Budgets · ${budgetPeriod.label}",
                     summary = HomeLines.budgets(budgetStatus),
                     icon = Icons.Outlined.Savings,
                     tint = if (over) Expense else MaterialTheme.colorScheme.primary,
                     summaryColor = if (over) Expense else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = Gutter),
-                    raised = over, initiallyExpanded = over, stateKey = "home-budgets",
+                    raised = over, initiallyExpanded = over, stateKey = "home-budgets-${budgetPeriod.start}-$over",
                 ) {
                     if (budgetStatus.isEmpty()) Text("Set a monthly limit for a category and FinTrack shows how close you are.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    budgetStatus.sortedByDescending { it.fraction }.take(5).forEach { b ->
+                    budgetStatus.sortedByDescending { it.fraction }.take(5).forEach { b -> key(b.budget.category) {
                         Column(
                             Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "See payments") { onDrill(Bucket.SPEND, b.budget.category) },
                             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -338,7 +361,7 @@ fun DashboardScreen(
                             ProgressMeter(b.fraction, over = b.over)
                             if (b.over) Text("Over budget by ${money(b.spentPaise - b.budget.monthlyLimitPaise)}", color = Expense, style = MaterialTheme.typography.labelMedium)
                         }
-                    }
+                    } }
                     TextAction(if (budgetStatus.isEmpty()) "Set budgets" else "Manage budgets", onOpenBudgets, alignStart = true)
                 }
             }
@@ -354,7 +377,7 @@ fun DashboardScreen(
                     stateKey = "home-where",
                 ) {
                     if (slices.isEmpty()) Text("No spending recorded in this period.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    else CategoryRing(slices, money(summary.grossSpendPaise), countLabel(summary.expenseCount, "payment")) { cat -> onDrill(Bucket.SPEND, cat) }
+                    else CategoryRing(slices, money(summary.netSpendPaise), countLabel(summary.expenseCount, "payment")) { cat -> onDrill(Bucket.SPEND, cat) }
                 }
             }
 
@@ -434,9 +457,18 @@ fun DashboardScreen(
             }
 
             item(key = "recent-h") {
-                SectionHeader("Recent", Modifier.padding(top = Space.md)) { TextAction("See all", onOpenTransactions) }
+                // A past period lists its own latest payments, not this week's.
+                SectionHeader(if (now in period) "Recent" else "Latest in ${period.label}", Modifier.padding(top = Space.md)) { TextAction("See all", onOpenTransactions) }
             }
-            if (recent.isEmpty()) item(key = "recent-empty") {
+            if (recent.isEmpty() && txns.isNotEmpty()) item(key = "recent-none") {
+                Text(
+                    "No payments in ${period.label}.",
+                    Modifier.padding(horizontal = Gutter),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (txns.isEmpty()) item(key = "recent-empty") {
                 EmptyState(
                     Icons.AutoMirrored.Outlined.ReceiptLong,
                     "No transactions yet",
@@ -464,7 +496,7 @@ fun DashboardScreen(
             confirmButton = {
                 TextButton(onClick = {
                     val s = state.selectedStartDateMillis; val e = state.selectedEndDateMillis
-                    if (s != null && e != null) vm.setPeriod(PeriodChoice.Custom(s, e))
+                    if (s != null && e != null) vm.setPeriod(PeriodChoice.fromPicker(s, e))
                     showRange = false
                 }) { Text("OK") }
             },
@@ -479,7 +511,8 @@ private fun Tiles(summary: PeriodSummary, onDrill: (Bucket, Category?) -> Unit) 
     val big = LocalDensity.current.fontScale > 1.3f
     val items = listOf(
         Triple("Income", summary.incomePaise, Bucket.INCOME),
-        Triple("Spent", summary.grossSpendPaise, Bucket.SPEND),
+        // Net of refunds, like the figure above and the savings beside it: Income − Spent = Savings.
+        Triple("Spent", summary.netSpendPaise, Bucket.SPEND),
         Triple("Savings", summary.savingsPaise, null),
     )
     Column(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -508,9 +541,17 @@ private fun Tiles(summary: PeriodSummary, onDrill: (Bucket, Category?) -> Unit) 
             Modifier.fillMaxWidth().heightIn(min = 40.dp).clickable(role = Role.Button) { onDrill(Bucket.REFUNDS, null) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Includes ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("+${money(summary.refundsPaise)}", style = MoneyType.label, color = Income)
-            Text(" back in refunds & cashback", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // One text, so it wraps as a sentence instead of squeezing its last words into a column.
+            val refundColor = Income
+            Text(
+                buildAnnotatedString {
+                    append("Spent is after ")
+                    withStyle(MoneyType.label.toSpanStyle().copy(color = refundColor)) { append("+${money(summary.refundsPaise)}") }
+                    append(" back in refunds and cashback")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -530,19 +571,125 @@ private const val NOT_COUNTED_BODY =
 /** "Wed 7 Oct" under the app name. */
 private fun todayLine(): String = SimpleDateFormat("EEE d MMM", Locale.ENGLISH).format(Date())
 
-/** The six periods the spark chart shows, ending with the chosen one (months, or weeks for "This week"). */
-internal fun sparkPeriods(choice: PeriodChoice): List<Period> = when (choice) {
-    PeriodChoice.ThisWeek -> (5 downTo 0).map { Periods.week(-it) }
-    PeriodChoice.LastMonth -> (6 downTo 1).map { Periods.month(-it) }
-    else -> (5 downTo 0).map { Periods.month(-it) }
+/**
+ * The six bars of the spark chart, oldest first. They stay put while you move between the last six months (or weeks),
+ * so a bar never slides out from under your finger; further back, the window ends at the chosen one. A picked range
+ * shows the last six months.
+ */
+internal fun sparkChoices(choice: PeriodChoice): List<PeriodChoice> {
+    fun window(o: Int) = if (o >= -5) (-5..0) else (o - 5..o)
+    return when (choice) {
+        is PeriodChoice.Week -> window(choice.offset).map { PeriodChoice.Week(it) }
+        is PeriodChoice.Month -> window(choice.offset).map { PeriodChoice.Month(it) }
+        is PeriodChoice.Custom -> (-5..0).map { PeriodChoice.Month(it) }
+    }
 }
 
-/** The Home choice that shows [p]: this or last month / this week by name, anything older as a custom range. */
-internal fun choiceFor(p: Period, weekly: Boolean): PeriodChoice = when {
-    weekly && p.start == Periods.week().start -> PeriodChoice.ThisWeek
-    !weekly && p.start == Periods.month().start -> PeriodChoice.ThisMonth
-    !weekly && p.start == Periods.month(-1).start -> PeriodChoice.LastMonth
-    else -> PeriodChoice.Custom(p.start, p.end - 1)
+/** Everything Home shows for one period, worked out together so every figure agrees. */
+internal class HomeFigures(
+    val now: Long,
+    val period: Period,
+    val summary: PeriodSummary,
+    val comparedWith: Period,
+    val previous: PeriodSummary,
+    val budgetPeriod: Period,
+    val budgetStatus: List<com.pft.financetracker.domain.insights.BudgetStatus>,
+    val recent: List<com.pft.financetracker.domain.model.Transaction>,
+    val spark: List<PeriodChoice>,
+    val sparkPeriods: List<Period>,
+    val sparkBars: List<ChartBar>,
+) {
+    companion object {
+        fun of(
+            txns: List<com.pft.financetracker.domain.model.Transaction>,
+            budgets: List<com.pft.financetracker.domain.model.Budget>,
+            choice: PeriodChoice,
+            includeCash: Boolean,
+            now: Long = System.currentTimeMillis(),
+        ): HomeFigures {
+            val period = choice.period(now)
+            val summary = InsightsEngine.summarize(txns, period, includeCash)
+            // Six days into a month compares with the first six days of the last one, not all of it.
+            val comparedWith = Periods.sameSpanBefore(period, choice.previous(now), now)
+            val previous = InsightsEngine.summarize(txns, comparedWith, includeCash)
+            // Budgets are monthly limits: show the month the chosen period ends in.
+            val budgetPeriod = if (choice is PeriodChoice.Month) period else Periods.month(0, minOf(period.end - 1, now))
+            val budgetStatus = InsightsEngine.budgetStatus(txns, budgets, budgetPeriod, includeCash)
+            val recent = if (now in period) txns.take(6) else txns.asSequence().filter { it.timestamp in period }.take(6).toList()
+            val spark = sparkChoices(choice)
+            val sparkPeriods = spark.map { it.period(now) }
+            val weekly = choice is PeriodChoice.Week
+            val bars = sparkPeriods.map { p ->
+                ChartBar(sparkLabel(p, weekly), InsightsEngine.summarize(txns, p, includeCash).netSpendPaise, current = p.start == period.start)
+            }
+            return HomeFigures(now, period, summary, comparedWith, previous, budgetPeriod, budgetStatus, recent, spark, sparkPeriods, bars)
+        }
+    }
+}
+
+private data class Shortcut(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val route: String?)
+
+/** Two rows of four named shortcuts: budgets, bills, cards, subscriptions, goals, tax, Ask and all tools. */
+@Composable
+private fun ToolShortcuts(onOpenRoute: (String) -> Unit, onOpenTools: () -> Unit) {
+    val items = listOf(
+        Shortcut("Budgets", Icons.Outlined.Savings, com.pft.financetracker.ui.nav.Routes.BUDGETS),
+        Shortcut("Bills", Icons.AutoMirrored.Outlined.ReceiptLong, com.pft.financetracker.ui.nav.Routes.BILLS),
+        Shortcut("Cards", Icons.Outlined.CreditCard, com.pft.financetracker.ui.nav.Routes.CARDS),
+        Shortcut("Subscriptions", Icons.Outlined.EventRepeat, com.pft.financetracker.ui.nav.Routes.RECURRING),
+        Shortcut("Goals", Icons.Outlined.Flag, com.pft.financetracker.ui.nav.Routes.GOALS),
+        Shortcut("Tax", Icons.Outlined.AccountBalance, com.pft.financetracker.ui.nav.Routes.TAX),
+        Shortcut("Ask", Icons.Outlined.QuestionAnswer, com.pft.financetracker.ui.nav.Routes.ASK),
+        Shortcut("All tools", Icons.Outlined.Apps, null),
+    )
+    Column(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+        CapsLabel("Money tools")
+        items.chunked(4).forEach { row ->
+            Row(Modifier.fillMaxWidth()) {
+                row.forEach { s ->
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                            .clickable(role = Role.Button) { if (s.route != null) onOpenRoute(s.route) else onOpenTools() }
+                            .padding(vertical = Space.sm),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        TintedSquare(s.icon, MaterialTheme.colorScheme.primary, 40.dp)
+                        Text(
+                            s.label, style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false,
+                            overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** "‹ This month ›": steps one month or week at a time; the title opens the range picker. */
+@Composable
+private fun PeriodStepper(choice: PeriodChoice, onChoose: (PeriodChoice) -> Unit, onPickRange: () -> Unit) {
+    val back = choice.step(-1)
+    val forward = choice.step(1)
+    val unit = if (choice is PeriodChoice.Week) "week" else "month"
+    Row(Modifier.fillMaxWidth().padding(horizontal = Space.xs), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { back?.let(onChoose) }, enabled = back != null) {
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowLeft, "Previous $unit")
+        }
+        Text(
+            choice.title(),
+            Modifier.weight(1f).clickable(role = Role.Button, onClickLabel = "Pick a custom range", onClick = onPickRange).padding(vertical = Space.sm),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (choice is PeriodChoice.Custom) IconButton(onClick = { onChoose(PeriodChoice.Month(0)) }) {
+            Icon(Icons.Outlined.Close, "Back to this month")
+        } else IconButton(onClick = { forward?.let(onChoose) }, enabled = forward != null) {
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Next $unit")
+        }
+    }
 }
 
 private fun sparkLabel(p: Period, weekly: Boolean): String =

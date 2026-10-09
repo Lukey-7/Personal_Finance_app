@@ -41,14 +41,13 @@ object NanoPrompt {
                 else -> null
             }
         }.takeIf { it.isNotEmpty() }?.let { lines += "Bills: " + it.joinToString(", ") + "." }
-        c.netWorthPaise?.let { lines += "Net worth: ${rupees(it)}." }
         return lines.joinToString("\n")
     }
 
     fun prompt(question: String, facts: String): String =
-        "You help someone understand their own spending. Answer in at most three short sentences, using only the facts " +
-            "below; if they do not answer the question, say so plainly. Quote amounts exactly as given in rupees (₹). " +
-            "Do not give investment or tax advice.\n\nFacts:\n$facts\n\nQuestion: $question\nAnswer:"
+        "You help someone understand and manage their own money. Answer the question directly in a few short sentences, " +
+            "using only the facts below for their numbers; you may add a practical suggestion. If the facts do not cover " +
+            "it, say what is missing. Quote amounts exactly as given in rupees (₹).\n\nFacts:\n$facts\n\nQuestion: $question\nAnswer:"
 
     /** The model's reply, trimmed; null when there is nothing usable. */
     fun clean(reply: String?): String? = reply?.trim()?.takeIf { it.isNotEmpty() }?.take(MAX_REPLY)

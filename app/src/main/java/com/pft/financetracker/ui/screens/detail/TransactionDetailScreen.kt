@@ -192,7 +192,9 @@ fun TransactionDetailScreen(
                 facts.forEachIndexed { i, (k, v) ->
                     if (i > 0) Hairline()
                     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(vertical = Space.sm), verticalAlignment = Alignment.CenterVertically) {
-                        Text(k, Modifier.width(96.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        // The label keeps its width and one line; the value takes the rest and may wrap.
+                        Text(k, Modifier.widthIn(min = 96.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false)
+                        Spacer(Modifier.width(Space.md))
                         Text(v, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.End)
                     }
                 }

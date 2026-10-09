@@ -6,6 +6,7 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
@@ -16,10 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -69,9 +67,9 @@ fun AmountDisplay(
     val r = full.indexOf('₹')
     val sign = if (r > 0) full.substring(0, r) else ""
     val digits = if (r >= 0) full.substring(r + 1) else full
-    var last by remember { mutableLongStateOf(paise) }
-    val up = paise >= last
-    last = paise
+    // Which way the digits roll, decided once per new value (not a state write, so it never recomposes twice).
+    val direction = remember { RollDirection(paise) }
+    val up = direction.upTo(paise)
 
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
@@ -86,7 +84,11 @@ fun AmountDisplay(
         val maxPx = with(density) { maxWidth.toPx() }
         val style = size.ladder().firstOrNull { s ->
             measurer.measure(full, s, softWrap = false, maxLines = 1).size.width <= maxPx
-        } ?: size.ladder().last()
+        } ?: size.ladder().last().let { s ->
+            // Even the smallest step is too wide (crores in a narrow tile): shrink it to fit rather than cut it.
+            val w = measurer.measure(full, s, softWrap = false, maxLines = 1).size.width
+            if (w <= 0 || maxPx <= 0f) s else s.copy(fontSize = s.fontSize * (maxPx / w * 0.98f).coerceIn(0.5f, 1f))
+        }
         val small = style.copy(fontSize = style.fontSize * 0.62f, letterSpacing = style.letterSpacing * 0.5f, baselineShift = androidx.compose.ui.text.style.BaselineShift(0.52f))
         Row(verticalAlignment = Alignment.Bottom) {
             if (sign.isNotEmpty()) Text(sign, Modifier.alignByBaseline(), style = style, color = color, maxLines = 1, softWrap = false)
@@ -105,11 +107,21 @@ fun AmountDisplay(
  */
 @Composable
 fun RollingText(text: String, style: TextStyle, color: Color, up: Boolean = true, modifier: Modifier = Modifier) {
-    var shape by remember { mutableStateOf(text.length) }
-    val sameShape = shape == text.length
-    shape = text.length
-    if (reducedMotion || !sameShape) {
+    val memo = remember { RollMemo(text) }
+    val sameShape = memo.sameShapeAs(text)
+    if (reducedMotion) {
         Text(text, modifier, style = style, color = color, maxLines = 1, softWrap = false)
+        return
+    }
+    // Digits roll only when the commas and the point stay where they were (12,345 -> 12,890). When the layout
+    // changes (1,23,456 -> 1,234.50) rolling each slot would show junk mid-way, so the whole figure fades instead.
+    if (!sameShape) {
+        AnimatedContent(
+            targetState = text,
+            transitionSpec = { fadeIn(Motion.effects()) togetherWith fadeOut(Motion.effects()) },
+            modifier = modifier,
+            label = "figure",
+        ) { t -> Text(t, style = style, color = color, maxLines = 1, softWrap = false) }
         return
     }
     Row(modifier) {
@@ -124,6 +136,33 @@ fun RollingText(text: String, style: TextStyle, color: Color, up: Boolean = true
         }
     }
 }
+
+/** Remembers the last value so a new one knows whether it went up or down. */
+internal class RollDirection(private var last: Long) {
+    private var up = true
+    fun upTo(value: Long): Boolean {
+        if (value != last) { up = value > last; last = value }
+        return up
+    }
+}
+
+/** Remembers the last text's layout of digits and separators; answers whether a new text keeps it. */
+internal class RollMemo(private var lastText: String) {
+    private var lastMask = rollMask(lastText)
+    private var same = true
+    fun sameShapeAs(text: String): Boolean {
+        if (text != lastText) {
+            val m = rollMask(text)
+            same = m == lastMask
+            lastMask = m
+            lastText = text
+        }
+        return same
+    }
+}
+
+/** "1,23,456" -> "0,00,000": where the digits and the separators sit. */
+internal fun rollMask(text: String): String = buildString(text.length) { text.forEach { append(if (it.isDigit()) '0' else it) } }
 
 private fun rollTransition(up: Boolean): ContentTransform {
     val spec: FiniteAnimationSpec<IntOffset> = Motion.roll()

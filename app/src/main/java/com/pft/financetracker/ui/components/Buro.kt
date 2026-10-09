@@ -212,7 +212,7 @@ fun PillChip(
             Icon(icon, null, Modifier.size(18.dp), tint = fg)
             Spacer(Modifier.width(6.dp))
         }
-        Text(label, style = MaterialTheme.typography.labelLarge, color = fg, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1)
+        Text(label, style = MaterialTheme.typography.labelLarge, color = fg, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         if (trailingIcon != null) {
             Spacer(Modifier.width(6.dp))
             Icon(trailingIcon, trailingLabel, Modifier.size(16.dp), tint = fg)
@@ -297,7 +297,7 @@ private fun ButtonContent(text: String, icon: ImageVector?, style: TextStyle) {
         Icon(icon, null, Modifier.size(20.dp))
         Spacer(Modifier.width(Space.sm))
     }
-    Text(text, style = style, textAlign = TextAlign.Center)
+    Text(text, style = style, textAlign = TextAlign.Center, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
 }
 
 /**
@@ -321,7 +321,7 @@ fun TextAction(
         colors = ButtonDefaults.textButtonColors(
             contentColor = if (tone == Tone.Danger) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
         ),
-    ) { Text(text, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)) }
+    ) { Text(text, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) }
 }
 
 /**
@@ -374,7 +374,7 @@ fun CardTitle(title: String, icon: ImageVector? = null, modifier: Modifier = Mod
             TintedSquare(icon, size = 32.dp)
             Spacer(Modifier.width(Space.md))
         }
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
@@ -396,12 +396,12 @@ fun ActionRow(
         TintedSquare(icon, tint = tint, size = 36.dp)
         Spacer(Modifier.width(Space.lg))
         Column(Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = if (danger) tint else MaterialTheme.colorScheme.onSurface)
+            Text(label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = if (danger) tint else MaterialTheme.colorScheme.onSurface, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         if (trailing != null) {
             Spacer(Modifier.width(Space.sm))
-            Text(trailing, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            Text(trailing, Modifier.widthIn(max = 140.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
         Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }

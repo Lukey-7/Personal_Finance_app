@@ -67,7 +67,16 @@ class InsightsEngineTest {
     @Test
     fun drillDownMatchesHeadline() {
         val s = InsightsEngine.summarize(data, month)
-        assertEquals(s.grossSpendPaise, InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.SPEND).sumOf { it.amountPaise })
+        // Spend lists its refunds too, so the drill-down adds up to the net figure Home shows.
+        val spend = InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.SPEND)
+        assertEquals(s.netSpendPaise, InsightsEngine.drillTotal(spend, InsightsEngine.Bucket.SPEND))
+        for (c in s.byCategory) {
+            val list = InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.SPEND, c.category)
+            assertEquals(c.category.label, c.amountPaise, InsightsEngine.drillTotal(list, InsightsEngine.Bucket.SPEND))
+        }
+        // Leaving cash out of spend leaves it out of the drill-down and the budgets as well.
+        val noCash = InsightsEngine.summarize(data, month, includeCash = false)
+        assertEquals(noCash.netSpendPaise, InsightsEngine.drillTotal(InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.SPEND, includeCash = false), InsightsEngine.Bucket.SPEND))
         assertEquals(s.refundsPaise, InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.REFUNDS).sumOf { it.amountPaise })
         assertEquals(s.transfersOutPaise, InsightsEngine.drillDown(data, month, InsightsEngine.Bucket.TRANSFERS).sumOf { it.amountPaise })
     }

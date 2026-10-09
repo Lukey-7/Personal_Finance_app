@@ -111,6 +111,21 @@ class OpenAiClient(private val model: String = "gpt-4o-mini") {
         post(apiKey, body)
     }
 
+    /** A chat with earlier turns: [messages] are (role, text) pairs, role "user" or "assistant". Used by Ask. */
+    suspend fun chat(apiKey: String, system: String, messages: List<Pair<String, String>>, maxTokens: Int = 1_200, temperature: Double = 0.3): Result =
+        withContext(Dispatchers.IO) {
+            val body = JSONObject().apply {
+                put("model", model)
+                put("temperature", temperature)
+                put("max_tokens", maxTokens)
+                put("messages", JSONArray().apply {
+                    put(JSONObject().put("role", "system").put("content", system))
+                    messages.forEach { (role, text) -> put(JSONObject().put("role", role).put("content", text)) }
+                })
+            }
+            post(apiKey, body)
+        }
+
     private fun post(apiKey: String, body: JSONObject): Result = try {
         val conn = (URL("https://api.openai.com/v1/chat/completions").openConnection() as HttpsURLConnection).apply {
             requestMethod = "POST"

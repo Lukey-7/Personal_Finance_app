@@ -40,12 +40,27 @@ object Periods {
         return Period(start, c.timeInMillis, label)
     }
 
-    fun custom(start: Long, endInclusive: Long): Period {
+    fun custom(start: Long, endInclusive: Long, now: Long = System.currentTimeMillis()): Period {
         val c = Calendar.getInstance(); c.timeInMillis = start; zero(c)
         val s = c.timeInMillis
         c.timeInMillis = endInclusive; zero(c); c.add(Calendar.DAY_OF_MONTH, 1)
-        val label = String.format(Locale.ENGLISH, "%1\$td %1\$tb – %2\$td %2\$tb", Calendar.getInstance().apply { timeInMillis = s }, Calendar.getInstance().apply { timeInMillis = endInclusive })
-        return Period(s, c.timeInMillis, label)
+        return Period(s, c.timeInMillis, rangeLabel(s, c.timeInMillis - 1, now))
+    }
+
+    /** The same number of whole days straight before [p]: 1–10 Jul compares with 21–30 Jun. */
+    fun before(p: Period, now: Long = System.currentTimeMillis()): Period {
+        val c = Calendar.getInstance(); c.timeInMillis = p.start
+        c.add(Calendar.DAY_OF_MONTH, -p.days)
+        return Period(c.timeInMillis, p.start, rangeLabel(c.timeInMillis, p.start - 1, now))
+    }
+
+    /** "01 Jul – 31 Jul", with the year when it is not this one: "01 Jul – 31 Jul 2025". */
+    private fun rangeLabel(start: Long, lastMoment: Long, now: Long): String {
+        val a = Calendar.getInstance().apply { timeInMillis = start }
+        val b = Calendar.getInstance().apply { timeInMillis = lastMoment }
+        val year = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.YEAR)
+        val base = String.format(Locale.ENGLISH, "%1\$td %1\$tb – %2\$td %2\$tb", a, b)
+        return if (b.get(Calendar.YEAR) == year && a.get(Calendar.YEAR) == year) base else base + String.format(Locale.ENGLISH, " %1\$tY", b)
     }
 
     /**
@@ -143,10 +158,9 @@ object InsightsEngine {
         // Refunds reduce the category they came from when the merchant matches a spend in this period,
         // otherwise they reduce the total only.
         val refundByCat = mutableMapOf<Category, Long>()
+        val spendCats = spendCategoryByMerchant(spend)
         for (r in refunds) {
-            val key = normalizeMerchant(r.merchant)
-            val match = spend.firstOrNull { normalizeMerchant(it.merchant) == key }
-            val cat = match?.category ?: r.category.takeIf { it != Category.INCOME && it != Category.OTHER } ?: continue
+            val cat = refundCategory(r, spendCats) ?: continue
             refundByCat[cat] = (refundByCat[cat] ?: 0L) + r.amountPaise
         }
         val byCat = spend.groupBy { it.category }
@@ -186,10 +200,32 @@ object InsightsEngine {
     /** The transactions behind one number on the dashboard, so any total can be checked by hand. */
     enum class Bucket { SPEND, REFUNDS, INCOME, TRANSFERS, INVESTMENTS, CASH, ALL }
 
-    fun drillDown(all: List<Transaction>, period: Period, bucket: Bucket, category: Category? = null): List<Transaction> {
+    /** First spend's category per merchant key, for matching refunds to what they refund. */
+    private fun spendCategoryByMerchant(spend: List<Transaction>): Map<String, Category> {
+        val m = HashMap<String, Category>()
+        for (t in spend) m.putIfAbsent(normalizeMerchant(t.merchant), t.category)
+        return m
+    }
+
+    /** The category a refund reduces: the one its merchant was spent in, else its own; null when it fits none. */
+    private fun refundCategory(r: Transaction, spendCats: Map<String, Category>): Category? =
+        spendCats[normalizeMerchant(r.merchant)] ?: r.category.takeIf { it != Category.INCOME && it != Category.OTHER }
+
+    /**
+     * The payments behind one figure. Spend includes the refunds that reduce it (all of them, or those matched to
+     * [category]), so [drillTotal] of the list is exactly the net figure Home shows.
+     */
+    fun drillDown(all: List<Transaction>, period: Period, bucket: Bucket, category: Category? = null, includeCash: Boolean = true): List<Transaction> {
         val inPeriod = all.filter { it.timestamp in period && !it.needsReview }
+        if (bucket == Bucket.SPEND) {
+            val spend = inPeriod.filter { isSpend(it, includeCash) }
+            val spendCats = spendCategoryByMerchant(spend)
+            val refunds = inPeriod.filter { it.flow == Flow.REFUND }
+            return if (category == null) inPeriod.filter { isSpend(it, includeCash) || it.flow == Flow.REFUND }
+            else inPeriod.filter { (isSpend(it, includeCash) && it.category == category) || (it.flow == Flow.REFUND && it in refunds && refundCategory(it, spendCats) == category) }
+        }
         val byBucket = when (bucket) {
-            Bucket.SPEND -> inPeriod.filter { isSpend(it) }
+            Bucket.SPEND -> inPeriod.filter { isSpend(it, includeCash) }
             Bucket.REFUNDS -> inPeriod.filter { it.flow == Flow.REFUND }
             Bucket.INCOME -> inPeriod.filter { it.flow == Flow.INCOME }
             Bucket.TRANSFERS -> inPeriod.filter { it.flow == Flow.TRANSFER || it.flow == Flow.SETTLEMENT }
@@ -200,8 +236,13 @@ object InsightsEngine {
         return if (category == null) byBucket else byBucket.filter { it.category == category }
     }
 
-    fun budgetStatus(all: List<Transaction>, budgets: List<Budget>, period: Period = Periods.month()): List<BudgetStatus> {
-        val s = summarize(all, period)
+    /** The figure a drill-down list adds up to: for spend, payments minus the refunds listed with them. */
+    fun drillTotal(list: List<Transaction>, bucket: Bucket): Long =
+        if (bucket == Bucket.SPEND) list.sumOf { if (it.flow == Flow.REFUND) -it.amountPaise else it.amountPaise }
+        else list.sumOf { it.amountPaise }
+
+    fun budgetStatus(all: List<Transaction>, budgets: List<Budget>, period: Period = Periods.month(), includeCash: Boolean = true): List<BudgetStatus> {
+        val s = summarize(all, period, includeCash)
         return budgets.map { b -> BudgetStatus(b, s.byCategory.firstOrNull { it.category == b.category }?.amountPaise ?: 0L) }
             .sortedByDescending { it.fraction }
     }
@@ -301,7 +342,8 @@ object InsightsEngine {
     }
 
     /** Merchant key for grouping. Strips noise and keeps enough characters to tell "Amazon Pay" from "Amazon Prime". */
-    fun normalizeMerchant(m: String) = m.lowercase(Locale.ROOT).replace(Regex("""[^a-z0-9]"""), "").take(20)
+    fun normalizeMerchant(m: String) = m.lowercase(Locale.ROOT).replace(NonAlnum, "").take(20)
+    private val NonAlnum = Regex("""[^a-z0-9]""")
 
     private fun isWeekend(t: Long): Boolean {
         val c = Calendar.getInstance(); c.timeInMillis = t

@@ -30,7 +30,7 @@ class NanoPromptTest {
     )
     private val ctx = AskContext(txns, emptyList(), RecurringBook.EMPTY,
         listOf(Bill(id = 1, name = "Rent", amountPaise = 25_000_00, dueDay = 25, keyword = null) to BillState.Upcoming(LocalDate.of(2026, 10, 25), 5)),
-        netWorthPaise = null, now = now, zone = zone)
+        now = now, zone = zone)
 
     @Test fun rulesSayWhenTheyUnderstoodTheQuestion() {
         assertTrue(AskEngine.answer("food last month", ctx).understood)

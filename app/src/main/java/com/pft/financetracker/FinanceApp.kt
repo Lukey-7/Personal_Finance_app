@@ -35,13 +35,11 @@ class AppContainer(context: Context) {
     val cards: com.pft.financetracker.data.cards.CardService = com.pft.financetracker.data.cards.CardService(db.transactionDao(), db.cardDao())
     val goals: com.pft.financetracker.data.goals.GoalService = com.pft.financetracker.data.goals.GoalService(db.goalDao())
     val tax: com.pft.financetracker.data.tax.TaxService = com.pft.financetracker.data.tax.TaxService(db.transactionDao(), db.taxDao())
-    val netWorth: com.pft.financetracker.data.networth.NetWorthService = com.pft.financetracker.data.networth.NetWorthService(db.netWorthDao(), bills)
     val backup: com.pft.financetracker.data.backup.BackupService = com.pft.financetracker.data.backup.BackupService(db)
     val nano: com.pft.financetracker.data.ai.NanoAi = com.pft.financetracker.data.ai.NanoAi()
     val importer: SmsImporter = SmsImporter(
         context, parser, transactions, smsLog, settings,
         onCardStatement = { s, bank -> bills.fromStatement(s, bank) },
-        onBalance = { ref, bank, paise, at -> netWorth.recordBalance(ref, bank, paise, at) },
     )
     val splitEngine: SplitEngine = SplitEngine(
         db.transactionDao(), db.splitDao(),
@@ -65,7 +63,6 @@ class AppContainer(context: Context) {
     suspend fun afterChange(useAi: Boolean = true) {
         runCatching { refunds.run() }
         runCatching { splitEngine.run(useAi) }
-        runCatching { netWorth.snapshot() }
         com.pft.financetracker.ui.widget.FinTrackWidget.refresh(appContext)
     }
 }

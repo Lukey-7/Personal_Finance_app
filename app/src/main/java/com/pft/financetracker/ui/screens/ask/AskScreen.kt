@@ -76,8 +76,9 @@ import kotlinx.coroutines.launch
 private data class Turn(val question: String, val answer: AskAnswer, val markdown: Boolean = false)
 
 /**
- * Ask about your own numbers in plain words. Answered by rules on this phone (and Gemini Nano, where the phone has it
- * and it is switched on); nothing is sent anywhere. A friendly heading, the conversation, suggestions, the pill input.
+ * Ask about your own numbers in plain words. With an OpenAI key and "Answer Ask with ChatGPT" on, ChatGPT answers from
+ * a summary of the payments (and the conversation so far); otherwise the rules on this phone, and Gemini Nano where the
+ * phone has it. A friendly heading, the conversation, suggestions, the pill input.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,16 +88,25 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
     val txns by vm.transactions.collectAsState()
     val loaded by vm.loaded.collectAsState()
     val byId = remember(txns) { txns.associateBy { it.id } }
+    val hasKey by vm.hasApiKey.collectAsState()
+    val askOpenAi by vm.askUseOpenAi.collectAsState()
+    val online = hasKey && askOpenAi
+    var thinking by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
-    LaunchedEffect(turns.size) { if (turns.isNotEmpty()) list.animateScrollToItem(turns.size) }
+    LaunchedEffect(turns.size, thinking) { if (turns.isNotEmpty() || thinking != null) list.animateScrollToItem(turns.size + if (thinking != null) 1 else 0) }
     // Answers read the transactions, so questions wait until they have loaded rather than answer from nothing.
     val ready = loaded
 
     fun send(q: String) {
-        if (q.isBlank() || !ready) return
+        if (q.isBlank() || !ready || thinking != null) return
         input = ""
-        scope.launch { turns += Turn(q.trim(), vm.ask(q)) }
+        val question = q.trim()
+        val history = turns.map { it.question to it.answer.text }
+        thinking = question
+        scope.launch {
+            try { turns += Turn(question, vm.ask(question, history)) } finally { thinking = null }
+        }
     }
 
     Scaffold(
@@ -122,7 +132,11 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.Lock, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.width(Space.sm))
-                            Text("Answers come from your transactions on this phone. Nothing is sent anywhere.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                if (online) "ChatGPT answers from a summary of your payments. Turn this off in Settings › AI."
+                                else "Answers come from your transactions on this phone. Nothing is sent anywhere.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
                         if (turns.isEmpty()) Text(
                             "Ask in plain words, like “how much on food this month”, or tap a suggestion below.",
@@ -132,6 +146,16 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
                     }
                 }
                 items(turns) { t -> TurnCard(t, byId, onOpenTransaction) }
+                thinking?.let { q ->
+                    item(key = "thinking") {
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            Bubble(q, Modifier.align(Alignment.End))
+                            SoftPanel {
+                                Text("Thinking…", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
             }
             Hairline()
             ChipRow(Modifier.padding(top = Space.sm, bottom = Space.xs)) {
@@ -147,7 +171,7 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
                 // The same sunken pill as the search field; the send button fills with the accent once there is a question.
                 OutlinedTextField(
                     input, { input = it }, Modifier.weight(1f),
-                    placeholder = { Text(if (ready) "Ask, e.g. food last month" else "Loading your transactions…", maxLines = 1) },
+                    placeholder = { Text(if (ready) "Ask anything about your money" else "Loading your transactions…", maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
                     singleLine = true,
                     shape = CircleShape,
                     colors = OutlinedTextFieldDefaults.colors(
@@ -162,7 +186,7 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
                 Spacer(Modifier.width(Space.sm))
                 FilledIconButton(
                     onClick = { send(input) },
-                    enabled = ready && input.isNotBlank(),
+                    enabled = ready && input.isNotBlank() && thinking == null,
                     modifier = Modifier.size(48.dp),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -181,21 +205,18 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
 private fun TurnCard(t: Turn, byId: Map<Long, Transaction>, onOpen: (Long) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-        Text(
-            t.question,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.align(Alignment.End).widthIn(max = 300.dp)
-                .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 6.dp))
-                .background(surfaces.accentSoft)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        )
+        Bubble(t.question, Modifier.align(Alignment.End))
         SoftPanel {
-            if (t.markdown) MarkdownText(t.answer.text) else Text(t.answer.text, style = MaterialTheme.typography.bodyLarge)
+            // Model answers come with markdown (bold, bullets); show it formatted, not as raw asterisks.
+            if (t.markdown || t.answer.byAi) MarkdownText(t.answer.text) else Text(t.answer.text, style = MaterialTheme.typography.bodyLarge)
             if (t.answer.byAi) Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(Space.xs))
-                Text("Gemini Nano, on this phone. AI can get things wrong: check figures in Activity.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    if (t.answer.byOpenAi) "ChatGPT, from your FinTrack data. AI can get things wrong: check figures in Activity."
+                    else "Gemini Nano, on this phone. AI can get things wrong: check figures in Activity.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             val rows = t.answer.transactionIds.mapNotNull { byId[it] }
             if (rows.isNotEmpty()) TextAction(if (expanded) "Hide payments" else "Show ${countLabel(rows.size, "payment")}", { expanded = !expanded }, alignStart = true)
@@ -210,4 +231,18 @@ private fun TurnCard(t: Turn, byId: Map<Long, Transaction>, onOpen: (Long) -> Un
             }
         }
     }
+}
+
+/** The question, on the right in the accent tint. */
+@Composable
+private fun Bubble(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier.widthIn(max = 300.dp)
+            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 6.dp))
+            .background(surfaces.accentSoft)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    )
 }
