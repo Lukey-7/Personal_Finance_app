@@ -155,4 +155,100 @@ class ParserAccuracyTest {
         val d = Calendar.getInstance().apply { timeInMillis = t }
         assertEquals(10, d.get(Calendar.DAY_OF_MONTH))
     }
+
+    // ---- v1.5 parser review ----
+    private fun cal(t: Long) = Calendar.getInstance().apply { timeInMillis = t }
+
+    /** An earlier day with no time in the body is stored at the SMS's time of day, never at midnight. */
+    @Test
+    fun bodyDateOnEarlierDayKeepsTheSmsTimeOfDay() {
+        val c = Calendar.getInstance().apply { set(2026, Calendar.SEPTEMBER, 12, 14, 37, 0); set(Calendar.MILLISECOND, 0) }
+        val d = cal(DateExtractor.extract("Rs.100 debited on 10-09-26 to x@ybl", c.timeInMillis))
+        assertEquals(10, d.get(Calendar.DAY_OF_MONTH))
+        assertEquals(14, d.get(Calendar.HOUR_OF_DAY))
+        assertEquals(37, d.get(Calendar.MINUTE))
+    }
+
+    /** "12-10-24, 13:45:12": the time in the body wins over a date-only reading. */
+    @Test
+    fun bodyDateWithTimeKeepsThatTime() {
+        val smsAt = Calendar.getInstance().apply { set(2024, Calendar.OCTOBER, 12, 18, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+        val d = cal(DateExtractor.extract("INR 120.00 debited A/c no. XX1234 12-10-24, 13:45:12 UPI/P2M/428612345678/ZOMATO LTD Not you?", smsAt))
+        assertEquals(12, d.get(Calendar.DAY_OF_MONTH))
+        assertEquals(13, d.get(Calendar.HOUR_OF_DAY))
+        assertEquals(45, d.get(Calendar.MINUTE))
+        assertEquals(12, d.get(Calendar.SECOND))
+    }
+
+    @Test
+    fun isoDateWithColonBeforeTheTime() {
+        val smsAt = Calendar.getInstance().apply { set(2026, Calendar.SEPTEMBER, 5, 20, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+        val d = cal(DateExtractor.extract("Rs 500 debited on 2026-09-05:14:22:10 to x@ybl", smsAt))
+        assertEquals(5, d.get(Calendar.DAY_OF_MONTH))
+        assertEquals(14, d.get(Calendar.HOUR_OF_DAY))
+        assertEquals(22, d.get(Calendar.MINUTE))
+        assertEquals(10, d.get(Calendar.SECOND))
+    }
+
+    @Test
+    fun refsMatchAcrossPaddingButNotPlaceholders() {
+        assertTrue(RefExtractor.same("000427712345678", "427712345678"))
+        assertTrue(RefExtractor.same("UPI/427712345678", "427712345678"))
+        assertTrue(!RefExtractor.same("427712345678", "427712345679"))
+        assertNull(RefExtractor.normalize("0000000000000000"))
+        assertNull(RefExtractor.normalize("NA"))
+        assertNull(RefExtractor.normalize("-"))
+    }
+
+    @Test
+    fun axisUpiRefIsTheRrn() =
+        assertEquals("428612345678", RefExtractor.extract("INR 120.00 debited A/c no. XX1234 12-10-24, 13:45:12 UPI/P2M/428612345678/ZOMATO LTD Not you? SMS BLOCKUPI Cust ID to 919951860002 Axis Bank"))
+
+    @Test
+    fun fdFooterIsNotAnInvestment() {
+        assertEquals(Flow.EXPENSE, FlowClassifier.classify(TransactionType.DEBIT, "Rs 500.00 debited from A/c XX1234 at SWIGGY. Earn 7% on FD. T&C apply", "Swiggy", Category.FOOD))
+        assertEquals(Flow.EXPENSE, FlowClassifier.classify(TransactionType.DEBIT, "Rs 500.00 debited from A/c XX1234 at SWIGGY. Invest in Mutual Funds with us today.", "Swiggy", Category.FOOD))
+        // The payment itself still counts, even with a footer after it.
+        assertEquals(Flow.INVESTMENT, FlowClassifier.classify(TransactionType.DEBIT, "Rs.5000 debited towards Zerodha Broking SIP. Invest in more funds today. T&C apply", "Zerodha", Category.OTHER))
+    }
+
+    @Test
+    fun noBreakSpacesDoNotHideTheCardBill() =
+        assertEquals(Flow.TRANSFER, FlowClassifier.classify(TransactionType.CREDIT, "Payment of Rs\u00A015,000.00 has been credited to your SBI Card ending\u00A01234", "Credit (SBI)", Category.INCOME))
+
+    @Test
+    fun aCardSpendIsNotACardBillPayment() {
+        assertEquals(Flow.EXPENSE, FlowClassifier.classify(TransactionType.DEBIT, "INR 1,299.00 spent on ICICI Bank Credit Card XX9012 at AMAZON", "Amazon", Category.SHOPPING))
+        assertEquals(Flow.EXPENSE, FlowClassifier.classify(TransactionType.DEBIT, "Rs 500 paid via CRED Pay using your HDFC Bank Credit Card XX4455 at Swiggy", "Swiggy", Category.FOOD))
+        assertEquals(Flow.EXPENSE, FlowClassifier.classify(TransactionType.DEBIT, "Rs 500 debited from your Debit Card XX1234 at Swiggy", "Swiggy", Category.FOOD))
+    }
+
+    /** Money leaving your own account is still a debit: "transferred from your a/c ... to RAHUL". */
+    @Test
+    fun transferredFromYourAccountIsADebit() {
+        val t = success("VM-SBIINB", "Rs 2,000 transferred from your a/c XX1234 to RAHUL via IMPS. Ref 427712345695")
+        assertEquals(TransactionType.DEBIT, t.type)
+    }
+
+    @Test
+    fun otpSentToYourMobileIsStillIgnored() =
+        assertTrue(parser.parse(SmsMessage("VM-HDFCBK", "OTP 123456 sent to your mobile for txn of Rs 500 at Amazon. Do not share.", now)) is ParseResult.Ignored)
+
+    @Test
+    fun paymentRequestIsStillIgnored() =
+        assertTrue(parser.parse(SmsMessage("VM-PAYTMB", "Rahul has requested Rs 500 from you on Paytm. Pay now.", now)) is ParseResult.Ignored)
+
+    @Test
+    fun railsAreNotMerchants() {
+        val neft = success("VM-HDFCBK", "Rs 5,000.00 credited to your A/c XX1234 for NEFT transaction via HDFC Bank. Ref 427712345693")
+        assertTrue("merchant was ${neft.merchant}", !neft.merchant.lowercase().contains("transaction"))
+        val kotak = success("VM-HDFCBK", "Rs 1,000 credited to your A/c XX1234 by transfer from Kotak. Ref 427712345694")
+        assertTrue("merchant was ${kotak.merchant}", !kotak.merchant.lowercase().contains("transfer"))
+        assertTrue("merchant was ${kotak.merchant}", kotak.merchant.lowercase().contains("kotak"))
+    }
+
+    /** "to SWIGGY has failed": the merchant stops before the verb. */
+    @Test
+    fun merchantStopsBeforeHasFailed() =
+        assertEquals("Swiggy", com.pft.financetracker.domain.parser.MerchantExtractor.extract("Rs 500 paid to SWIGGY has been debited from your a/c", TransactionType.DEBIT))
 }
