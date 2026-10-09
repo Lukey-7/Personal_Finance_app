@@ -247,8 +247,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Save a transaction entered from a review item and remove the item from the queue. */
     fun resolveReview(reviewId: Long, t: Transaction, onDone: () -> Unit = {}) = viewModelScope.launch {
         // The confirmed message teaches the parser this sender's wording, so the next one needs no review.
-        c.transactions.getReview(reviewId)?.let { r -> withContext(Dispatchers.IO) { runCatching { c.templates.learn(r.sender, r.body, t) } } }
-        val id = c.transactions.insert(com.pft.financetracker.ui.model.FlowRules.normalise(t).copy(userEdited = true))
+        val review = c.transactions.getReview(reviewId)
+        review?.let { r -> withContext(Dispatchers.IO) { runCatching { c.templates.learn(r.sender, r.body, t) } } }
+        // Same duplicate check as an import, so a second alert for a payment already saved is merged, not added again.
+        val id = c.transactions.insertReviewed(com.pft.financetracker.ui.model.FlowRules.normalise(t).copy(userEdited = true), review?.body) { c.smsLog.pointsAt(it) }
         c.transactions.resolveReview(reviewId)
         t.smsHash?.let { c.smsLog.updateOutcome(it, "SAVED", t.merchant, id.takeIf { v -> v > 0 }) }
         onDone()
