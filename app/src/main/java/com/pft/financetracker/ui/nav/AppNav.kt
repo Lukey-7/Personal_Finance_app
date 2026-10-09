@@ -330,7 +330,8 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                             note = a?.getString("note").orEmpty(),
                             cash = a?.getBoolean("cash") ?: false,
                         ).takeIf { it.amount.isNotEmpty() || it.category != null || it.note.isNotEmpty() || it.cash }
-                        EditTransactionScreen(vm, id, reviewId, prefill, onOpenSplit = { nav.navigate(Routes.splitDetail(it)) }, onOpenTransaction = openTxn) { nav.popBackStack() }
+                        EditTransactionScreen(vm, id, reviewId, prefill, onOpenSplit = { nav.navigate(Routes.splitDetail(it)) }, onOpenTransaction = openTxn,
+                            onDeleted = { if (!nav.popBackStack(Routes.TXN, inclusive = true)) nav.popBackStack() }) { nav.popBackStack() }
                     }
                 }
             }
