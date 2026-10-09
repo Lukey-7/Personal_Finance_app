@@ -114,6 +114,33 @@ object SplitDecider {
         val ok = SplitVerifier.consistent(chosen.map { it.first }, byId, windowDays).toSet()
         return chosen.filter { it.first in ok }.map { SplitDecision(it.first, it.second) }
     }
+
+    /**
+     * Decisions that share a friend's transfer, directly or through a chain, stand or fall together: when one of them is
+     * only a suggestion, all of them are. Applying the dinner but only suggesting the cab would mark Rahul's Rs 1,200
+     * as a settlement while only Rs 1,000 of it is accounted for.
+     */
+    fun groupShared(decisions: List<SplitDecision>): List<SplitDecision> {
+        val parent = HashMap<Long, Long>()
+        fun find(x: Long): Long {
+            var r = x
+            var up: Long? = parent[r]
+            while (up != null && up != r) {
+                r = up
+                up = parent[r]
+            }
+            return r
+        }
+        decisions.forEach { parent[it.proposal.paymentId] = it.proposal.paymentId }
+        decisions.flatMap { d -> d.proposal.allocations.map { it.txId to d.proposal.paymentId } }
+            .groupBy({ it.first }, { it.second })
+            .values.forEach { payments ->
+                val root = find(payments.first())
+                payments.drop(1).forEach { p -> val other = find(p); if (other != root) parent[other] = root }
+            }
+        val suggestedRoots = decisions.filter { !it.auto }.map { find(it.proposal.paymentId) }.toSet()
+        return decisions.map { d -> if (d.auto && find(d.proposal.paymentId) in suggestedRoots) d.copy(auto = false) else d }
+    }
 }
 
 /**

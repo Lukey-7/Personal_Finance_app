@@ -38,12 +38,21 @@ object BillParser {
     private val standaloneAmount = Regex("""^-?\s*(?:rs\.?|inr|₹|रु\.?|रू\.?)?\s*[\d,]+(?:\.\d{1,2})?\s*(?:/-)?$""", RegexOption.IGNORE_CASE)
     private val anyAmount = Regex("""(?:rs\.?|inr|₹|रु\.?|रू\.?)?\s*$AMT""", RegexOption.IGNORE_CASE)
 
-    private val totalKeys = listOf("grand total", "net amount", "amount payable", "net payable", "total payable", "amount due", "bill total", "total amount", "net total", "total",
-        "कुल योग", "कुल राशि", "कुल देय", "कुल")
+    // Labels that only ever name the bill's total win over a bare "Total", which also heads GST summaries ("Total GST")
+    // and quantity lines printed after the real total.
+    private val strongTotalKeys = listOf("grand total", "net amount", "amount payable", "net payable", "total payable", "amount due", "bill total", "total amount", "net total",
+        "कुल योग", "कुल राशि", "कुल देय")
+    private val weakTotalKeys = listOf("total", "कुल")
+    private val totalKeys = strongTotalKeys + weakTotalKeys
     private val subtotalKeys = listOf("sub total", "subtotal", "sub-total", "item total", "items total", "gross amount", "basic amount", "उप योग", "उपयोग")
     private val taxKeys = listOf("cgst", "sgst", "igst", "gst", "vat", "tax", "cess", "जीएसटी", "टैक्स", "वैट")
     private val serviceKeys = listOf("service charge", "service chg", "svc charge", "packing", "delivery", "convenience fee", "platform fee", "tip", "round off", "round-off", "roundoff", "सेवा शुल्क", "पैकिंग", "डिलीवरी")
     private val discountKeys = listOf("discount", "less", "coupon", "promo", "offer", "छूट")
+    private val roundOffKeys = listOf("round off", "round-off", "roundoff")
+    /** Lines that mention tax but carry no tax amount: the amount tax was charged on, an invoice number, a GSTIN. */
+    private val notTaxKeys = listOf("taxable", "invoice", "gstin")
+    /** Money handed over and given back is never the bill's total. */
+    private val paymentKeys = listOf("tendered", "change", "paid", "cash", "card", "upi", "balance", "saved", "saving", "refund")
     private val skipItemKeys = totalKeys + subtotalKeys + taxKeys + serviceKeys + discountKeys + listOf(
         "cash", "change", "paid", "tendered", "balance", "upi", "card", "invoice", "bill no", "table", "gstin", "fssai", "thank", "visit", "qty", "rate", "amount", "description", "particulars", "hsn", "date", "time", "phone", "ph:", "tel", "www", ".com", "cashier", "order", "token", "kot", "saved", "saving",
         "दिनांक", "तारीख", "बिल सं", "धन्यवाद", "मात्रा", "राशि", "फोन", "नकद", "बचत"
@@ -60,17 +69,20 @@ object BillParser {
         val lines = text.lines().map { normaliseAmounts(asciiDigits(it).trim().replace(Regex("""\s{2,}"""), " ")) }.filter { it.isNotEmpty() }
         val lower = lines.map { it.lowercase(Locale.ROOT) }
 
-        val total = findKeyed(lines, lower, totalKeys, preferLast = true)
+        val total = findTotal(lines, lower)
         val subtotal = findKeyed(lines, lower, subtotalKeys, preferLast = true)
-        val tax = sumKeyed(lines, lower, taxKeys, exclude = totalKeys + subtotalKeys)
-        val service = sumKeyed(lines, lower, serviceKeys, exclude = totalKeys)
+        val tax = sumKeyed(lines, lower, taxKeys, exclude = totalKeys + subtotalKeys, skip = notTaxKeys)
+        val service = sumKeyed(lines, lower, serviceKeys, exclude = totalKeys, signed = roundOffKeys)
         val discount = sumKeyed(lines, lower, discountKeys, exclude = totalKeys)
 
         val items = extractItems(lines, lower)
 
-        // Fallback total: the largest amount in the bottom half that is >= sum of items.
+        // Fallback total: the largest amount in the bottom half that is >= sum of items, never the cash handed over
+        // or the change given back.
         val itemsSum = items.sumOf { it.pricePaise * it.quantity }
-        val fallbackTotal = lines.drop(lines.size / 2).mapNotNull { amountAtEnd.find(it)?.groupValues?.get(1)?.let(::paise) }
+        val half = lines.size / 2
+        val fallbackTotal = lines.indices.drop(half).filter { i -> paymentKeys.none { has(lower[i], it) } }
+            .mapNotNull { i -> amountAtEnd.find(lines[i])?.groupValues?.get(1)?.let(::paise) }
             .filter { it >= itemsSum }.maxOrNull()
 
         return ParsedBill(
@@ -87,6 +99,57 @@ object BillParser {
     }
 
     private fun paise(s: String): Long? = Money.parsePaise(s)
+
+    private val keyRx = java.util.concurrent.ConcurrentHashMap<String, Regex>()
+
+    /**
+     * Does lower-cased [line] carry label [key] as a word? "less" is not in "Eggless", "table" not in "Vegetable", "tax"
+     * not in "Taxable"; a plural still counts ("Service charges"). Hindi labels are matched as they are: Devanagari
+     * words join up ("सीजीएसटी" holds "जीएसटी").
+     */
+    internal fun has(line: String, key: String): Boolean {
+        if (key.any { it.code > 127 }) return line.contains(key)
+        val rx = keyRx.getOrPut(key) {
+            val start = if (key.first().isLetterOrDigit()) """(?<![\p{L}\p{N}])""" else ""
+            val end = if (key.last().isLetter()) """s?(?![\p{L}])""" else ""
+            Regex(start + Regex.escape(key) + end)
+        }
+        return rx.containsMatchIn(line)
+    }
+
+    /** "Round off -0.40", "Round off (-) 0.40": a minus just before the amount. */
+    private fun negativeBefore(prefix: String): Boolean = prefix.trimEnd().let { it.endsWith("-") || it.endsWith("(-)") }
+
+    /**
+     * The bill's total: the last line labelled as nothing but the total ("Grand Total", "Net Amount", "Amount Payable"),
+     * else the last bare "Total" that isn't a subtotal, a quantity, a saving, a discount or a tax line ("Total GST").
+     */
+    private fun findTotal(lines: List<String>, lower: List<String>): Long? {
+        val strong = keyedAmounts(lines, lower) { l -> strongTotalKeys.any { has(l, it) } && !has(l, "taxable") }
+        if (strong.isNotEmpty()) return strong.last()
+        val weak = keyedAmounts(lines, lower) { l ->
+            when {
+                has(l, "कुल") -> !(l.contains("मात्रा") || l.contains("नग"))
+                has(l, "total") -> listOf("sub", "qty", "items", "item", "saving", "savings", "taxable").none { has(l, it) } &&
+                    (l.contains("incl") || taxKeys.none { has(l, it) }) && discountKeys.none { has(l, it) }
+                else -> false
+            }
+        }
+        return weak.lastOrNull()
+    }
+
+    /** Amounts on the lines [pick] accepts: at the end of the line, or alone on the next one. */
+    private fun keyedAmounts(lines: List<String>, lower: List<String>, pick: (String) -> Boolean): List<Long> {
+        val hits = mutableListOf<Long>()
+        for ((i, l) in lower.withIndex()) {
+            if (!pick(l)) continue
+            val amt = amountAtEnd.find(lines[i])?.groupValues?.get(1)?.let(::paise)
+                ?: lines.getOrNull(i + 1)?.takeIf { anyAmount.matches(it.trim()) }?.let { anyAmount.find(it)?.groupValues?.get(1)?.let(::paise) }
+                ?: continue
+            if (amt > 0) hits += amt
+        }
+        return hits
+    }
 
     /**
      * "३२०.००" -> "320.00": Hindi bills often print Devanagari digits (U+0966..U+096F). Bengali digits
@@ -133,31 +196,37 @@ object BillParser {
     }
 
     private fun findKeyed(lines: List<String>, lower: List<String>, keys: List<String>, preferLast: Boolean): Long? {
-        val hits = mutableListOf<Long>()
-        for ((i, l) in lower.withIndex()) {
-            val key = keys.firstOrNull { l.contains(it) } ?: continue
-            // "total" must not match "sub total" / "total qty" when we are looking for the grand total.
-            if (key == "total" && (l.contains("sub") || l.contains("qty") || l.contains("items") || l.contains("saving"))) continue
-            if (key == "कुल" && (l.contains("मात्रा") || l.contains("नग"))) continue
-            val amt = amountAtEnd.find(lines[i])?.groupValues?.get(1)?.let(::paise)
-                ?: lines.getOrNull(i + 1)?.takeIf { anyAmount.matches(it.trim()) }?.let { anyAmount.find(it)?.groupValues?.get(1)?.let(::paise) }
-                ?: continue
-            if (amt > 0) hits += amt
-        }
+        val hits = keyedAmounts(lines, lower) { l -> keys.any { has(l, it) } }
         return if (preferLast) hits.lastOrNull() else hits.firstOrNull()
     }
 
-    private fun sumKeyed(lines: List<String>, lower: List<String>, keys: List<String>, exclude: List<String>): Long {
+    /**
+     * The amounts on lines labelled with one of [keys], added up. A line also carrying an [exclude] label is left out
+     * unless it starts with one of [keys]; a line with a [skip] label is always left out. On a line with a [signed]
+     * label a minus before the amount is kept ("Round off -0.40" takes 40 paise off).
+     */
+    private fun sumKeyed(lines: List<String>, lower: List<String>, keys: List<String>, exclude: List<String>, skip: List<String> = emptyList(), signed: List<String> = emptyList()): Long {
         var sum = 0L
         for ((i, l) in lower.withIndex()) {
-            if (keys.none { l.contains(it) }) continue
-            if (exclude.any { l.contains(it) } && keys.none { l.startsWith(it) }) continue
-            val amt = amountAtEnd.find(lines[i])?.groupValues?.get(1)?.let(::paise)
-                ?: lines.getOrNull(i + 1)?.takeIf { standaloneAmount.matches(it.trim()) }?.let { amountAtEnd.find(it)?.groupValues?.get(1)?.let(::paise) }
-                ?: continue
+            if (keys.none { has(l, it) }) continue
+            if (skip.any { has(l, it) }) continue
+            if (exclude.any { has(l, it) } && keys.none { l.startsWith(it) }) continue
             // Percent-only lines like "CGST 2.5%" carry no amount at the end; skip if the match is the percentage.
             if (lines[i].trimEnd().endsWith("%")) continue
-            sum += amt
+            val keepSign = signed.any { has(l, it) }
+            val here = amountAtEnd.find(lines[i])
+            val amt: Long
+            val negative: Boolean
+            if (here != null) {
+                amt = paise(here.groupValues[1]) ?: continue
+                negative = keepSign && negativeBefore(lines[i].substring(0, here.range.first))
+            } else {
+                val next = lines.getOrNull(i + 1)?.takeIf { standaloneAmount.matches(it.trim()) } ?: continue
+                val m = amountAtEnd.find(next) ?: continue
+                amt = paise(m.groupValues[1]) ?: continue
+                negative = keepSign && negativeBefore(next.substring(0, m.range.first))
+            }
+            sum += if (negative) -amt else amt
         }
         return sum
     }
@@ -166,7 +235,7 @@ object BillParser {
         val out = mutableListOf<BillItem>()
         for ((i, raw) in lines.withIndex()) {
             val l = lower[i]
-            if (skipItemKeys.any { l.contains(it) }) continue
+            if (skipItemKeys.any { has(l, it) }) continue
             if (dateRx.containsMatchIn(raw)) continue
             val m = amountAtEnd.find(raw) ?: continue
             val token = m.groupValues[1]
@@ -181,8 +250,10 @@ object BillParser {
             qtySuffix.find(raw)?.let { s ->
                 name = s.groupValues[1].trim(); qty = s.groupValues[2].toIntOrNull() ?: 1
                 val lineTotal = paise(s.groupValues[4]) ?: price
-                val unit = if (qty > 0) lineTotal / qty else lineTotal
-                out += BillItem(name = clean(name), quantity = qty, pricePaise = unit)
+                // Keep what the bill printed for the line: 3 x 33.33 = 100.00 can't be a whole-paise unit price, so
+                // such a line stays one item at its line total.
+                out += if (qty > 0 && lineTotal % qty == 0L) BillItem(name = clean(name), quantity = qty, pricePaise = lineTotal / qty)
+                else BillItem(name = clean(name), quantity = 1, pricePaise = lineTotal)
                 return@let
             } ?: qtyAmount.find(raw)?.takeIf { q ->
                 // Keep the quantity only when the line total divides evenly, so quantity x price still equals
@@ -209,7 +280,7 @@ object BillParser {
     private fun guessMerchant(lines: List<String>, lower: List<String>): String? {
         // First non-numeric line near the top that is not an address/phone/gst line.
         for ((i, l) in lower.take(5).withIndex()) {
-            if (l.any { it.isLetter() } && l.count { it.isDigit() } <= 2 && skipItemKeys.none { l.contains(it) } && l.length in 3..40) return lines[i]
+            if (l.any { it.isLetter() } && l.count { it.isDigit() } <= 2 && skipItemKeys.none { has(l, it) } && l.length in 3..40) return lines[i]
         }
         return null
     }
