@@ -1,5 +1,6 @@
 package com.pft.financetracker
 
+import com.pft.financetracker.ui.model.DrillPeriod
 import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.domain.model.Budget
 import com.pft.financetracker.domain.model.Category
@@ -134,5 +135,33 @@ class HomePeriodTest {
         assertFalse(d.upTo(50))
         assertFalse(d.upTo(50)) // same value again keeps its direction
         assertTrue(d.upTo(80))
+    }
+
+    // ---- Week labels and drill-downs opened from another screen ----
+
+    @Test fun weekTitlesReadAsWords() {
+        assertEquals("Week of 21 Sep", PeriodChoice.Week(-2).title(now))
+        assertEquals("Week of 5 Oct", Periods.week(0, now).label)
+    }
+
+    @Test fun aDrillWithoutBoundsFollowsHome() {
+        assertNull(DrillPeriod.of(-1L, -1L, now))
+        assertNull(DrillPeriod.of(day(2026, 10, 5), day(2026, 10, 5), now))
+    }
+
+    @Test fun aDrillNamesAWholeMonthOrWeekTheUsualWay() {
+        val sep = DrillPeriod.of(day(2026, 9, 1), day(2026, 10, 1), now)!!
+        assertEquals("Sep 2026", sep.label)
+        assertEquals(day(2026, 9, 1), sep.start)
+        val week = DrillPeriod.of(day(2026, 10, 5), day(2026, 10, 12), now)!!
+        assertEquals("Week of 5 Oct", week.label)
+    }
+
+    @Test fun aDrillOverAnyOtherSpanKeepsItsExactBounds() {
+        val from = day(2026, 9, 1); val to = day(2026, 9, 7) + 3_600_000L
+        val p = DrillPeriod.of(from, to, now)!!
+        assertEquals(from, p.start)
+        assertEquals(to, p.end)
+        assertTrue(p.label, p.label.contains("Sep"))
     }
 }

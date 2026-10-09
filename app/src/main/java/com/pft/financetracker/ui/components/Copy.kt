@@ -106,5 +106,6 @@ fun heroLine(
         if (running && settled) projectedPaise?.let { "on track for ${approxMoney(it)}" } else null,
     )
     val trend = when { change == null || change == 0 -> Trend.FLAT; change > 0 -> Trend.UP; else -> Trend.DOWN }
-    return (parts.joinToString(" · ").ifEmpty { "Too early to compare" }) to trend
+    // "Too early" only while the period is still running; a short finished range simply had nothing to compare with.
+    return (parts.joinToString(" · ").ifEmpty { if (running) "Too early to compare" else "Nothing earlier to compare with" }) to trend
 }

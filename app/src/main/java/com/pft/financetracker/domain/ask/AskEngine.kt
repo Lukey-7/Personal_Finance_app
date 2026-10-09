@@ -6,7 +6,9 @@ import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.Period
 import com.pft.financetracker.domain.model.Budget
 import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Transaction
+import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.domain.recurring.RecurringBook
 import java.time.DayOfWeek
 import java.time.Instant
@@ -49,7 +51,21 @@ data class AskAnswer(
  */
 object AskEngine {
     private val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
-    private val periodWords = setOf("this", "last", "month", "week", "year", "today", "yesterday", "days") + Month.entries.map { it.name.lowercase(Locale.ROOT) }
+
+    /** Month words: full names, three-letter forms and "sept". "may" is only a month in context (see [monthAt]). */
+    private val monthWords: Map<String, Month> = buildMap {
+        for (m in Month.entries) {
+            val full = m.name.lowercase(Locale.ROOT)
+            put(full, m)
+            if (m != Month.MAY) put(full.take(3), m)
+        }
+        put("sept", Month.SEPTEMBER)
+    }
+
+    private val periodWords: Set<String> = setOf(
+        "this", "last", "past", "previous", "month", "months", "week", "weeks", "weekly", "weekend", "year", "years",
+        "today", "yesterday", "day", "days", "may",
+    ) + monthWords.keys
 
     val examples = listOf(
         "How much on food this month?", "Swiggy last month", "Spending in September", "Where did most of my money go?",
@@ -60,36 +76,48 @@ object AskEngine {
         val q = question.lowercase(Locale.ROOT).replace(Regex("""[^a-z0-9 ]"""), " ").replace(Regex("""\s+"""), " ").trim()
         val period = period(q, c)
         val s = InsightsEngine.summarize(c.txns, period, c.includeCash)
-        val category = category(q)
+        // "Financial health" is about money overall, not the Health category.
+        val category = category(q.replace("financial health", " "))
         val words = q.split(' ')
         fun has(vararg w: String) = w.any { x -> if (x.contains(' ')) q.contains(x) else x in words || words.any { it.startsWith(x) && x.length >= 5 } }
+        val merchantKey = if (category == null) merchant(q, c) else null
 
         return when {
             has("subscription", "subscriptions", "recurring", "autopay") -> subscriptions(c)
             has("due", "emi", "emis", "upcoming") || (has("bill", "bills") && category == null && !has("spend", "spent")) -> bills(c)
-            has("budget", "budgets") -> budget(c, s)
-            has("earn", "earned", "income", "salary") -> AskAnswer("You received ${rupees(s.incomePaise)} of income ${period.label}.")
+            has("budget", "budgets") -> budget(c, period)
+            has("transfer") -> {
+                val list = c.txns.filter { it.timestamp in period && !it.needsReview && it.type == TransactionType.DEBIT && (it.flow == Flow.TRANSFER || it.flow == Flow.SETTLEMENT) }
+                AskAnswer("${rupees(s.transfersOutPaise)} went out in transfers and card bill payments ${period.label}. These don't count as spend.", list.map { it.id })
+            }
+            has("invest", "sip", "sips") -> {
+                val list = c.txns.filter { it.timestamp in period && !it.needsReview && it.type == TransactionType.DEBIT && it.flow == Flow.INVESTMENT }
+                AskAnswer("You invested ${rupees(s.investmentsPaise)} ${period.label} (${count(list.size)}).", list.map { it.id })
+            }
+            has("earn", "earned", "earning", "earnings", "income", "salary") -> AskAnswer("You received ${rupees(s.incomePaise)} of income ${period.label}.")
             has("save", "saved", "saving", "savings") -> AskAnswer(
                 "You saved ${rupees(s.savingsPaise)} ${period.label}: income ${rupees(s.incomePaise)} minus spend ${rupees(s.netSpendPaise)}."
             )
+            // Merchant totals are before refunds, so they are set against spend before refunds too.
             has("most", "biggest", "top", "where did") -> s.byMerchant.firstOrNull()?.let { m ->
-                AskAnswer("Most went to ${m.merchant}: ${rupees(m.amountPaise)} of ${rupees(s.netSpendPaise)} ${period.label} (${m.count} payment${if (m.count == 1) "" else "s"}).")
+                AskAnswer("Most went to ${m.merchant}: ${rupees(m.amountPaise)} of ${rupees(s.grossSpendPaise)} spent ${period.label} (${count(m.count)}).")
             } ?: AskAnswer("No spending ${period.label}.")
             category != null -> {
                 val list = spends(c, period).filter { it.category == category }
                 val net = s.byCategory.firstOrNull { it.category == category }?.amountPaise ?: 0L
-                AskAnswer("You spent ${rupees(net)} on ${category.label} ${period.label} (${list.size} payment${if (list.size == 1) "" else "s"}).", list.map { it.id })
+                AskAnswer("You spent ${rupees(net)} on ${category.label} ${period.label} (${count(list.size)}).", list.map { it.id })
             }
-            merchant(q, c) != null -> {
-                val m = merchant(q, c)!!
-                val list = spends(c, period).filter { norm(it.merchant).contains(m) }
-                AskAnswer("You spent ${rupees(list.sumOf { it.amountPaise })} at ${list.firstOrNull()?.merchant ?: m} ${period.label} (${list.size} payment${if (list.size == 1) "" else "s"}).", list.map { it.id })
+            merchantKey != null -> {
+                val list = spends(c, period).filter { merchantMatches(it.merchant, merchantKey) }
+                AskAnswer("You spent ${rupees(list.sumOf { it.amountPaise })} at ${list.firstOrNull()?.merchant ?: merchantKey} ${period.label} (${count(list.size)}).", list.map { it.id })
             }
             has("spend", "spent", "spending", "how much", "expenses", "cost") ->
                 AskAnswer("You spent ${rupees(s.netSpendPaise)} ${period.label}.", spends(c, period).map { it.id })
             else -> AskAnswer("I can answer questions about your own numbers. Try: " + examples.take(4).joinToString(" · ") { "\"$it\"" }, understood = false)
         }
     }
+
+    private fun count(n: Int) = "$n payment${if (n == 1) "" else "s"}"
 
     private fun subscriptions(c: AskContext): AskAnswer {
         val counted = c.recurring.shown.filter { it.counted }
@@ -113,11 +141,26 @@ object AskEngine {
         } + ".")
     }
 
-    private fun budget(c: AskContext, s: com.pft.financetracker.domain.insights.PeriodSummary): AskAnswer {
+    /** Budgets are monthly: a question about a whole month uses that month, anything else this month. */
+    private fun budget(c: AskContext, asked: Period): AskAnswer {
         if (c.budgets.isEmpty()) return AskAnswer("No budgets set. Set them in Insights > Budgets.")
-        val spent = c.budgets.sumOf { b -> s.byCategory.firstOrNull { it.category == b.category }?.amountPaise ?: 0L }
+        val month = if (isWholeMonth(asked, c)) asked else period("", c)
+        val s = InsightsEngine.summarize(c.txns, month, c.includeCash)
+        val spent = c.budgets.sumOf { b -> s.byCategory.firstOrNull { it.category == b.category }?.amountPaise?.coerceAtLeast(0) ?: 0L }
         val left = c.budgets.sumOf { it.monthlyLimitPaise } - spent
-        return AskAnswer(if (left >= 0) "${rupees(left)} left of your budgets this month." else "${rupees(-left)} over your budgets this month.")
+        val running = c.now in month
+        return AskAnswer(
+            when {
+                left < 0 -> "${rupees(-left)} over your budgets ${month.label}."
+                running -> "${rupees(left)} left of your budgets ${month.label}."
+                else -> "${rupees(left)} under your budgets ${month.label}."
+            }
+        )
+    }
+
+    private fun isWholeMonth(p: Period, c: AskContext): Boolean {
+        val from = Instant.ofEpochMilli(p.start).atZone(c.zone).toLocalDate()
+        return from.dayOfMonth == 1 && from.plusMonths(1).atStartOfDay(c.zone).toInstant().toEpochMilli() == p.end
     }
 
     private fun spends(c: AskContext, p: Period) = c.txns.filter { it.timestamp in p && !it.needsReview && InsightsEngine.isSpend(it, c.includeCash) }
@@ -127,42 +170,128 @@ object AskEngine {
         names.any { n -> Regex("""\b${Regex.escape(n)}\b""").containsMatchIn(q) }
     }
 
-    /** A merchant named after "on" / "at" / "for", or any word matching a merchant seen in the transactions. */
+    private val lead = setOf("on", "at", "for", "to", "from", "with", "in")
+
+    /**
+     * A merchant key from the question, matched against the merchants in the transactions. Words straight after on /
+     * at / for / to / from are tried first, and two words before one ("amazon pay" before "amazon"). A word must
+     * start a word of the merchant's name: "ola" finds Ola, not Coca-Cola; common words ("pay", "show", "you") never
+     * count, so they cannot pick Amazon Pay, BookMyShow or YouTube.
+     */
     private fun merchant(q: String, c: AskContext): String? {
-        val known = c.txns.map { norm(it.merchant) }.filter { it.length >= 3 }.toSet()
-        val candidates = q.split(' ').filter { it.length >= 3 && it !in periodWords && it !in stop }
-        return candidates.firstOrNull { w -> known.any { it.contains(w) } }
+        val names = c.txns.map { it.merchant }.distinct()
+        val words = q.split(' ').filter { it.isNotEmpty() }
+        fun usable(w: String) = w.length >= 3 && w !in periodWords && w !in stop && w.any { it.isLetter() }
+        fun known(key: String) = names.any { merchantMatches(it, key) }
+        val afterLead = words.indices.filter { i -> i > 0 && words[i - 1] in lead }
+        val order = afterLead + words.indices.filter { it !in afterLead }
+        for (i in order) {
+            val w = words[i]
+            if (!usable(w)) continue
+            val next = words.getOrNull(i + 1)
+            if (next != null && next.length >= 2 && next !in periodWords && known(w + next)) return w + next
+            if (known(w)) return w
+        }
+        return null
     }
 
-    private val stop = setOf("how", "much", "did", "spend", "spent", "spending", "the", "and", "for", "what", "have", "money", "was", "with", "from", "all", "total")
+    /** True when [key] (letters and digits, no spaces) starts at the beginning of one of the words in [merchant]. */
+    internal fun merchantMatches(merchant: String, key: String): Boolean {
+        val tokens = merchant.lowercase(Locale.ROOT).split(Regex("""[^a-z0-9]+""")).filter { it.isNotEmpty() }
+        return tokens.indices.any { i -> tokens.drop(i).joinToString("").startsWith(key) }
+    }
 
-    private fun norm(s: String) = s.lowercase(Locale.ROOT).replace(Regex("""[^a-z0-9]"""), "")
+    private val stop = setOf(
+        "how", "much", "many", "did", "does", "spend", "spent", "spending", "the", "and", "for", "what", "whats", "have", "has",
+        "money", "was", "were", "with", "from", "all", "total", "pay", "paid", "paying", "payment", "payments", "show", "you",
+        "your", "can", "could", "may", "might", "will", "would", "should", "tell", "give", "list", "get", "got", "there",
+        "that", "these", "those", "which", "where", "when", "why", "who", "any", "are", "about", "more", "most", "less",
+        "than", "over", "under", "left", "far", "till", "until", "since", "during", "per", "average", "daily", "each",
+        "every", "time", "times", "cost", "costs", "expense", "expenses", "buy", "bought", "went", "out", "only", "just",
+        "not", "mine", "please", "see", "category", "merchant", "biggest", "top",
+    )
 
+    private val numberWords = mapOf(
+        "one" to 1, "two" to 2, "three" to 3, "four" to 4, "five" to 5, "six" to 6, "seven" to 7, "eight" to 8,
+        "nine" to 9, "ten" to 10, "eleven" to 11, "twelve" to 12,
+    )
+    private val rolling = Regex("""\b(?:last|past|previous)\s+(\d{1,3}|${numberWords.keys.joinToString("|")})\s+(day|week|month|year)s?\b""")
+    private val pastOne = Regex("""\bpast\s+(day|week|month|year)\b""")
+    private val yearNumber = Regex("""\b(19\d{2}|20\d{2})\b""")
+    private val lastYearWords = Regex("""\b(?:last|previous) year\b""")
+    private val lastMonthWords = Regex("""\b(?:last|previous) month\b""")
+    private val lastWeekWords = Regex("""\b(?:last|previous) week\b""")
+    private val mayContext = setOf("in", "for", "during", "of", "since", "last", "this", "from", "through", "till", "until")
+
+    /** The month named at word [i], or null. "may" counts only after "in", "for", "since"… or before a year. */
+    private fun monthAt(words: List<String>, i: Int): Month? {
+        val w = words[i]
+        if (w == "may") {
+            val before = words.getOrNull(i - 1)
+            val after = words.getOrNull(i + 1)
+            val inContext = (before != null && before in mayContext) || (after != null && yearNumber.matches(after)) || words.size == 1
+            return if (inContext) Month.MAY else null
+        }
+        return monthWords[w]
+    }
+
+    /**
+     * Which stretch of time the question is about, in this order:
+     * - "last 3 months", "past 7 days", "past week": that many days, weeks, months or years up to today;
+     * - a month by name ("sept", "december 2024", "september last year"): the year said, else the latest one that has started;
+     * - "last year" or a year ("2025"): that calendar year;
+     * - "last month", "last week", "yesterday", "today", "this week", "this year" as written;
+     * - anything else: this month.
+     * Words are matched whole, so "weekly" and "weekend" are not "week".
+     */
     private fun period(q: String, c: AskContext): Period {
         val today = Instant.ofEpochMilli(c.now).atZone(c.zone).toLocalDate()
         fun range(from: LocalDate, toExcl: LocalDate, label: String) =
             Period(from.atStartOfDay(c.zone).toInstant().toEpochMilli(), toExcl.atStartOfDay(c.zone).toInstant().toEpochMilli(), label)
         val ym = YearMonth.from(today)
-        Month.entries.firstOrNull { m ->
-            val full = m.name.lowercase(Locale.ROOT)
-            Regex("""\b$full\b""").containsMatchIn(q) || (m != Month.MAY && Regex("""\b${full.take(3)}\b""").containsMatchIn(q))
+        val words = q.split(' ').filter { it.isNotEmpty() }
+        val tomorrow = today.plusDays(1)
+
+        fun back(n: Long, unit: String): LocalDate = when (unit) {
+            "day" -> today.minusDays(n - 1)
+            "week" -> today.minusWeeks(n).plusDays(1)
+            "month" -> today.minusMonths(n).plusDays(1)
+            else -> today.minusYears(n).plusDays(1)
         }
-            ?.let { m ->
-                var y = YearMonth.of(today.year, m)
-                if (y.isAfter(ym)) y = y.minusYears(1)
-                return range(y.atDay(1), y.plusMonths(1).atDay(1), "in ${m.name.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase() }} ${y.year}")
+        rolling.find(q)?.let { m ->
+            val n = (m.groupValues[1].toLongOrNull() ?: numberWords[m.groupValues[1]]?.toLong() ?: 1L).coerceIn(1L, 1200L)
+            val unit = m.groupValues[2]
+            return range(back(n, unit), tomorrow, if (n == 1L) "in the past $unit" else "in the last $n ${unit}s")
+        }
+        pastOne.find(q)?.let { m -> return range(back(1, m.groupValues[1]), tomorrow, "in the past ${m.groupValues[1]}") }
+
+        val lastYear = lastYearWords.containsMatchIn(q)
+        val named = words.indices.firstNotNullOfOrNull { i -> monthAt(words, i)?.let { m -> i to m } }
+        if (named != null) {
+            val (i, m) = named
+            val saidYear = words.getOrNull(i + 1)?.takeIf { yearNumber.matches(it) }?.toInt()
+                ?: yearNumber.find(q)?.value?.toInt()
+            val y = when {
+                saidYear != null -> YearMonth.of(saidYear, m)
+                lastYear -> YearMonth.of(today.year - 1, m)
+                else -> YearMonth.of(today.year, m).let { if (it.isAfter(ym)) it.minusYears(1) else it }
             }
+            return range(y.atDay(1), y.plusMonths(1).atDay(1), "in ${m.name.lowercase(Locale.ROOT).replaceFirstChar { it.uppercase() }} ${y.year}")
+        }
+        if (lastYear) return range(LocalDate.of(today.year - 1, 1, 1), LocalDate.of(today.year, 1, 1), "in ${today.year - 1}")
+        val saidYear = yearNumber.find(q)?.value?.toInt()
+        if (saidYear != null) return range(LocalDate.of(saidYear, 1, 1), LocalDate.of(saidYear + 1, 1, 1), "in $saidYear")
         return when {
-            q.contains("last month") -> range(ym.minusMonths(1).atDay(1), ym.atDay(1), "last month")
-            q.contains("last week") -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).let { range(it.minusWeeks(1), it, "last week") }
-            q.contains("this week") || q.contains(" week") -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).let { range(it, today.plusDays(1), "this week") }
-            q.contains("yesterday") -> range(today.minusDays(1), today, "yesterday")
-            q.contains("today") -> range(today, today.plusDays(1), "today")
-            q.contains("this year") || q.contains(" year") -> range(LocalDate.of(today.year, 1, 1), today.plusDays(1), "this year")
+            lastMonthWords.containsMatchIn(q) -> range(ym.minusMonths(1).atDay(1), ym.atDay(1), "last month")
+            lastWeekWords.containsMatchIn(q) ->
+                today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).let { range(it.minusWeeks(1), it, "last week") }
+            "yesterday" in words -> range(today.minusDays(1), today, "yesterday")
+            "today" in words -> range(today, tomorrow, "today")
+            "week" in words -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).let { range(it, tomorrow, "this week") }
+            "year" in words -> range(LocalDate.of(today.year, 1, 1), tomorrow, "this year")
             else -> range(ym.atDay(1), ym.plusMonths(1).atDay(1), "this month")
         }
     }
 
     private fun rupees(p: Long) = InsightsEngine.rupees(p)
-
 }

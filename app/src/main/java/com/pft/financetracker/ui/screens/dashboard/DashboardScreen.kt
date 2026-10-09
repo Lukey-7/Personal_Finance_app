@@ -147,6 +147,8 @@ fun DashboardScreen(
     onOpenBudgets: () -> Unit,
     onOpenSmsLog: (Long?) -> Unit,
     onDrill: (Bucket, Category?) -> Unit,
+    /** The same, for a period other than the one Home shows (a budget row in Week mode opens its month). */
+    onDrillIn: (Bucket, Category?, Period) -> Unit = { bucket, cat, _ -> onDrill(bucket, cat) },
     onOpenSplit: (Long) -> Unit = {},
     onOpenTools: () -> Unit = {},
     onOpenRoute: (String) -> Unit = {},
@@ -358,9 +360,8 @@ fun DashboardScreen(
                     budgetStatus.sortedByDescending { it.fraction }.take(5).forEach { b -> key(b.budget.category) {
                         Column(
                             Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "See payments") {
-                                // A budget is a month: open that month's payments, not just the chosen week.
-                                if (choice !is PeriodChoice.Month) vm.setPeriod(PeriodChoice.Month(monthsBack(budgetPeriod.start, now)))
-                                onDrill(Bucket.SPEND, b.budget.category)
+                                // A budget is a month: open that month's payments, not just the chosen week, and leave Home's period alone.
+                                onDrillIn(Bucket.SPEND, b.budget.category, budgetPeriod)
                             },
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
@@ -378,8 +379,13 @@ fun DashboardScreen(
             }
 
             item(key = "where") {
-                val slices = summary.byCategory.filter { it.amountPaise > 0 }.take(7)
-                    .map { Slice(it.category.label, it.amount, categoryColor(it.category), it.category) }
+                // Percentages are of all positive spend, as in the summary line; past seven the rest share one slice.
+                val parts = HomeLines.ringParts(summary.byCategory)
+                val restColor = MaterialTheme.colorScheme.outline
+                val slices = parts.map { part ->
+                    val rupees = com.pft.financetracker.domain.model.Money.toRupees(part.paise)
+                    part.category?.let { Slice(it.label, rupees, categoryColor(it), it) } ?: Slice("Everything else", rupees, restColor, null)
+                }
                 ExpandableCard(
                     title = "Where it went",
                     summary = HomeLines.whereItWent(summary.byCategory),
@@ -388,7 +394,7 @@ fun DashboardScreen(
                     stateKey = "home-where",
                 ) {
                     if (slices.isEmpty()) Text("No spending recorded in this period.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    else CategoryRing(slices, money(summary.netSpendPaise), countLabel(summary.expenseCount, "payment")) { cat -> onDrill(Bucket.SPEND, cat) }
+                    else CategoryRing(slices, money(summary.netSpendPaise), countLabel(summary.expenseCount, "payment"), totalValue = com.pft.financetracker.domain.model.Money.toRupees(parts.sumOf { it.paise })) { cat -> onDrill(Bucket.SPEND, cat) }
                 }
             }
 

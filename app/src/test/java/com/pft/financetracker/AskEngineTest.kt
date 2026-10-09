@@ -76,4 +76,99 @@ class AskEngineTest {
         assertTrue(a.text.contains("Try"))
         assertTrue(a.transactionIds.isEmpty())
     }
+
+    // ---- A wider ledger for periods, merchants, transfers and investments ----
+    private fun moved(paise: Long, date: String, flow: Flow, cat: Category, m: String) = Transaction(id = id++, amountPaise = paise, type = TransactionType.DEBIT, merchant = m,
+        category = cat, timestamp = on(date), bankName = null, accountRef = null, source = Transaction.Source.SMS, flow = flow)
+
+    private val more = txns + listOf(
+        spend("Swiggy", 700_00, "2025-09-10", Category.FOOD), spend("Swiggy", 100_00, "2024-12-05", Category.FOOD),
+        spend("Amazon Pay", 999_00, "2026-10-05", Category.SHOPPING), spend("BookMyShow", 400_00, "2026-10-06", Category.ENTERTAINMENT),
+        spend("YouTube", 129_00, "2026-10-07", Category.ENTERTAINMENT), spend("Coca-Cola", 60_00, "2026-10-08", Category.FOOD),
+        spend("Ola", 250_00, "2026-10-09", Category.TRANSPORT),
+        moved(10_000_00, "2026-10-04", Flow.TRANSFER, Category.TRANSFER, "Self transfer"),
+        moved(5_000_00, "2026-10-02", Flow.INVESTMENT, Category.INVESTMENT, "Zerodha"),
+    )
+    private val wide = ctx.copy(txns = more, recurring = RecurringBook.of(RecurringDetector.detect(more, now), emptyList()))
+    private fun ask2(q: String) = AskEngine.answer(q, wide)
+
+    @Test fun lastYearIsLastYear() {
+        val a = ask2("how much did I spend last year").text
+        assertTrue(a, a.contains("in 2025") && a.contains("₹700"))
+    }
+
+    @Test fun aNamedMonthTakesTheYearSaid() {
+        val a = ask2("food in september last year").text
+        assertTrue(a, a.contains("September 2025") && a.contains("₹700"))
+        val b = ask2("swiggy december 2024").text
+        assertTrue(b, b.contains("December 2024") && b.contains("₹100"))
+    }
+
+    @Test fun septIsSeptember() {
+        val a = ask2("spending in sept").text
+        assertTrue(a, a.contains("September 2026") && a.contains("₹949"))
+    }
+
+    @Test fun mayAsAVerbIsNotTheMonth() {
+        val a = ask2("how much may I spend").text
+        assertTrue(a, a.contains("this month") && !a.contains("May"))
+        assertTrue(ask2("spending in may").text.contains("May 2026"))
+    }
+
+    @Test fun rollingSpansCountBackFromToday() {
+        val a = ask2("how much did I spend in the last 3 months").text
+        assertTrue(a, a.contains("in the last 3 months") && a.contains("₹6,436"))
+        val b = ask2("spending past week").text
+        assertTrue(b, b.contains("in the past week") && b.contains("₹0"))
+        assertTrue(ask2("spent in the last 7 days").text.contains("in the last 7 days"))
+    }
+
+    @Test fun weeklyAndWeekendAreNotThisWeek() {
+        assertTrue(ask2("weekly spending").text.contains("this month"))
+        assertTrue(ask2("spending on the weekend").text.contains("this month"))
+    }
+
+    @Test fun commonWordsNeverPickAMerchant() {
+        val a = ask2("how much can you show me").text
+        assertTrue(a, !a.contains("YouTube") && !a.contains("BookMyShow") && !a.contains("Amazon Pay"))
+        val b = ask2("how much did I pay").text
+        assertTrue(b, !b.contains("Amazon Pay"))
+    }
+
+    @Test fun aMerchantMustStartAWordOfTheName() {
+        val a = ask2("how much on ola").text
+        assertTrue(a, a.contains("at Ola") && a.contains("₹250"))
+        val b = ask2("how much at amazon pay").text
+        assertTrue(b, b.contains("Amazon Pay") && b.contains("₹999"))
+        assertTrue(!AskEngine.merchantMatches("Coca-Cola", "ola") && !AskEngine.merchantMatches("Motorola", "ola"))
+        assertTrue(!AskEngine.merchantMatches("BookMyShow", "show"))
+        assertTrue(AskEngine.merchantMatches("Ola Cabs", "ola") && AskEngine.merchantMatches("Amazon Pay", "amazonpay"))
+    }
+
+    @Test fun budgetsAnswerForTheMonthAsked() {
+        val a = ask2("how much budget was left in september").text
+        assertTrue(a, a.contains("September 2026") && a.contains("₹4,700"))
+    }
+
+    @Test fun transfersAndInvestmentsAreAnsweredFromTheirOwnTotals() {
+        val a = ask2("how much did I transfer this month").text
+        assertTrue(a, a.contains("₹10,000"))
+        val b = ask2("how much did I invest").text
+        assertTrue(b, b.contains("₹5,000"))
+    }
+
+    @Test fun financialHealthIsNotTheHealthCategory() {
+        val a = ask2("how is my financial health").text
+        assertTrue(a, !a.contains("on Health"))
+    }
+
+    @Test fun earningsCountAsIncome() {
+        assertTrue(ask2("what were my earnings this month").text.contains("₹85,000"))
+        assertTrue(ask2("how much have I earned").text.contains("₹85,000"))
+    }
+
+    @Test fun mostComparesMerchantSpendWithSpendBeforeRefunds() {
+        val a = ask("where did most of my money go?").text
+        assertTrue(a, a.contains("₹2,000 of ₹3,000 spent this month"))
+    }
 }
