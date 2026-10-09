@@ -55,7 +55,8 @@ object CsvExporter {
             val tx = byId[id] ?: continue
             sb.append(esc(fyLabel)).append(',').append(esc(t.section.code)).append(',').append(esc(t.section.label)).append(',')
                 .append(day.format(Date(tx.timestamp))).append(',').append(esc(tx.merchant)).append(',')
-                .append(rupees(tx.amountPaise)).append('\n')
+                // A refund of a premium or fee comes off the section, so it is written as a negative amount.
+                .append(rupees(if (tx.type == com.pft.financetracker.domain.model.TransactionType.CREDIT) -tx.amountPaise else tx.amountPaise)).append('\n')
         }
         return sb.toString()
     }

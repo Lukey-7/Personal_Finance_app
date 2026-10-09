@@ -177,7 +177,8 @@ fun ToolsScreen(vm: AppViewModel, onOpen: (route: String) -> Unit, onBack: () ->
         )
 
         add(
-            if (tax.isEmpty()) ToolTile("Tax helper", Icons.Outlined.AccountBalance, Routes.TAX, TileValue.Words("80C, 80D, NPS, rent and donations"), null)
+            // Rent and most donations stay out of the figure, so a year with only those reads as words, not ₹0.
+            if (tax.sumOf { it.claimablePaise } == 0L) ToolTile("Tax helper", Icons.Outlined.AccountBalance, Routes.TAX, TileValue.Words("80C, 80D, NPS, rent and donations"), null)
             else ToolTile("Tax helper", Icons.Outlined.AccountBalance, Routes.TAX, TileValue.Figure(money(tax.sumOf { it.claimablePaise })), "found in ${fy.label} · ${countLabel(tax.size, "section")}")
         )
     }
