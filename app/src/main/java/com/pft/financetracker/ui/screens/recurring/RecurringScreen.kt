@@ -3,6 +3,7 @@ package com.pft.financetracker.ui.screens.recurring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,13 +29,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.recurring.Period
 import com.pft.financetracker.domain.recurring.RecurringBook
+import com.pft.financetracker.domain.recurring.RecurringItem
 import com.pft.financetracker.domain.recurring.RecurringStatus
 import com.pft.financetracker.domain.recurring.RecurringView
 import com.pft.financetracker.ui.AppViewModel
@@ -78,6 +82,10 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
     val book by vm.recurringBook.collectAsState()
     val loaded by vm.loaded.collectAsState()
     var selected by remember { mutableStateOf<RecurringView?>(null) }
+    var showStopped by rememberSaveable { mutableStateOf(false) }
+    val current = remember(book) { book.current }
+    val stopped = remember(book) { book.stopped }
+    val now = System.currentTimeMillis()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -93,8 +101,9 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
             Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(top = Space.xs, bottom = bottomPadding()),
         ) {
-            // Subscriptions come from the transactions: until those load, show the page's shape, not "none found".
-            if (!loaded) {
+            // Subscriptions come from the transactions: until those load and the first detection has run, show the
+            // page's shape, not "none found". RecurringBook.EMPTY (computed = false) is the placeholder before then.
+            if (!loaded || !book.computed) {
                 item { SkeletonHero(Modifier.padding(top = Space.md), cards = 0) }
                 item { SkeletonRows(5, Modifier.padding(top = Space.lg)) }
                 return@LazyColumn
@@ -111,10 +120,30 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
             }
 
             item(key = "hero") { Hero(book) }
-            itemsIndexed(book.shown, key = { _, v -> v.item.key }) { i, v ->
+            itemsIndexed(current, key = { _, v -> v.item.key }) { i, v ->
                 Column(Modifier.animateItem()) {
                     if (i > 0) Hairline(startInset = RowTextInset, endInset = Gutter)
-                    RecurringRow(v) { selected = v }
+                    RecurringRow(v, now) { selected = v }
+                }
+            }
+            // Lapsed and cancelled ones stay out of the way, folded under one line.
+            if (stopped.isNotEmpty()) {
+                item(key = "stopped") {
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = Gutter, end = Space.xs, top = Space.lg),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CapsLabel("Stopped · ${stopped.size}", Modifier.weight(1f))
+                        TextAction(if (showStopped) "Hide" else "Show", { showStopped = !showStopped })
+                    }
+                }
+                if (showStopped) {
+                    itemsIndexed(stopped, key = { _, v -> v.item.key }) { i, v ->
+                        Column(Modifier.animateItem()) {
+                            if (i > 0) Hairline(startInset = RowTextInset, endInset = Gutter)
+                            RecurringRow(v, now) { selected = v }
+                        }
+                    }
                 }
             }
         }
@@ -134,45 +163,58 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
 @Composable
 private fun Hero(book: RecurringBook) {
     val counted = book.shown.filter { it.counted }
-    val estimate = counted.any { it.item.period != Period.MONTHLY && it.item.period != Period.UNKNOWN }
+    val estimate = counted.any { it.item.period != Period.MONTHLY }
     Column(Modifier.fillMaxWidth().padding(start = Gutter, end = Gutter, top = Space.md, bottom = Space.lg)) {
         CapsLabel("Subscriptions · a month")
         Spacer(Modifier.height(Space.sm))
         AmountDisplay(book.monthlyPaise, estimate = estimate, spokenLabel = "Subscriptions, a month")
         Spacer(Modifier.height(Space.sm))
         Text(
-            if (counted.isEmpty()) "Nothing active right now"
+            if (counted.isEmpty()) (if (book.current.isNotEmpty()) "Nothing in the totals yet" else "Nothing active right now")
             else "${money(book.yearlyPaise)} a year · ${countLabel(counted.size, "service")}",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(Space.xs))
         Text(
-            "Found on this phone from charges that repeat at a steady amount and rhythm.",
+            "Payments to the same company at a steady rhythm. Open one and tap Not one to hide it.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
+/**
+ * When the next charge is due, in words: "next 12 Oct", or, once that date has passed without a charge, "due now"
+ * (within the usual drift) or "overdue". A date in the past is never shown as "next".
+ */
+private fun nextWords(i: RecurringItem, now: Long): String? {
+    val next = i.nextExpectedAt ?: return null
+    return when {
+        !i.isLate(now) -> "next ${shortDate(next)}"
+        now - next <= i.period.tolerance * 86_400_000L -> "due now"
+        else -> "overdue"
+    }
+}
+
 /** "Monthly · next 12 Oct", or what has happened to it. */
-private fun rowNote(v: RecurringView): String {
+private fun rowNote(v: RecurringView, now: Long): String {
     val i = v.item
     return when {
         v.chargedAfterCancel -> "Charged after you cancelled"
         v.status == RecurringStatus.CANCELLED -> "Cancelled"
         !i.active -> "Stopped? Last ${shortDate(i.lastChargeAt)}"
-        i.period == Period.UNKNOWN -> "AutoPay set up · ${shortDate(i.lastChargeAt)}"
-        else -> i.period.label + (i.nextExpectedAt?.let { " · next ${shortDate(it)}" } ?: "")
+        !i.rhythmKnown -> "AutoPay set up · waiting for a second charge"
+        else -> i.period.label + (nextWords(i, now)?.let { " · $it" } ?: "")
     }
 }
 
 /** One subscription as a ledger row: avatar, name, rhythm and next renewal, price; a price rise is said in words. */
 @Composable
-private fun RecurringRow(v: RecurringView, onClick: () -> Unit) {
+private fun RecurringRow(v: RecurringView, now: Long, onClick: () -> Unit) {
     val i = v.item
     val name = displayMerchant(i.merchant)
-    val note = rowNote(v)
+    val note = rowNote(v, now)
     val flag = when {
         i.priceRise != null -> "Price up"
         i.autopay -> "AutoPay"
@@ -228,11 +270,20 @@ private fun RecurringSheet(
             )
         }
         SoftPanel(spacing = Space.xs) {
-            val costs = if (i.period == Period.MONTHLY || i.period == Period.UNKNOWN) "${money(i.yearlyPaise)} a year"
-                else "About ${approxMoney(i.monthlyPaise)} a month · ${money(i.yearlyPaise)} a year"
+            val costs = when {
+                !i.rhythmKnown -> "Not in your totals yet: how often it charges shows after the second charge"
+                i.period == Period.MONTHLY -> "${money(i.yearlyPaise)} a year"
+                else -> "About ${approxMoney(i.monthlyPaise)} a month · ${money(i.yearlyPaise)} a year"
+            }
             Text(costs, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            val now = System.currentTimeMillis()
+            val next = when {
+                i.nextExpectedAt == null || !i.active -> ""
+                i.isLate(now) -> ", ${nextWords(i, now)}"
+                else -> i.nextExpectedAt?.let { ", next around ${shortDate(it)}" } ?: ""
+            }
             Text(
-                "Last charged ${shortDate(i.lastChargeAt)}" + (i.nextExpectedAt?.let { ", next around ${shortDate(it)}" } ?: ""),
+                "Last charged ${shortDate(i.lastChargeAt)}$next",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

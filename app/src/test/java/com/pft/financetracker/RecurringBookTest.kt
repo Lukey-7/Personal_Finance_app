@@ -74,4 +74,22 @@ class RecurringBookTest {
         val r = RecurringBook.of(listOf(spotify), listOf(RecurringDecision("rec:spotify", RecurringStatus.CANCELLED, now))).reminders()
         assertTrue(r.isEmpty())
     }
+
+    @Test fun thePlaceholderIsNotYetComputed() {
+        assertFalse(RecurringBook.EMPTY.computed)
+        assertTrue(RecurringBook.of(emptyList(), emptyList()).computed)
+    }
+
+    @Test fun lapsedAndCancelledGoUnderStopped() {
+        val lapsed = netflix.copy(active = false)
+        val b = RecurringBook.of(listOf(lapsed, spotify, prime), listOf(RecurringDecision("rec:prime", RecurringStatus.CANCELLED, now)))
+        assertEquals(listOf("rec:spotify"), b.current.map { it.item.key })
+        assertEquals(setOf("rec:netflix", "rec:prime"), b.stopped.map { it.item.key }.toSet())
+    }
+
+    @Test fun aChargeAfterCancellingStaysInTheMainList() {
+        val b = RecurringBook.of(listOf(netflix), listOf(RecurringDecision("rec:netflix", RecurringStatus.CANCELLED, now - 20 * day)))
+        assertEquals(listOf("rec:netflix"), b.current.map { it.item.key })
+        assertTrue(b.stopped.isEmpty())
+    }
 }
