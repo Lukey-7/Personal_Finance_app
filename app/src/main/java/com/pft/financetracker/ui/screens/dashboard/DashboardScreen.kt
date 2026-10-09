@@ -165,7 +165,14 @@ fun DashboardScreen(
     val listState = rememberLazyListState()
 
     // Worked out once per change of data or period, off the main thread's hot path of every recomposition.
-    val view = remember(txns, budgets, choice, includeCash) { HomeFigures.of(txns, budgets, choice, includeCash) }
+    // Worked out on a background thread, only from loaded data; the previous figures stay on screen until the new
+    // ones are ready, and the skeleton shows until the first ones are (never a flash of ₹0).
+    val computed by androidx.compose.runtime.produceState<HomeFigures?>(null, txns, budgets, choice, includeCash) {
+        if (com.pft.financetracker.ui.isLoaded(txns) && com.pft.financetracker.ui.isLoaded(budgets))
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { HomeFigures.of(txns, budgets, choice, includeCash) }
+    }
+    val placeholder = remember(choice) { HomeFigures.of(emptyList(), emptyList(), choice, includeCash) }
+    val view = computed ?: placeholder
     val period = view.period
     val summary = view.summary
     val now = view.now
@@ -242,7 +249,7 @@ fun DashboardScreen(
             item(key = "stepper") { PeriodStepper(choice, onChoose = vm::setPeriod, onPickRange = { showRange = true }) }
 
             // Until the database answers, every figure below would read ₹0: show the page's shape instead.
-            if (!loaded) {
+            if (!loaded || computed == null) {
                 item { SkeletonHero(Modifier.padding(top = Space.lg), cards = 3) }
                 item { SkeletonRows(3) }
                 return@LazyColumn
@@ -350,7 +357,11 @@ fun DashboardScreen(
                     if (budgetStatus.isEmpty()) Text("Set a monthly limit for a category and FinTrack shows how close you are.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     budgetStatus.sortedByDescending { it.fraction }.take(5).forEach { b -> key(b.budget.category) {
                         Column(
-                            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "See payments") { onDrill(Bucket.SPEND, b.budget.category) },
+                            Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "See payments") {
+                                // A budget is a month: open that month's payments, not just the chosen week.
+                                if (choice !is PeriodChoice.Month) vm.setPeriod(PeriodChoice.Month(monthsBack(budgetPeriod.start, now)))
+                                onDrill(Bucket.SPEND, b.budget.category)
+                            },
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -690,6 +701,14 @@ private fun PeriodStepper(choice: PeriodChoice, onChoose: (PeriodChoice) -> Unit
             Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, "Next $unit")
         }
     }
+}
+
+/** How many months before the current one the month starting at [start] is: 0 for this month, -1 for last. */
+internal fun monthsBack(start: Long, now: Long): Int {
+    val zone = java.time.ZoneId.systemDefault()
+    val a = java.time.YearMonth.from(java.time.Instant.ofEpochMilli(start).atZone(zone))
+    val b = java.time.YearMonth.from(java.time.Instant.ofEpochMilli(now).atZone(zone))
+    return -java.time.temporal.ChronoUnit.MONTHS.between(a, b).toInt()
 }
 
 private fun sparkLabel(p: Period, weekly: Boolean): String =

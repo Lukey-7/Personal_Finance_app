@@ -396,7 +396,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Subscriptions and other repeating charges, recomputed whenever transactions or decisions change. */
     val recurringBook: StateFlow<com.pft.financetracker.domain.recurring.RecurringBook> =
         combine(transactions, c.db.recurringDao().observeAll()) { txns, decisions ->
-            withContext(Dispatchers.Default) { c.recurring.bookOf(txns, decisions) }
+            if (!isLoaded(txns)) com.pft.financetracker.domain.recurring.RecurringBook.EMPTY
+            else withContext(Dispatchers.Default) { c.recurring.bookOf(txns, decisions) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.recurring.RecurringBook.EMPTY)
     fun decideRecurring(key: String, status: com.pft.financetracker.domain.recurring.RecurringStatus?) =
         viewModelScope.launch(Dispatchers.IO) { c.recurring.decide(key, status) }
@@ -503,7 +504,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 is OpenAiClient.Result.Ok -> return@withContext com.pft.financetracker.domain.ask.AskAnswer(
                     r.text, transactionIds = if (rules.understood) rules.transactionIds else emptyList(), byAi = true, byOpenAi = true,
                 )
-                is OpenAiClient.Result.Error -> if (rules.understood) return@withContext rules.copy(text = rules.text + "\n\nChatGPT couldn't answer (${r.message}), so this is from the phone.")
+                is OpenAiClient.Result.Error -> return@withContext if (rules.understood) rules.copy(text = rules.text + "\n\nChatGPT couldn't answer (${r.message}), so this is from the phone.")
+                else rules.copy(text = "ChatGPT couldn't answer: ${r.message}. Check the internet connection or the key in Settings › AI.\n\n" + rules.text)
             }
         }
         if (rules.understood || !c.settings.useNano.value) return@withContext rules

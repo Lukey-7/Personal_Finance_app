@@ -70,7 +70,7 @@ object AskAiPrompt {
         val payees = InsightsEngine.summarize(c.txns, threeMonths, c.includeCash).byMerchant.take(25)
         if (payees.isNotEmpty()) {
             out.append("\nMain payees over the last three months: ")
-                .append(payees.joinToString(", ") { "${it.merchant} ${r(it.amountPaise)} (${it.count}x, ${it.category.label})" }).append(".\n")
+                .append(payees.joinToString(", ") { "${payee(it.merchant)} ${r(it.amountPaise)} (${it.count}x, ${it.category.label})" }).append(".\n")
         }
 
         if (c.budgets.isNotEmpty()) {
@@ -78,7 +78,7 @@ object AskAiPrompt {
         }
         c.recurring.shown.filter { it.counted }.takeIf { it.isNotEmpty() }?.let { l ->
             out.append("\nLooks like subscriptions (").append(r(c.recurring.monthlyPaise)).append(" a month): ")
-                .append(l.joinToString(", ") { "${it.item.merchant} ${r(it.item.amountPaise)} ${it.item.period.label.lowercase(Locale.ROOT)}" }).append(".\n")
+                .append(l.joinToString(", ") { "${payee(it.item.merchant)} ${r(it.item.amountPaise)} ${it.item.period.label.lowercase(Locale.ROOT)}" }).append(".\n")
         }
         c.bills.mapNotNull { (b, s) ->
             val amount = (b.amountPaise ?: BillTracker.amountDue(b))?.let { " ${r(it)}" } ?: ""
@@ -95,7 +95,7 @@ object AskAiPrompt {
             for (t in recent) {
                 val d = Instant.ofEpochMilli(t.timestamp).atZone(zone).toLocalDate().format(dayFmt)
                 val sign = if (t.type == com.pft.financetracker.domain.model.TransactionType.CREDIT) "+" else "-"
-                out.append(d).append(" | ").append(t.merchant.take(40)).append(" | ").append(t.category.label)
+                out.append(d).append(" | ").append(payee(t.merchant)).append(" | ").append(t.category.label)
                     .append(" | ").append(kind(t.flow)).append(" | ").append(sign).append(r(t.amountPaise)).append('\n')
             }
         }
@@ -112,4 +112,18 @@ object AskAiPrompt {
     }
 
     private fun r(p: Long) = InsightsEngine.rupees(p)
+
+    private val longDigits = Regex("""\d[\d\s-]{5,}\d""")
+    private val handle = Regex("""\S+@\S+""")
+    private val control = Regex("""[\p{Cntrl}|]""")
+
+    /** A payee as sent: no runs of 7+ digits (phone or account numbers), no UPI handles, one line. */
+    fun payee(raw: String): String = raw
+        .replace(control, " ")
+        .replace(handle, "a UPI ID")
+        .replace(longDigits, "••••")
+        .replace(Regex("""\s+"""), " ")
+        .trim()
+        .take(40)
+        .ifEmpty { "Unknown" }
 }

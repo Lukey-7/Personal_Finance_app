@@ -179,7 +179,8 @@ private fun rollTransition(up: Boolean): ContentTransform {
  */
 @Composable
 fun LedgerAmount(text: String, color: Color, modifier: Modifier = Modifier, style: TextStyle = MoneyType.row) {
-    Text(text, modifier, style = style, color = color, maxLines = 1, softWrap = false)
+    // Right-aligned, so a column of amounts given a minimum width lines up on the units.
+    Text(text, modifier, style = style, color = color, maxLines = 1, softWrap = false, textAlign = androidx.compose.ui.text.style.TextAlign.End)
 }
 
 /** Minimum width of a list's amount column at the current font size: room for "-₹1,05,000" in [MoneyType.row]. */

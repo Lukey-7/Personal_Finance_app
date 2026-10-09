@@ -105,7 +105,11 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
         val history = turns.map { it.question to it.answer.text }
         thinking = question
         scope.launch {
-            try { turns += Turn(question, vm.ask(question, history)) } finally { thinking = null }
+            try {
+                val a = runCatching { vm.ask(question, history) }
+                    .getOrElse { e -> if (e is kotlinx.coroutines.CancellationException) throw e else AskAnswer("Something went wrong answering that. Try again.") }
+                turns += Turn(question, a)
+            } finally { thinking = null }
         }
     }
 

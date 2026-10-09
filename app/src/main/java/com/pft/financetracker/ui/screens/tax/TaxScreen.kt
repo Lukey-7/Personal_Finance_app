@@ -313,7 +313,7 @@ private fun PossibleCard(g: PossibleGroup, byId: Map<Long, Transaction>, onCount
                 Text(dates, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.width(Space.md))
-            LedgerAmount(money(g.totalPaise), MaterialTheme.colorScheme.onSurface, Modifier.widthIn(min = LedgerAmountMinWidth), style = MoneyType.small)
+            LedgerAmount(money(g.totalPaise), MaterialTheme.colorScheme.onSurface, style = MoneyType.small)
         }
         Text(
             possibleHint(g.kind), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

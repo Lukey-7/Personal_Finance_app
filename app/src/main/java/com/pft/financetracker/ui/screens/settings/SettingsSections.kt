@@ -388,8 +388,8 @@ internal fun AiSection(vm: AppViewModel) {
             else "Needs an OpenAI key, below.",
             "What Ask sends",
             "Your question, the last few questions and answers, a year of monthly totals, categories, your main payees " +
-                "and your latest 120 payments (date, payee, category and amount). Never SMS text, account numbers, " +
-                "reference numbers or notes. With this off, Ask answers on the phone.",
+                "and your latest 120 payments (date, payee name, category and amount). Phone numbers and UPI IDs are " +
+                "blanked out. Never SMS text, account numbers, reference numbers or notes. With this off, Ask answers on the phone.",
         )
         Hairline()
         CardTitle("AI monthly summary", Icons.Outlined.AutoAwesome)
