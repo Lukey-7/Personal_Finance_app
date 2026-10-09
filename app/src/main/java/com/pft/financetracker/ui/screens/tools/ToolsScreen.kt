@@ -90,7 +90,7 @@ private data class ToolTile(
 
 /**
  * Money tools: the v1.3 tools as a two-column grid, each tile showing a live number (subscriptions a month, the next
- * bill, this card cycle, the top goal, net worth, tax found) so the page answers before you open anything. One
+ * bill, this card cycle, the top goal, tax found) so the page answers before you open anything. One
  * column at a large font. Keeps the bottom bar at five tabs.
  */
 @OptIn(ExperimentalMaterial3Api::class)
