@@ -93,9 +93,12 @@ class Ledger(
      */
     suspend fun <T> together(block: suspend () -> T): T {
         if (coroutineContext[Together] != null) return block()
-        val result = withContext(Together()) { block() }
-        followUp()
-        return result
+        // Even when the block fails part way, what it did write gets its follow-up.
+        try {
+            return withContext(Together()) { block() }
+        } finally {
+            followUp()
+        }
     }
 
     /**

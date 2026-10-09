@@ -1,6 +1,6 @@
 # Deep modules plan: Same payment, Ledger, Books
 
-**Status:** approved 9 Oct 2026, in progress.
+**Status:** done 9 Oct 2026 on branch `deep-modules` (not merged).
 
 **Goal:** stop the class of bugs fixed on 9 Oct, where one caller forgot a rule (cash setting, refund unpairing, duplicate
 check, follow-up). Three deep modules, built in order, each one small interface with the rules inside it.
@@ -86,11 +86,15 @@ agent checks the code read-only (prompt at the end). I fix what it confirms.
 
 ## Phase 4 · Verify
 
-- [ ] All unit tests green (emulator off).
-- [ ] Debug build installed as `.v15` on the emulator; walk Home (months and weeks), Activity, edit, split create and
-      delete, a bill, Insights, Ask. Numbers the same as before the refactor. No SMS injected (it reaches the shared
-      installs).
-- [ ] Reviewer agent (below), then fix what it confirms, retest.
+- [x] All unit tests green: 758 of 758 (the solver timing test passed too).
+- [x] Debug build installed as `.v15`. Home (Oct 2026): net spend ₹1,269, its list totals ₹1,269 (Netflix 899, Swiggy
+      250, Zomato 120); "Transfers in ₹15,000" opens its own list of ₹15,000; Insights and Budgets show the same ₹1,269
+      (Food ₹370 + Entertainment ₹899). No SMS injected.
+- [x] Reviewer agent ran (read-only). Its one confirmed issue: `together {}` skipped the follow-up when the block failed
+      after a write (a split whose save fails after its payment was shrunk). Fixed with try/finally, test added
+      (`LedgerTest` 11). It also noted `data/ledger` imports `FlowRules` from `ui/model` (layering, no money impact; left
+      for later). It had no shell, so I checked its two open points myself: no test was removed by the branch, and
+      every removed function has a moved counterpart.
 
 ## Reviewer agent prompt
 

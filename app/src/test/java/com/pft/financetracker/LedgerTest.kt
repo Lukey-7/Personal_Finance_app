@@ -149,6 +149,17 @@ class LedgerTest {
         assertEquals(1, followUps.size)
     }
 
+    @Test fun aChangeThatFailsPartWayStillGetsItsFollowUp() = runBlocking {
+        runCatching {
+            ledger.together {
+                ledger.add(tx(10_000, "Chai", source = Transaction.Source.MANUAL, hash = null))
+                error("the split could not be saved")
+            }
+        }
+        assertEquals(1, repo.getAll().size)
+        assertEquals(1, followUps.size)
+    }
+
     @Test fun requestsDuringARunFoldIntoOneMoreRun() = runBlocking {
         gate = CompletableDeferred()
         ledger.followUp()                 // starts, and waits on the gate
