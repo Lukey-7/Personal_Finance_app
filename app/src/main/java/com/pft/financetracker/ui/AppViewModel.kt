@@ -489,7 +489,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _backupBusy.value = "Opening the backup…"
         runCatching {
             val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not open the file.")
-            c.backup.restore(bytes, passphrase)
+            val madeAt = c.backup.restore(bytes, passphrase)
+            // The next scan re-reads SMS from when the backup was made (all of them if unknown); duplicates are skipped by hash.
+            c.settings.setLastImportAt(if (madeAt > 0L) minOf(madeAt, c.settings.lastImportAt.value) else 0L)
+            // Reminders already sent belong to the replaced data.
+            c.settings.setSentReminders(emptySet())
             c.templates.load()
             c.afterChange(useAi = false)
         }.exceptionOrNull()?.let { it.message ?: "Restore failed." }.also { passphrase.fill(' '); _backupBusy.value = null }
@@ -629,6 +633,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // Every table, including ones added in later versions, so nothing is left behind.
         withContext(Dispatchers.IO) { c.db.clearAllTables(); c.templates.load() }
         c.settings.clearAll()
+        val app = getApplication<Application>()
+        com.pft.financetracker.ui.widget.FinTrackWidget.refresh(app)
+        runCatching { androidx.core.app.NotificationManagerCompat.from(app).cancelAll() }
         _aiState.value = AiUiState.Idle
         _importState.value = ImportUiState.Idle
         _ocrState.value = OcrUiState.Idle
