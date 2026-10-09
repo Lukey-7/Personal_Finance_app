@@ -34,15 +34,21 @@ object WidgetSnapshot {
             val spentInBudgeted = bs.sumOf { b -> summary.byCategory.firstOrNull { it.category == b.category }?.amountPaise ?: 0L }
             val left = bs.sumOf { it.monthlyLimitPaise } - spentInBudgeted
             when {
-                hideAmounts -> if (left >= 0) "Within budgets, some left" else "Over budget"
+                hideAmounts -> when {
+                    left > 0 -> "Within budgets, some left"
+                    left == 0L -> "Budgets all used"
+                    else -> "Over budget"
+                }
                 left >= 0 -> "${rupees(left)} left of budgets"
                 else -> "${rupees(-left)} over budget"
             }
         }
 
-        val overdue = bills.firstOrNull { it.second is BillState.Overdue }?.let { "${it.first.name} · overdue" }
+        // With amounts hidden, bill names stay off the home screen too: a name like "Loan EMI" says as much as a figure.
+        val overdue = bills.firstOrNull { it.second is BillState.Overdue }
+            ?.let { if (hideAmounts) "A bill is overdue" else "${it.first.name} · overdue" }
         val upcoming = bills.mapNotNull { (b, s) -> (s as? BillState.Upcoming)?.let { b to it } }.minByOrNull { it.second.daysLeft }
-            ?.let { (b, s) -> "${b.name} · ${s.due.format(dayFmt)}" }
+            ?.let { (b, s) -> if (hideAmounts) "A bill · ${s.due.format(dayFmt)}" else "${b.name} · ${s.due.format(dayFmt)}" }
         return WidgetText(rupees(summary.netSpendPaise), budgetLine, overdue ?: upcoming)
     }
 }

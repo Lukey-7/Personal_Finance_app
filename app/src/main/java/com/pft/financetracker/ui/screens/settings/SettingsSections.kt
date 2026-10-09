@@ -3,6 +3,7 @@ package com.pft.financetracker.ui.screens.settings
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -278,9 +280,33 @@ internal fun BackupSection(vm: AppViewModel, snackbar: SnackbarHostState) {
     val scope = rememberCoroutineScope()
     val lastBackup by vm.lastBackupAt.collectAsState()
     val backupBusy by vm.backupBusy.collectAsState()
-    var backupAsk by remember { mutableStateOf<Uri?>(null) }
-    var restoreAsk by remember { mutableStateOf<Uri?>(null) }
-    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> backupAsk = uri }
+    val ctx = LocalContext.current
+    // The passphrase comes first, then the file picker, so cancelling never leaves an empty backup file behind. The
+    // passphrase itself is only held in memory (never in saved state); if Android recreated the screen while the
+    // picker was open, it is asked for again, and a file left without one is deleted.
+    var askPassphrase by rememberSaveable { mutableStateOf(false) }
+    var pendingPassphrase by remember { mutableStateOf<CharArray?>(null) }
+    var backupAsk by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var restoreAsk by rememberSaveable { mutableStateOf<Uri?>(null) }
+    fun discard(uri: Uri) {
+        runCatching { DocumentsContract.deleteDocument(ctx.contentResolver, uri) }
+    }
+    fun write(uri: Uri, pw: CharArray) {
+        scope.launch {
+            val error = vm.writeBackup(uri, pw)
+            if (error != null) discard(uri)
+            snackbar.showSnackbar(error ?: "Backup saved")
+        }
+    }
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val pw = pendingPassphrase
+        pendingPassphrase = null
+        when {
+            uri == null -> pw?.fill(' ')
+            pw != null -> write(uri, pw)
+            else -> backupAsk = uri
+        }
+    }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> restoreAsk = uri }
 
     SettingsGroup {
@@ -301,17 +327,29 @@ internal fun BackupSection(vm: AppViewModel, snackbar: SnackbarHostState) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
         } else {
             Column {
-                ActionRow("Back up now", Icons.Outlined.Backup, { backupLauncher.launch("FinTrack-${java.time.LocalDate.now()}.ftbackup") })
+                ActionRow("Back up now", Icons.Outlined.Backup, { askPassphrase = true })
                 ActionRow("Restore from a backup", Icons.Outlined.Restore, { restoreLauncher.launch(arrayOf("*/*")) })
             }
         }
     }
 
+    if (askPassphrase) {
+        BackupPassphraseDialog(
+            restoring = false,
+            onConfirm = { pw ->
+                askPassphrase = false
+                pendingPassphrase = pw
+                backupLauncher.launch("FinTrack-${java.time.LocalDate.now()}.ftbackup")
+            },
+            onDismiss = { askPassphrase = false },
+        )
+    }
+    // Only after the screen was recreated while the file picker was open: the file exists, the passphrase was lost.
     backupAsk?.let { uri ->
         BackupPassphraseDialog(
             restoring = false,
-            onConfirm = { pw -> backupAsk = null; scope.launch { snackbar.showSnackbar(vm.writeBackup(uri, pw) ?: "Backup saved") } },
-            onDismiss = { backupAsk = null },
+            onConfirm = { pw -> backupAsk = null; write(uri, pw) },
+            onDismiss = { backupAsk = null; discard(uri) },
         )
     }
     restoreAsk?.let { uri ->

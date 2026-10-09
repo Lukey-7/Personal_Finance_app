@@ -28,19 +28,26 @@ class BackupService(private val db: AppDatabase, private val codec: BackupCodec 
     fun export(passphrase: CharArray): ByteArray {
         val sql = db.openHelper.readableDatabase
         val tables = JSONObject()
-        for (t in tables()) {
-            sql.query("SELECT * FROM `$t`").use { c ->
-                val rows = JSONArray()
-                while (c.moveToNext()) rows.put(JSONArray().apply { for (i in 0 until c.columnCount) put(value(c, i)) })
-                tables.put(t, JSONObject().put("columns", JSONArray(c.columnNames.toList())).put("rows", rows))
+        // One transaction around every read, so an import or edit running meanwhile cannot leave the backup with half
+        // of a change (a payment without its split, a bill mark without its bill).
+        db.runInTransaction {
+            for (t in tables()) {
+                sql.query("SELECT * FROM `$t`").use { c ->
+                    val rows = JSONArray()
+                    while (c.moveToNext()) rows.put(JSONArray().apply { for (i in 0 until c.columnCount) put(value(c, i)) })
+                    tables.put(t, JSONObject().put("columns", JSONArray(c.columnNames.toList())).put("rows", rows))
+                }
             }
         }
         val doc = JSONObject().put("app", APP).put("schema", sql.version).put("createdAt", System.currentTimeMillis()).put("tables", tables)
         return codec.encrypt(doc.toString(), passphrase)
     }
 
-    /** Replaces all data with the backup's. Throws [BackupException] (and changes nothing) when it cannot. */
-    fun restore(file: ByteArray, passphrase: CharArray) {
+    /**
+     * Replaces all data with the backup's. Throws [BackupException] (and changes nothing) when it cannot. Returns when
+     * the backup was made (epoch millis, 0 if unknown), so the next SMS scan can pick up from there.
+     */
+    fun restore(file: ByteArray, passphrase: CharArray): Long {
         val doc = try { JSONObject(codec.decrypt(file, passphrase)) } catch (e: JSONException) { throw BackupException.NotABackup() }
         if (doc.optString("app") != APP) throw BackupException.NotABackup()
         val sql = db.openHelper.writableDatabase
@@ -64,6 +71,7 @@ class BackupService(private val db: AppDatabase, private val codec: BackupCodec 
                 }
             }
         }
+        return doc.optLong("createdAt", 0L)
     }
 
     private fun columns(table: String): Set<String> {

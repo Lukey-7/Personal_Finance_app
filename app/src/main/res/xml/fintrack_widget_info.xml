@@ -2,7 +2,8 @@
 <!--
   Home-screen widget, two sizes (FinTrackWidget.sizeMode): small from 2 cells ("Spent this month" and the figure),
   medium from 4x2 (adds budget left, the next bill and the Add / Cash actions). Placed at 4x2 by default and resizable
-  down to 2x1. Refreshed by the app after each import, not on a timer.
+  down to 2x1. Refreshed by the app after each import, twice a day by the reminder worker and just after
+  midnight (MidnightWidgetWorker), not by updatePeriodMillis.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/widget_description"

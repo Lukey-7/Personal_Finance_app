@@ -116,4 +116,12 @@ class BackupTest {
         }
         return out
     }
+
+    @Test fun restoreSaysWhenTheBackupWasMade() = runBlocking {
+        seed(a)
+        val before = System.currentTimeMillis()
+        val file = BackupService(a, codec).export("correct horse".toCharArray())
+        val made = BackupService(b, codec).restore(file, "correct horse".toCharArray())
+        assertTrue(made >= before && made <= System.currentTimeMillis())
+    }
 }

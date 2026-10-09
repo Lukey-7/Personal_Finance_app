@@ -29,6 +29,9 @@ class BillService(private val txDao: TransactionDao, private val dao: BillDao, p
     suspend fun markPaid(id: Long, due: LocalDate) = dao.mark(BillMarkEntity(billId = id, dueDay = due.toEpochDay()))
     suspend fun unmarkPaid(id: Long, due: LocalDate) = dao.unmark(id, due.toEpochDay())
 
+    /** "This payment is not for this bill": the bill stops counting it (see [BillTracker.ignoreMark]). */
+    suspend fun ignorePayment(id: Long, transactionId: Long) = dao.mark(BillMarkEntity(billId = id, dueDay = BillTracker.ignoreMark(transactionId).toEpochDay()))
+
     /** One bill per card: a new statement moves its due date and amount to the new cycle. */
     suspend fun fromStatement(s: CardStatement, bank: String?) {
         val last4 = s.cardLast4
@@ -66,12 +69,13 @@ fun BillEntity.toDomain() = Bill(
     everyMonths = everyMonths, startMonth = startMonth, fixedDue = fixedDueDay?.let { LocalDate.ofEpochDay(it) },
     loan = if (loanPrincipalPaise != null && loanRateBp != null && loanTenureMonths != null && loanFirstDueDay != null)
         Loan(loanPrincipalPaise, loanRateBp, loanTenureMonths, LocalDate.ofEpochDay(loanFirstDueDay)) else null,
-    cardLast4 = cardLast4,
+    cardLast4 = cardLast4, createdAt = createdAt,
 )
 
+/** A new bill is stamped with today; an edited one keeps the day it was added. */
 fun Bill.toEntity() = BillEntity(
     id = id, name = name, amountPaise = amountPaise, dueDay = dueDay, keyword = keyword, category = category.name,
     everyMonths = everyMonths, startMonth = startMonth, fixedDueDay = fixedDue?.toEpochDay(),
     loanPrincipalPaise = loan?.principalPaise, loanRateBp = loan?.annualRateBp, loanTenureMonths = loan?.tenureMonths,
-    loanFirstDueDay = loan?.firstDue?.toEpochDay(), cardLast4 = cardLast4,
+    loanFirstDueDay = loan?.firstDue?.toEpochDay(), cardLast4 = cardLast4, createdAt = createdAt ?: System.currentTimeMillis(),
 )

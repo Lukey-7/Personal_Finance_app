@@ -72,8 +72,8 @@ class BillsTest {
 
     // ---- Status ----
 
-    private fun debit(m: String, paise: Long, on: String, id: Long = 9) = Transaction(id = id, amountPaise = paise, type = TransactionType.DEBIT, merchant = m,
-        category = Category.BILLS, timestamp = at(on), bankName = null, accountRef = null, source = Transaction.Source.SMS, flow = Flow.EXPENSE)
+    private fun debit(m: String, paise: Long, on: String, id: Long = 9, flow: Flow = Flow.EXPENSE) = Transaction(id = id, amountPaise = paise, type = TransactionType.DEBIT, merchant = m,
+        category = Category.BILLS, timestamp = at(on), bankName = null, accountRef = null, source = Transaction.Source.SMS, flow = flow)
 
     @Test fun upcomingShowsDaysLeft() {
         val s = BillTracker.state(airtel, d("2026-10-02"), emptyList(), emptySet(), zone)
@@ -137,5 +137,74 @@ class BillsTest {
         assertEquals(listOf(3, 1), r.leadDays)
         assertEquals("bill:1", r.key)
         assertNull(BillTracker.reminder(airtel, d("2026-10-04"), listOf(debit("Airtel", 79_900, "2026-10-03")), emptySet(), zone))
+    }
+
+    // ---- Each payment counts once ----
+
+    private val decPaid = debit("Airtel", 79_900, "2025-12-04", id = 1)
+    private val janLate = debit("Airtel", 79_900, "2026-01-29", id = 2)
+
+    @Test fun aLatePaymentSettlesTheCycleItWasLateFor() {
+        // Due 5 Jan, paid 29 Jan: that pays January. It must not also count as February's, a week early.
+        assertEquals(BillState.Overdue(d("2026-01-05"), 15), BillTracker.state(airtel, d("2026-01-20"), listOf(decPaid), emptySet(), zone))
+        assertEquals(BillState.Upcoming(d("2026-02-05"), 6), BillTracker.state(airtel, d("2026-01-30"), listOf(decPaid, janLate), emptySet(), zone))
+    }
+
+    @Test fun aMissedCycleAfterALatePaymentIsOverdue() {
+        assertEquals(BillState.Overdue(d("2026-02-05"), 5), BillTracker.state(airtel, d("2026-02-10"), listOf(decPaid, janLate), emptySet(), zone))
+        val febPaid = debit("Airtel", 79_900, "2026-02-09", id = 3)
+        assertEquals(BillState.Paid(d("2026-02-05"), 3), BillTracker.state(airtel, d("2026-02-10"), listOf(decPaid, janLate, febPaid), emptySet(), zone))
+    }
+
+    @Test fun aPaymentTheBillWasToldToIgnoreDoesNotCount() {
+        val pay = debit("AIRTEL PAYMENTS", 79_900, "2026-10-03")
+        assertEquals(BillState.Upcoming(d("2026-10-05"), 1), BillTracker.state(airtel, d("2026-10-04"), listOf(pay), setOf(BillTracker.ignoreMark(9)), zone))
+    }
+
+    // ---- Matching ----
+
+    @Test fun aKeywordMatchesWholeWordsNotPartsOfOtherNames() {
+        val jio = Bill(id = 4, name = "Jio", amountPaise = null, dueDay = 5, keyword = "jio")
+        assertTrue(BillTracker.state(jio, d("2026-10-04"), listOf(debit("JioMart", 1_250_00, "2026-10-03")), emptySet(), zone) is BillState.Upcoming)
+        assertTrue(BillTracker.state(jio, d("2026-10-04"), listOf(debit("Jio Prepaid", 399_00, "2026-10-03")), emptySet(), zone) is BillState.Paid)
+        val rent = Bill(id = 5, name = "Rent", amountPaise = null, dueDay = 5, keyword = "rent")
+        assertTrue(BillTracker.state(rent, d("2026-10-04"), listOf(debit("Torrent Power", 1_800_00, "2026-10-03")), emptySet(), zone) is BillState.Upcoming)
+    }
+
+    @Test fun aKeywordBillWithAnAmountIgnoresPaymentsFarFromIt() {
+        // A transfer through Airtel Payments Bank is not the ₹799 phone bill.
+        assertTrue(BillTracker.state(airtel, d("2026-10-04"), listOf(debit("Airtel Payments Bank", 5_000_00, "2026-10-03")), emptySet(), zone) is BillState.Upcoming)
+        // A bill a little higher than usual still counts.
+        assertTrue(BillTracker.state(airtel, d("2026-10-04"), listOf(debit("Airtel", 899_00, "2026-10-03")), emptySet(), zone) is BillState.Paid)
+    }
+
+    @Test fun aLoanWithoutAKeywordMatchesTheEmiRoundedToWholeRupees() {
+        val car = Bill(id = 2, name = "Car loan", amountPaise = null, dueDay = 10, keyword = null,
+            loan = Loan(principalPaise = 5_00_000_00L, annualRateBp = 900, tenureMonths = 36, firstDue = d("2026-01-10")))
+        val emi = BillTracker.amountDue(car)!!
+        val debited = (emi + 50) / 100 * 100
+        val s = BillTracker.state(car, d("2026-10-11"), listOf(debit("ACH D- HDFC BANK", debited, "2026-10-10", flow = Flow.TRANSFER)), emptySet(), zone)
+        assertEquals(BillState.Paid(d("2026-10-10"), 9), s)
+    }
+
+    @Test fun anInvestmentPaysASipBill() {
+        val sip = Bill(id = 6, name = "SIP", amountPaise = 5_000_00, dueDay = 7, keyword = "icici prudential")
+        val s = BillTracker.state(sip, d("2026-10-08"), listOf(debit("ICICI Prudential MF", 5_000_00, "2026-10-07", flow = Flow.INVESTMENT)), emptySet(), zone)
+        assertEquals(BillState.Paid(d("2026-10-07"), 9), s)
+    }
+
+    // ---- New bills and short months ----
+
+    @Test fun aNewBillIsNotOverdueForADateBeforeItWasAdded() {
+        val added = d("2026-10-08").atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        val s = BillTracker.state(airtel.copy(createdAt = added), d("2026-10-09"), emptyList(), emptySet(), zone)
+        assertEquals(BillState.Upcoming(d("2026-11-05"), 27), s)
+    }
+
+    @Test fun aMissedBillDueThe31stMakesWayForFebruarysReminder() {
+        val rent = airtel.copy(dueDay = 31, keyword = null)
+        assertEquals(BillState.Overdue(d("2027-01-31"), 24), BillTracker.state(rent, d("2027-02-24"), emptyList(), emptySet(), zone))
+        assertEquals(BillState.Upcoming(d("2027-02-28"), 3), BillTracker.state(rent, d("2027-02-25"), emptyList(), emptySet(), zone))
+        assertEquals(listOf(3, 1), BillTracker.reminder(rent, d("2027-02-25"), emptyList(), emptySet(), zone)!!.leadDays)
     }
 }
