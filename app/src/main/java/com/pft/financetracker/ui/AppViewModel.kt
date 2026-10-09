@@ -336,36 +336,44 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun clearAi() { _aiState.value = AiUiState.Idle }
 
     // ---- OCR + splits ----
+    private var ocrJob: kotlinx.coroutines.Job? = null
+
     fun runOcr(uri: Uri) {
         if (_ocrState.value is OcrUiState.Running) return
         _ocrState.value = OcrUiState.Running
-        viewModelScope.launch {
-            _ocrState.value = runCatching { OcrEngine.recognize(getApplication(), uri) }
+        ocrJob = viewModelScope.launch {
+            val result = runCatching { OcrEngine.recognize(getApplication(), uri) }
                 .map { text -> if (text.isBlank()) OcrUiState.Error("No text found. Try a sharper, well-lit photo.") else OcrUiState.Done(BillParser.parse(text)) }
                 .getOrElse { OcrUiState.Error(it.message ?: "Could not read the image") }
+            // Left the new split while it was reading: the result must not land in the next one.
+            if (_ocrState.value is OcrUiState.Running) _ocrState.value = result
         }
     }
 
-    fun clearOcr() { _ocrState.value = OcrUiState.Idle }
+    /** Forget the bill photo's result (and stop reading one), so it never fills in the next new split. */
+    fun clearOcr() { ocrJob?.cancel(); ocrJob = null; _ocrState.value = OcrUiState.Idle }
 
     /**
-     * Persist a split and reflect it in personal tracking:
-     *  - I paid: my share is the expense. If an SMS debit for the full amount exists, link it and shrink it to my
-     *    share (the rest is money owed to me, not spend). Otherwise record my share as a manual expense.
+     * Persist a split and reflect it in personal tracking. Never both a full payment and a "my share" row:
+     *  - I paid with a payment already in the app ([Split.linkedTransactionId], picked under "Paid with"): it shrinks to
+     *    my share; the rest is money owed to me, not spend. An automatic split or suggestion on it is undone first.
+     *  - I paid and said it isn't in the app yet (no payment picked): my share is added as a payment.
      *  - Someone else paid: my share is added as an expense I owe.
      */
     fun saveSplit(split: Split, items: List<BillItem>, category: Category, onDone: (Long) -> Unit = {}) = viewModelScope.launch {
         val me = split.myShare?.amountPaise ?: 0L
-        var linked: Long? = split.linkedTransactionId
-        if (split.iPaid && linked == null) {
-            linked = transactions.value.firstOrNull {
-                it.type == TransactionType.DEBIT && it.amountPaise == split.totalPaise && kotlin.math.abs(it.timestamp - split.date) < 36 * 3_600_000L && it.source == Transaction.Source.SMS
-            }?.id
-        }
-        if (split.iPaid && linked != null) {
-            c.transactions.getById(linked)?.let { t ->
+        var linked: Long? = null
+        val pickedId = split.linkedTransactionId?.takeIf { split.iPaid }
+        if (pickedId != null && c.transactions.getById(pickedId) != null) {
+            c.splitEngine.releaseForManual(pickedId)
+            c.transactions.getById(pickedId)?.let { t ->
+                val full = t.originalAmountPaise ?: t.amountPaise
                 val othersPaise = split.totalPaise - me
-                c.transactions.update(t.copy(amountPaise = me, originalAmountPaise = t.originalAmountPaise ?: t.amountPaise, category = category, note = listOfNotNull(t.note, "Split: ${split.title}. ${com.pft.financetracker.ui.components.money(othersPaise)} owed to you.").joinToString(" ")))
+                c.transactions.update(t.copy(
+                    amountPaise = (full - othersPaise).coerceAtLeast(0L), originalAmountPaise = full, category = category,
+                    note = listOfNotNull(t.note?.takeIf { it.isNotBlank() }, com.pft.financetracker.data.split.SplitEngine.splitNote(split.title, com.pft.financetracker.ui.components.money(othersPaise))).joinToString(" "),
+                ))
+                linked = t.id
             }
         } else if (me > 0) {
             linked = c.transactions.insert(
@@ -378,14 +386,26 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         val id = c.splits.save(split.copy(linkedTransactionId = linked), items)
         onDone(id)
+        // A suggestion that shared transfers with the one undone above is worked out again.
+        refreshSplits(useAi = false)
+    }
+
+    /** Payments a split I paid could be ("Paid with"): near the date and the total, not already part of a split. */
+    fun paidWithCandidates(totalPaise: Long?, date: Long): List<Transaction> {
+        val used = autoSplitOf.value.keys + splits.value.filter { !it.isAuto }.mapNotNull { it.linkedTransactionId }
+        return com.pft.financetracker.domain.split.SettleMatch.paidWith(transactions.value, totalPaise, date, used)
     }
 
     fun settleShare(shareId: Long, settledPaise: Long) = viewModelScope.launch { c.splits.settle(shareId, settledPaise) }
     fun deleteSplit(id: Long) = viewModelScope.launch {
-        val s = splits.value.firstOrNull { it.id == id }
-        // An automatic split is undone exactly (numbers restored, never suggested again); a manual one releases any
-        // transfers linked to it before it goes.
-        if (s?.isAuto == true) c.splitEngine.reject(id) else { c.splitEngine.unlinkManual(id); c.splits.delete(id) }
+        // Read from the database when the list hasn't got it (still loading, or just changed).
+        val auto = splits.value.firstOrNull { it.id == id }?.isAuto
+            ?: c.db.splitDao().getSplit(id)?.let { it.source != com.pft.financetracker.domain.split.SplitSource.MANUAL.name }
+            ?: return@launch
+        // An automatic split is undone exactly (numbers restored, never suggested again); a manual one puts back the
+        // payment it shrank, removes the "my share" row it added and releases transfers linked to it.
+        if (auto) c.splitEngine.reject(id) else c.splitEngine.deleteManual(id)
+        refreshSplits(useAi = false)
     }
 
     // ---- Split intelligence ----
@@ -555,17 +575,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setSplitAi(v: Boolean) { c.settings.setSplitAi(v); if (v) refreshSplits() }
 
-    /** Incoming money from people that could be [split]'s payback: after the split date, not already used. */
-    fun settleCandidates(split: Split, remainingPaise: Long): List<Transaction> {
-        val used = autoSplitOf.value.keys
-        return transactions.value.filter {
-            it.type == TransactionType.CREDIT && it.flow == Flow.INCOME && it.id !in used &&
-                it.timestamp >= split.date - 86_400_000L && it.timestamp <= split.date + 45 * 86_400_000L && it.amountPaise <= remainingPaise &&
-                (it.counterpartyKind ?: com.pft.financetracker.domain.split.PayerClassifier.classify("", it.merchant, it.type)) == com.pft.financetracker.domain.model.CounterpartyKind.PERSON
-        }.sortedBy { kotlin.math.abs(it.timestamp - split.date) }
+    /** Incoming money from people that could be [split]'s payback: after the split date, not already used, up to a round-up over what is owed. */
+    fun settleCandidates(split: Split, remainingPaise: Long): List<Transaction> =
+        com.pft.financetracker.domain.split.SettleMatch.incoming(transactions.value, split.date, remainingPaise, autoSplitOf.value.keys)
+
+    /** My own payments that could be me paying back whoever paid [split]. */
+    fun payoutCandidates(split: Split, remainingPaise: Long): List<Transaction> {
+        val used = autoSplitOf.value.keys + splits.value.mapNotNull { it.linkedTransactionId }
+        val payer = split.people.getOrNull(split.payerIndex)?.name ?: ""
+        return com.pft.financetracker.domain.split.SettleMatch.outgoing(transactions.value, split.date, remainingPaise, payer, used)
     }
 
-    /** A friend's transfer settles their share of a manual split: it stops counting as income. */
+    /** A friend's transfer settles their share of a manual split (or my payment settles mine): it stops counting as income or spend. */
     fun settleWithTransaction(splitId: Long, shareId: Long, newSettledPaise: Long, credit: Transaction) = viewModelScope.launch {
         c.splitEngine.linkSettlement(splitId, shareId, newSettledPaise, credit, credit.amountPaise)
     }
@@ -615,12 +636,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun resetStatementImport() { _statementState.value = StatementUiState.Idle }
     suspend fun splitItems(id: Long): List<BillItem> = c.splits.itemsFor(id)
-
-    /** A credit matching an open split share can be recorded as a settlement instead of income. */
-    fun markAsSettlement(t: Transaction, shareId: Long, settledPaise: Long) = viewModelScope.launch {
-        c.transactions.update(t.copy(flow = Flow.SETTLEMENT, userEdited = true))
-        c.splits.settle(shareId, settledPaise)
-    }
 
     suspend fun exportCsv(): String = CsvExporter.toCsv(c.transactions.getAll())
     suspend fun exportSplitsCsv(): String = CsvExporter.splitsToCsv(splits.value)

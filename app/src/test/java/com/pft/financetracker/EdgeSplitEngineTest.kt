@@ -237,4 +237,89 @@ class EdgeSplitEngineTest {
         assertEquals(1, r.applied)
         assertTrue(cacheMap.isEmpty())
     }
+
+    // ---- v1.5: one transfer shared by an applied split and a suggestion -----------------------------------------
+
+    /**
+     * Rs 3,000 dinner and Rs 600 cab; Priya pays Rs 1,000 for the dinner and, days later, Rs 200 for the cab; Rahul's
+     * Rs 1,200 covers both. The dinner alone is sure (85), the cab only likely (75, Priya's part came late).
+     */
+    private suspend fun dinnerAndCab(): Triple<Long, Long, Long> {
+        val dinner = pay(3_000, "Toit", t0)
+        val cab = pay(600, "Uber", t0 + 2 * H, Category.TRANSPORT)
+        val rahul = got(1_200, "Rahul Sharma", t0 + 24 * H)
+        got(1_000, "Priya Nair", t0 + 25 * H)
+        got(200, "Priya Nair", t0 + 120 * H)
+        return Triple(dinner, cab, rahul)
+    }
+
+    @Test fun aTransferSharedWithASuggestionIsNeverHalfSettled() = runBlocking {
+        val (dinner, cab, rahul) = dinnerAndCab()
+        engine.run(useAi = false)
+        val byPayment = splits().associateBy { it.linkedTransactionId }
+        assertEquals("the dinner waits with the cab", SplitStatus.SUGGESTED.name, byPayment[dinner]!!.status)
+        assertEquals(SplitStatus.SUGGESTED.name, byPayment[cab]!!.status)
+        assertEquals(Flow.INCOME, tx(rahul).flow)
+        assertEquals(3_000_00L, tx(dinner).amountPaise)
+        assertConsistent()
+    }
+
+    @Test fun acceptingOneOfTwoSplitsSharingATransferAcceptsBoth() = runBlocking {
+        val (dinner, cab, rahul) = dinnerAndCab()
+        engine.run(useAi = false)
+        val dinnerSplit = splits().first { it.linkedTransactionId == dinner }
+        assertTrue(engine.accept(dinnerSplit.id))
+        assertTrue(splits().all { it.status == SplitStatus.APPLIED.name })
+        assertEquals(1_000_00L, tx(dinner).amountPaise)
+        assertEquals(200_00L, tx(cab).amountPaise)
+        assertEquals(Flow.SETTLEMENT, tx(rahul).flow)
+        assertConsistent()
+        val r = engine.run(useAi = false)
+        assertEquals(0, r.applied + r.suggested + r.undone)
+        assertConsistent()
+    }
+
+    @Test fun rejectingTheCabSuggestionLeavesNothingHalfSettled() = runBlocking {
+        val (dinner, cab, rahul) = dinnerAndCab()
+        engine.run(useAi = false)
+        engine.reject(splits().first { it.linkedTransactionId == cab }.id)
+        engine.run(useAi = false)
+        assertTrue(splits().none { it.linkedTransactionId == cab })
+        assertEquals(Flow.INCOME, tx(rahul).flow)
+        assertEquals(3_000_00L, tx(dinner).amountPaise)
+        assertConsistent()
+    }
+
+    @Test fun anAppliedDinnerBesideACabSuggestionFromAnOlderVersionIsPutRight() = runBlocking {
+        val (dinner, _, rahul) = dinnerAndCab()
+        engine.run(useAi = false)
+        // v1.4 applied the dinner on its own: shrink it and settle both its transfers, as it did.
+        val dao = db.splitDao()
+        val s = splits().first { it.linkedTransactionId == dinner }
+        dao.updateSplit(s.copy(status = SplitStatus.APPLIED.name))
+        for (l in dao.linksFor(s.id)) {
+            val t = tx(l.transactionId)
+            repo.update(if (l.role == "PAYMENT") t.copy(amountPaise = l.allocatedPaise, originalAmountPaise = t.amountPaise) else t.copy(flow = Flow.SETTLEMENT))
+        }
+        engine.run(useAi = false)
+        assertEquals(SplitStatus.SUGGESTED.name, splits().first { it.linkedTransactionId == dinner }.status)
+        assertEquals(3_000_00L, tx(dinner).amountPaise)
+        assertEquals(Flow.INCOME, tx(rahul).flow)
+        assertConsistent()
+    }
+
+    // ---- v1.5: the person edits the payment while the AI is being asked ---------------------------------------------
+
+    @Test fun aPaymentEditedWhileTheAiIsAskedIsLeftAlone() = runBlocking {
+        unevenDinner()
+        val p = repo.getAll().first { it.type == TransactionType.DEBIT }.id
+        aiAnswer = {
+            runBlocking { repo.update(tx(p).copy(amountPaise = 1_500_00, userEdited = true)) }
+            unevenAnswer
+        }
+        engine.run()
+        assertTrue("nothing applied over the edit", splits().isEmpty())
+        assertEquals(1_500_00L, tx(p).amountPaise)
+        repo.getAll().filter { it.type == TransactionType.CREDIT }.forEach { assertEquals(Flow.INCOME, it.flow) }
+    }
 }
