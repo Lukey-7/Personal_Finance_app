@@ -78,7 +78,7 @@ import com.pft.financetracker.ui.components.categoryIcon
 import com.pft.financetracker.ui.components.dateOnly
 import com.pft.financetracker.ui.components.paiseToInput
 import com.pft.financetracker.ui.model.AmountInput
-import com.pft.financetracker.ui.model.FlowRules
+import com.pft.financetracker.domain.ledger.FlowRules
 import com.pft.financetracker.ui.model.PickerDate
 import com.pft.financetracker.ui.model.ReviewBank
 import com.pft.financetracker.ui.theme.Expense

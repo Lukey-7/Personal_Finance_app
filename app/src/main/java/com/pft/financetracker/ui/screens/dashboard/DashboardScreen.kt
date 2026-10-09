@@ -76,7 +76,6 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.books.Books
-import com.pft.financetracker.domain.books.CountingRules
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.InsightsEngine.Bucket
 import com.pft.financetracker.domain.insights.Period
@@ -439,7 +438,7 @@ fun DashboardScreen(
             // ---- Money that moved but is not spend ----
             val paidBack = summary.settlementsInPaise
             val movedIn = summary.transfersInPaise - paidBack
-            val cashOut = if (books.rules.cashIsSpend) 0L else summary.cashPaise
+            val cashOut = summary.cashNotSpendPaise
             if (summary.transfersOutPaise + summary.transfersInPaise + summary.investmentsPaise + cashOut > 0) item(key = "notcounted") {
                 ExpandableCard(
                     title = "Not counted as spend",

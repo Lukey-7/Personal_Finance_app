@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.drilldown
 
+import com.pft.financetracker.domain.books.Books
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -77,7 +78,7 @@ fun DrillDownScreen(
     val period = range ?: choice.period()
     // Spend lists its refunds too, so the total is the same net figure the tapping screen showed.
     val list = remember(books, choice, range, bucket, category) { books.payments(period, bucket, category) }
-    val total = com.pft.financetracker.domain.books.Books.total(list, bucket)
+    val total = Books.total(list, bucket)
     val refunds = if (bucket == InsightsEngine.Bucket.SPEND) list.count { it.flow == com.pft.financetracker.domain.model.Flow.REFUND } else 0
     val name = category?.label ?: bucketLabel(bucket)
     val days = list.groupBy { dayOf(it.timestamp) }
@@ -150,7 +151,6 @@ private fun bucketLabel(b: Bucket): String = when (b) {
     Bucket.SPEND -> "Spent"
     Bucket.REFUNDS -> "Refunds"
     Bucket.INCOME -> "Income"
-    Bucket.TRANSFERS -> "Transfers"
     Bucket.TRANSFERS_OUT -> "Transfers & card bill payments"
     Bucket.TRANSFERS_IN -> "Transfers in"
     Bucket.PAID_BACK -> "Paid back by friends"
@@ -163,7 +163,7 @@ private fun bucketLabel(b: Bucket): String = when (b) {
 @Composable
 private fun heroColor(b: Bucket): Color = when (b) {
     Bucket.INCOME, Bucket.REFUNDS -> Income
-    Bucket.TRANSFERS, Bucket.TRANSFERS_OUT, Bucket.TRANSFERS_IN, Bucket.PAID_BACK, Bucket.INVESTMENTS -> Neutral
+    Bucket.TRANSFERS_OUT, Bucket.TRANSFERS_IN, Bucket.PAID_BACK, Bucket.INVESTMENTS -> Neutral
     else -> MaterialTheme.colorScheme.onBackground
 }
 

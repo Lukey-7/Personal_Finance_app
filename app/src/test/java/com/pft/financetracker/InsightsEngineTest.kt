@@ -81,7 +81,7 @@ class InsightsEngineTest {
         val noCash = Books.of(data, CountingRules(cashIsSpend = false)).summary(month)
         assertEquals(noCash.netSpendPaise, Books.total(Books.of(data, CountingRules(cashIsSpend = false)).payments(month, InsightsEngine.Bucket.SPEND), InsightsEngine.Bucket.SPEND))
         assertEquals(s.refundsPaise, Books.of(data).payments(month, InsightsEngine.Bucket.REFUNDS).sumOf { it.amountPaise })
-        assertEquals(s.transfersOutPaise, Books.of(data).payments(month, InsightsEngine.Bucket.TRANSFERS).sumOf { it.amountPaise })
+        assertEquals(s.transfersOutPaise, Books.of(data).payments(month, InsightsEngine.Bucket.TRANSFERS_OUT).sumOf { it.amountPaise })
     }
 
     @Test
@@ -156,7 +156,7 @@ class InsightsEngineTest {
     fun budgetTipsFollowTheCashSetting() {
         val list = listOf(t(2_000_00, TransactionType.DEBIT, Flow.CASH, Category.ATM, "ATM", at = on(Calendar.OCTOBER, 3)))
         val budgets = listOf(com.pft.financetracker.domain.model.Budget(Category.ATM, 1_000_00))
-        assertTrue(Books.of(list).tips(budgets, oct6).any { it.title.startsWith("Over budget") })
-        assertTrue(Books.of(list, CountingRules(cashIsSpend = false)).tips(budgets, oct6).none { it.title.startsWith("Over budget") })
+        assertTrue(Books.of(list).suggestions(budgets, oct6).any { it.title.startsWith("Over budget") })
+        assertTrue(Books.of(list, CountingRules(cashIsSpend = false)).suggestions(budgets, oct6).none { it.title.startsWith("Over budget") })
     }
 }

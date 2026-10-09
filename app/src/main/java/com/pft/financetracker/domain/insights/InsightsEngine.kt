@@ -110,6 +110,8 @@ data class PeriodSummary(
     val expenseCount: Int,
     /** Part of [transfersInPaise]: friends paying back their share of a split. */
     val settlementsInPaise: Long = 0,
+    /** Cash withdrawn when the counting rules leave cash out of spend; 0 when cash counts as spend. */
+    val cashNotSpendPaise: Long = 0,
 ) {
     val netSpendPaise: Long get() = grossSpendPaise - refundsPaise
     val savingsPaise: Long get() = incomePaise - netSpendPaise
@@ -144,8 +146,6 @@ object InsightsEngine {
      */
     enum class Bucket {
         SPEND, REFUNDS, INCOME,
-        /** Both directions of transfers and settlements (no single figure; kept for old links). */
-        TRANSFERS,
         /** Money moved out: transfers, card bill payments, settlements paid. */
         TRANSFERS_OUT,
         /** Transfers in, not counting friends paying back a split. */

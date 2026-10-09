@@ -51,12 +51,12 @@ class Books private constructor(
     private fun summarize(period: Period): PeriodSummary {
         val inPeriod = all.filter { it.timestamp in period && !it.needsReview }
         val spend = inPeriod.filter { isSpend(it) }
-        val refunds = inPeriod.filter { it.flow == Flow.REFUND }
-        val income = inPeriod.filter { it.flow == Flow.INCOME }
-        val transfersOut = inPeriod.filter { (it.flow == Flow.TRANSFER || it.flow == Flow.SETTLEMENT) && it.type == com.pft.financetracker.domain.model.TransactionType.DEBIT }
-        val transfersIn = inPeriod.filter { (it.flow == Flow.TRANSFER || it.flow == Flow.SETTLEMENT) && it.type == com.pft.financetracker.domain.model.TransactionType.CREDIT }
-        val investments = inPeriod.filter { it.flow == Flow.INVESTMENT && it.type == com.pft.financetracker.domain.model.TransactionType.DEBIT }
-        val cash = inPeriod.filter { it.flow == Flow.CASH }
+        val refunds = inPeriod.filter { counts(Bucket.REFUNDS, it) }
+        val income = inPeriod.filter { counts(Bucket.INCOME, it) }
+        val transfersOut = inPeriod.filter { counts(Bucket.TRANSFERS_OUT, it) }
+        val transfersIn = inPeriod.filter { counts(Bucket.TRANSFERS_IN, it) || counts(Bucket.PAID_BACK, it) }
+        val investments = inPeriod.filter { counts(Bucket.INVESTMENTS, it) }
+        val cash = inPeriod.filter { counts(Bucket.CASH, it) }
 
         // Refunds reduce the category they came from when the merchant matches a spend in this period,
         // otherwise they reduce the total only.
@@ -89,9 +89,10 @@ class Books private constructor(
             incomePaise = income.sumOf { it.amountPaise },
             transfersOutPaise = transfersOut.sumOf { it.amountPaise },
             transfersInPaise = transfersIn.sumOf { it.amountPaise },
-            settlementsInPaise = transfersIn.filter { it.flow == Flow.SETTLEMENT }.sumOf { it.amountPaise },
+            settlementsInPaise = transfersIn.filter { counts(Bucket.PAID_BACK, it) }.sumOf { it.amountPaise },
             investmentsPaise = investments.sumOf { it.amountPaise },
             cashPaise = cash.sumOf { it.amountPaise },
+            cashNotSpendPaise = if (rules.cashIsSpend) 0L else cash.sumOf { it.amountPaise },
             byCategory = byCat,
             byMerchant = byMerchant,
             byAccount = byAccount,
@@ -120,23 +121,27 @@ class Books private constructor(
         if (bucket == Bucket.SPEND) {
             val spend = inPeriod.filter { isSpend(it) }
             val spendCats = spendCategoryByMerchant(spend)
-            val refunds = inPeriod.filter { it.flow == Flow.REFUND }
-            return if (category == null) inPeriod.filter { isSpend(it) || it.flow == Flow.REFUND }
-            else inPeriod.filter { (isSpend(it) && it.category == category) || (it.flow == Flow.REFUND && it in refunds && refundCategory(it, spendCats) == category) }
+            return if (category == null) inPeriod.filter { isSpend(it) || counts(Bucket.REFUNDS, it) }
+            else inPeriod.filter { (isSpend(it) && it.category == category) || (counts(Bucket.REFUNDS, it) && refundCategory(it, spendCats) == category) }
         }
-        val byBucket = when (bucket) {
-            Bucket.SPEND -> inPeriod.filter { isSpend(it) }
-            Bucket.REFUNDS -> inPeriod.filter { it.flow == Flow.REFUND }
-            Bucket.INCOME -> inPeriod.filter { it.flow == Flow.INCOME }
-            Bucket.TRANSFERS -> inPeriod.filter { it.flow == Flow.TRANSFER || it.flow == Flow.SETTLEMENT }
-            Bucket.TRANSFERS_OUT -> inPeriod.filter { (it.flow == Flow.TRANSFER || it.flow == Flow.SETTLEMENT) && it.type == TransactionType.DEBIT }
-            Bucket.TRANSFERS_IN -> inPeriod.filter { it.flow == Flow.TRANSFER && it.type == TransactionType.CREDIT }
-            Bucket.PAID_BACK -> inPeriod.filter { it.flow == Flow.SETTLEMENT && it.type == TransactionType.CREDIT }
-            Bucket.INVESTMENTS -> inPeriod.filter { it.flow == Flow.INVESTMENT && it.type == TransactionType.DEBIT }
-            Bucket.CASH -> inPeriod.filter { it.flow == Flow.CASH }
-            Bucket.ALL -> inPeriod
-        }
+        val byBucket = inPeriod.filter { counts(bucket, it) }
         return if (category == null) byBucket else byBucket.filter { it.category == category }
+    }
+
+    /**
+     * Whether [t] belongs to [bucket]'s figure. The one definition of each figure: [summary] adds these up and [payments]
+     * lists them, so a figure and its list cannot drift apart.
+     */
+    private fun counts(bucket: Bucket, t: Transaction): Boolean = when (bucket) {
+        Bucket.SPEND -> isSpend(t)
+        Bucket.REFUNDS -> t.flow == Flow.REFUND
+        Bucket.INCOME -> t.flow == Flow.INCOME
+        Bucket.TRANSFERS_OUT -> (t.flow == Flow.TRANSFER || t.flow == Flow.SETTLEMENT) && t.type == TransactionType.DEBIT
+        Bucket.TRANSFERS_IN -> t.flow == Flow.TRANSFER && t.type == TransactionType.CREDIT
+        Bucket.PAID_BACK -> t.flow == Flow.SETTLEMENT && t.type == TransactionType.CREDIT
+        Bucket.INVESTMENTS -> t.flow == Flow.INVESTMENT && t.type == TransactionType.DEBIT
+        Bucket.CASH -> t.flow == Flow.CASH
+        Bucket.ALL -> true
     }
 
     fun budgets(budgets: List<Budget>, period: Period = Periods.month()): List<BudgetStatus> {
@@ -173,7 +178,7 @@ class Books private constructor(
     }
 
     /** Actionable "reduce spending" suggestions computed locally. */
-    fun tips(budgets: List<Budget>, now: Long = System.currentTimeMillis()): List<Insight> {
+    fun suggestions(budgets: List<Budget>, now: Long = System.currentTimeMillis()): List<Insight> {
         val out = mutableListOf<Insight>()
         val ninetyDays = all.filter { isSpend(it) && !it.needsReview && it.timestamp > now - 90L * 24 * 3600 * 1000 }
         if (ninetyDays.isEmpty()) return out

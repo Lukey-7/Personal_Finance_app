@@ -521,9 +521,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * question they do not understand, Gemini Nano with the phone's totals, where the phone has it.
      */
     suspend fun ask(question: String, history: List<Pair<String, String>> = emptyList()): com.pft.financetracker.domain.ask.AskAnswer = withContext(Dispatchers.Default) {
+        // One read of the books, so the payments and the counting rules always belong together.
+        val snapshot = books.value
         val ctx = com.pft.financetracker.domain.ask.AskContext(
-            txns = transactions.value, budgets = budgets.value, recurring = c.recurring.book(), bills = c.bills.states(),
-            rules = books.value.rules,
+            txns = snapshot.all, budgets = budgets.value, recurring = c.recurring.book(), bills = c.bills.states(),
+            rules = snapshot.rules,
         )
         val rules = com.pft.financetracker.domain.ask.AskEngine.answer(question, ctx)
         // With a key and the switch on, ChatGPT answers every question from a summary of the payments; the rules'

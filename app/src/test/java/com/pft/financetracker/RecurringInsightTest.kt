@@ -21,13 +21,13 @@ class RecurringInsightTest {
 
     @Test fun aYearlySubscriptionIsSuggestedWithItsYearlyCost() {
         // The old rule needed two charges inside 90 days, so yearly plans were never mentioned.
-        val s = Books.of(listOf(charge("Amazon Prime", 1_49_900, 370), charge("Amazon Prime", 1_49_900, 5))).tips(emptyList(), now)
+        val s = Books.of(listOf(charge("Amazon Prime", 1_49_900, 370), charge("Amazon Prime", 1_49_900, 5))).suggestions(emptyList(), now)
         val prime = s.single { it.title.startsWith("Recurring") }
         assertTrue(prime.body, prime.body.contains("1,499"))
     }
 
     @Test fun aPriceRiseGetsItsOwnSuggestion() {
-        val s = Books.of(listOf(charge("Netflix", 49_900, 75), charge("Netflix", 49_900, 45), charge("Netflix", 64_900, 15))).tips(emptyList(), now)
+        val s = Books.of(listOf(charge("Netflix", 49_900, 75), charge("Netflix", 49_900, 45), charge("Netflix", 64_900, 15))).suggestions(emptyList(), now)
         assertEquals(1, s.count { it.title == "Netflix went up" })
     }
 }

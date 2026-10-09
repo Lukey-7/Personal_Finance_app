@@ -151,13 +151,6 @@ data class Selection(val ids: Set<Long> = emptySet()) {
     operator fun contains(id: Long) = id in ids
 }
 
-/**
- * The rows to write when the chosen ones are moved to [category]: only those that change, marked as corrected by a
- * person so automatic rewrites leave them alone. Amount, flow and everything else stay as they are.
- */
-fun recategorise(txns: List<Transaction>, ids: Set<Long>, category: Category): List<Transaction> =
-    txns.filter { it.id in ids && it.category != category }.map { it.copy(category = category, userEdited = true) }
-
 /** Which way a figure points, for its colour and its words. */
 enum class MoneyTone { IN, OUT, MOVED }
 

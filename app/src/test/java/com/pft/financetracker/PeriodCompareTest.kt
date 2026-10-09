@@ -58,7 +58,7 @@ class PeriodCompareTest {
             bankName = null, accountRef = null, source = com.pft.financetracker.domain.model.Transaction.Source.SMS,
             flow = com.pft.financetracker.domain.model.Flow.EXPENSE)
         val txns = listOf(food(300_00, 2026, Calendar.SEPTEMBER, 2), food(5_000_00, 2026, Calendar.SEPTEMBER, 20), food(1_000_00, 2026, Calendar.OCTOBER, 3))
-        val tips = Books.of(txns).tips(emptyList(), now)
+        val tips = Books.of(txns).suggestions(emptyList(), now)
         org.junit.Assert.assertTrue(tips.joinToString { it.title }, tips.any { it.title.startsWith("Food & Dining up") })
     }
 

@@ -190,6 +190,16 @@ class SamePaymentTest {
         val sms = weaker.copy(flow = Flow.TRANSFER, timestamp = noon + 5 * M)
         assertEquals(noon + 5 * M, SamePayment.merge(stmt, sms).timestamp)
         assertEquals(Flow.TRANSFER, SamePayment.merge(stmt, sms).flow)
+        // A v1.0.0 midnight row only had a flow guessed from its category: the SMS read now decides flow and category.
+        val legacy = first.copy(timestamp = day, flow = Flow.EXPENSE, category = Category.OTHER)
+        val cardBill = weaker.copy(flow = Flow.TRANSFER, category = Category.TRANSFER, timestamp = day + 18 * H)
+        assertEquals(Flow.TRANSFER, SamePayment.merge(legacy, cardBill).flow)
+        assertEquals(Category.TRANSFER, SamePayment.merge(legacy, cardBill).category)
+        assertEquals(day, SamePayment.merge(legacy, cardBill).timestamp)
+        // The stored direction was wrong: the category comes from the new read, not the old guess.
+        val credit = weaker.copy(type = TransactionType.CREDIT, flow = Flow.INCOME, category = Category.INCOME)
+        assertEquals(Category.INCOME, SamePayment.merge(first, credit).category)
+        assertEquals(TransactionType.CREDIT, SamePayment.merge(first, credit).type)
         // A row the person corrected only gains identifiers.
         val edited = first.copy(userEdited = true, category = Category.SHOPPING, merchant = "Team")
         assertEquals(edited.copy(refNumber = "424012345678"), SamePayment.merge(edited, weaker))

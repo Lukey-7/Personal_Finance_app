@@ -7,7 +7,8 @@ import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.data.sms.SmsImporter
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Transaction
-import com.pft.financetracker.ui.model.FlowRules
+import com.pft.financetracker.domain.ledger.FlowRules
+import com.pft.financetracker.domain.ledger.recategorise
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -63,7 +64,7 @@ class Ledger(
     /** Moves [ids] to [category] (Activity's multi-select), as a person's correction. Only rows that change are written. */
     suspend fun recategorise(ids: Set<Long>, category: Category) = changed {
         val rows = ids.mapNotNull { repo.getById(it) }
-        com.pft.financetracker.ui.model.recategorise(rows, ids, category).forEach { repo.update(it) }
+        recategorise(rows, ids, category).forEach { repo.update(it) }
     }
 
     /**
@@ -73,7 +74,7 @@ class Ledger(
     suspend fun approve(reviewId: Long, t: Transaction, body: String?): Long = changed {
         val id = repo.insertReviewed(FlowRules.normalise(t).copy(userEdited = true), body) { smsLog.pointsAt(it) }
         repo.resolveReview(reviewId)
-        t.smsHash?.let { smsLog.updateOutcome(it, "SAVED", t.merchant, id.takeIf { v -> v > 0 }) }
+        t.smsHash?.let { smsLog.updateOutcome(it, com.pft.financetracker.data.sms.Outcomes.SAVED, t.merchant, id.takeIf { v -> v > 0 }) }
         id
     }
 
@@ -106,11 +107,11 @@ class Ledger(
      * next run; if any of them wanted the AI judge, that run uses it. The returned job ends once this request is served.
      */
     fun followUp(useAi: Boolean = false): Job {
-        synchronized(this) { wanted = maxOf(wanted, if (useAi) AI else LOCAL) }
+        synchronized(this) { wanted = maxOf(wanted, if (useAi) Wanted.WITH_AI else Wanted.LOCAL) }
         return scope.launch {
             running.withLock {
-                val w = synchronized(this@Ledger) { wanted.also { wanted = NONE } }
-                if (w != NONE) runCatching { afterChange(w == AI) }
+                val w = synchronized(this@Ledger) { wanted.also { wanted = Wanted.NONE } }
+                if (w != Wanted.NONE) runCatching { afterChange(w == Wanted.WITH_AI) }
             }
         }
     }
@@ -125,15 +126,12 @@ class Ledger(
     }
 
     private val running = Mutex()
-    private var wanted = NONE
+    private var wanted = Wanted.NONE
 
     private class Together : AbstractCoroutineContextElement(Key) {
         companion object Key : CoroutineContext.Key<Together>
     }
 
-    private companion object {
-        const val NONE = 0
-        const val LOCAL = 1
-        const val AI = 2
-    }
+    /** The follow-up asked for since the last one started; a later entry includes the ones before it. */
+    private enum class Wanted { NONE, LOCAL, WITH_AI }
 }

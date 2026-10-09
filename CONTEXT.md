@@ -20,3 +20,4 @@ The words the code and the docs use for money ideas. Keep names in code matching
 - **Counting rules**: what counts as spend and income. Today: whether ATM cash counts as spend (Settings).
 - **Figure**: one number on screen (net spend, a category, income, transfers out…). Its **bucket** names the payments
   behind it; the drill-down list of a figure always totals to the figure.
+- **Suggestion**: a tip Insights gives from the books (a subscription that went up, a category over budget).

@@ -136,7 +136,7 @@ fun InsightsScreen(
     val curByCat = books.summary(current).byCategory.associate { it.category to it.amountPaise }
     val prevByCat = books.summary(before).byCategory.associate { it.category to it.amountPaise }
     val biggest = trends.maxOfOrNull { t -> t.category?.let { curByCat[it] } ?: 0L }?.coerceAtLeast(1L) ?: 1L
-    val suggestions = books.tips(budgets, now)
+    val suggestions = books.suggestions(budgets, now)
     // Tips look at this month, so their payments open on this month.
     val tipsPeriod = Periods.month(0, now)
 

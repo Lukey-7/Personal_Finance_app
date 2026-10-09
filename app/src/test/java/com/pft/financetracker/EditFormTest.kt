@@ -6,7 +6,7 @@ import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.ui.model.ActivityFilter
 import com.pft.financetracker.ui.model.AmountInput
-import com.pft.financetracker.ui.model.FlowRules
+import com.pft.financetracker.domain.ledger.FlowRules
 import com.pft.financetracker.ui.model.PickerDate
 import com.pft.financetracker.ui.model.ReviewBank
 import com.pft.financetracker.ui.model.Selection

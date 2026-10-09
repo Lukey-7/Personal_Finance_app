@@ -54,10 +54,16 @@ agent checks the code read-only (prompt at the end). I fix what it confirms.
 - [x] Changed on purpose (bugs of the kind this phase is for): the duplicate clean-up now runs the follow-up (it
       didn't, so a refund paired with a dropped twin waited for the next scan); undoing a statement import now gives
       back the refunds paired with the purchases it removes (it left them lowering spend); recategorise reads the rows
-      from the database rather than the screen's copy.
-- [x] Not moved, by design: the importers' bulk inserts (SMS, statements) keep their own pipelines and ask for one
-      follow-up at the end; refund pairing and split detection write flows as part of the follow-up itself; split
-      actions write through the split engine. No write to payments is left in `ui/` (grep in the reviewer's list).
+      from the database rather than the screen's copy; quick add now also fits the flow to the direction (its sheet
+      already did; now the ledger guarantees it). After a scan or statement import the follow-up runs in the
+      background (before, only the background coroutine waited for it; the result was already on screen).
+- [x] Not moved, by design (the plan's "nothing outside `data/ledger` and `data/repository` writes" is narrowed to
+      this): the importers write their own rows (SMS and statement inserts, the statement import's undo, which runs
+      inside `Ledger.undoImport` and only touches that import's rows) and ask for one follow-up at the end; refund
+      pairing and split detection write flows as the follow-up itself; split actions write through the split engine.
+      The guarantee that holds: no write to payments from `ui/`.
+- [x] `add` returns the new id and does not look for a twin: a payment a person types is never a second alert, and
+      checking would merge two genuine ₹50 teas. Approvals (which are alerts) do get the twin check.
 - [x] `LedgerTest` (10) through the interface: money in never spend, corrections marked and fitted, reshape unmarked,
       removing a refunded purchase restores the refund, removed SMS remembered, recategorise writes only changes,
       approving a stored twin merges, undoing an import restores refunds, one change one follow-up, requests during a
@@ -83,6 +89,8 @@ agent checks the code read-only (prompt at the end). I fix what it confirms.
       summary's category figures; cash counts only under its rule. Existing Insights, monthly summary, period compare,
       recurring tips, split and Home tests moved to Books with the same assertions.
 - [x] Grep: no `includeCash` anywhere; `isSpend` only inside Books (Ask asks `books.isSpend`).
+- [x] Each `Books` keeps one summary per period (the books never change once built), so Home's six bars and Insights
+      don't count the same month twice.
 
 ## Phase 4 · Verify
 
@@ -96,6 +104,21 @@ agent checks the code read-only (prompt at the end). I fix what it confirms.
       for later). It had no shell, so I checked its two open points myself: no test was removed by the branch, and
       every removed function has a moved counterpart.
 
+## After review (code-review skill, two axes, 9 Oct 2026)
+
+- [x] Books: one definition per figure (`counts(bucket, t)`), used by both `summary` and `payments`, so a figure and its
+      list cannot drift. The old both-directions `TRANSFERS` bucket, which no screen opened, is gone.
+- [x] Home's "cash withdrawals" figure comes from the books (`cashNotSpendPaise`), not a rule check on the screen.
+- [x] `FlowRules` and `recategorise` moved from `ui/model` to `domain/ledger/Corrections.kt`; the ledger no longer
+      reaches into screen code.
+- [x] Ask reads one snapshot of the books, so payments and rules always belong together.
+- [x] Ledger: the follow-up state is a small enum; review approvals log `Outcomes.SAVED`.
+- [x] Repository pass-throughs nothing needed (`richer`, `isGenericMerchant`, `REF_MATCH_DAYS`) removed; `Books.tips`
+      named `suggestions` again, as the screen calls it.
+- [x] `SamePaymentTest` gained the two merge cases it lacked: a v1.0.0 row's flow and category corrected by the SMS,
+      and the category taken from the new read when the direction was wrong.
+- Left on purpose: `Bucket` stays in `InsightsEngine` (navigation routes name it); `Books.all` keeps its name.
+
 ## Reviewer agent prompt
 
 > Read-only review of branch `deep-modules` against `v1.5-fixes` in `<worktree path>`. Do not run Gradle or adb.
@@ -104,8 +127,9 @@ agent checks the code read-only (prompt at the end). I fix what it confirms.
 > 1. Behaviour: for each rule moved (duplicate matching, merging, flow normalising, refund unpairing, deletion memory,
 >    follow-up, spend counting, cash setting, refunds netting, drill-down totals), the old and new code give the same
 >    result. Name any input where they differ.
-> 2. Completeness: no write to the transactions table outside `data/ledger` and `data/repository`; no `includeCash` or
->    `isSpend(` outside `domain/books`; no caller still runs its own follow-up.
+> 2. Completeness: no write to the transactions table from `ui/` (importers, refund pairing and the split engine write
+>    their own rows by design, see Phase 2); no `includeCash` anywhere and `isSpend` only through Books; no caller still
+>    runs its own follow-up.
 > 3. Interfaces: each module's interface is small and every test goes through it, not past it.
 > 4. Threading: no database or counting work on the main thread; the follow-up cannot run twice at once or be
 >    cancelled half way leaving the books wrong.

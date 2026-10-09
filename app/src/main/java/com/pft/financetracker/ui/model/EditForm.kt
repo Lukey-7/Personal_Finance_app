@@ -17,25 +17,6 @@ import java.util.Locale
  * message from Review came from.
  */
 
-/** Which "counts as" choices fit money out and money in. A payment out is never income; money in is never spend. */
-object FlowRules {
-    private val out = listOf(Flow.EXPENSE, Flow.TRANSFER, Flow.INVESTMENT, Flow.CASH, Flow.SETTLEMENT)
-    private val incoming = listOf(Flow.INCOME, Flow.REFUND, Flow.TRANSFER, Flow.INVESTMENT, Flow.SETTLEMENT)
-
-    /** The choices the editor offers for [type], in the order it shows them. */
-    fun options(type: TransactionType): List<Flow> = if (type == TransactionType.DEBIT) out else incoming
-
-    fun default(type: TransactionType): Flow = if (type == TransactionType.DEBIT) Flow.EXPENSE else Flow.INCOME
-
-    fun fits(type: TransactionType, flow: Flow): Boolean = flow in options(type)
-
-    /** [flow] when it fits [type]; otherwise the usual one for that direction. */
-    fun fit(type: TransactionType, flow: Flow): Flow = if (fits(type, flow)) flow else default(type)
-
-    /** The row with a flow that fits its direction, so a credit is never saved as spend nor a debit as income. */
-    fun normalise(t: Transaction): Transaction = if (fits(t.type, t.flow)) t else t.copy(flow = default(t.type))
-}
-
 /** The Material date picker works in UTC midnights; a payment's time is local. */
 object PickerDate {
     /** The UTC midnight of the local calendar day [millis] falls on, for the picker's initial selection. */

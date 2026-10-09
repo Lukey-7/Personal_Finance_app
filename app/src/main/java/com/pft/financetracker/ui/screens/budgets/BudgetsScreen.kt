@@ -40,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel

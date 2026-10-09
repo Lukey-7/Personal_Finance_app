@@ -59,14 +59,8 @@ class TransactionRepository(
         SamePayment.find(candidate, stored, windowMillis, isClaimed)?.row
 
     companion object {
-        /** A shared reference only proves one payment for rows at most this many days apart. */
-        const val REF_MATCH_DAYS = SamePayment.REF_MATCH_DAYS
-
         fun startOfDay(t: Long): Long = SamePayment.startOfDay(t)
     }
-
-    /** "Payment (HDFC Bank)", "Credit (SBI)": the placeholder the parser uses when an SMS names no merchant. */
-    fun isGenericMerchant(m: String) = SamePayment.isGeneric(m)
 
     /**
      * A message the person confirmed from the review queue. Runs the same duplicate check as an import, so approving a
@@ -88,9 +82,6 @@ class TransactionRepository(
         }
         return insert(filled)
     }
-
-    /** Prefer the record with more detail (merchant, account, ref). */
-    fun richer(a: Transaction, b: Transaction): Transaction = SamePayment.richer(a, b)
 
     /** A pair of stored transactions that look like the same payment recorded twice. */
     data class DuplicatePair(val keep: Transaction, val drop: Transaction) {

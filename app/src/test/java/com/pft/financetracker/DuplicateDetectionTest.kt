@@ -150,8 +150,8 @@ class DuplicateDetectionTest {
     @Test fun richerRecordWins() {
         val generic = tx(25_000, "Payment (Paytm)", "Paytm", now)
         val detailed = tx(25_000, "Swiggy", "HDFC Bank", now).copy(accountRef = "1234")
-        assertEquals("Swiggy", repo.richer(generic, detailed).merchant)
-        assertEquals("Swiggy", repo.richer(detailed, generic).merchant)
+        assertEquals("Swiggy", com.pft.financetracker.domain.ledger.SamePayment.richer(generic, detailed).merchant)
+        assertEquals("Swiggy", com.pft.financetracker.domain.ledger.SamePayment.richer(detailed, generic).merchant)
     }
 
     /**
