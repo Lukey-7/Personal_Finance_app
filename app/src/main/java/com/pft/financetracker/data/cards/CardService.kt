@@ -17,8 +17,16 @@ class CardService(private val txDao: TransactionDao, private val dao: CardDao, p
 
     suspend fun all(): List<Card> = dao.getAll().map { it.toDomain() }
 
-    /** Saving a card whose last four digits already exist replaces it, so there is one card per number. */
-    suspend fun save(c: Card): Long = dao.upsert(c.toEntity())
+    /**
+     * Saves [c] (a new card, or changes to one by its id). The table allows one card per last four digits and an insert
+     * would replace the other card silently, so a different card with the same digits is refused instead.
+     * Only the last four digits are ever stored: anything else in [Card.last4] is refused too.
+     */
+    suspend fun save(c: Card): CardSave {
+        if (c.last4.length != 4 || !c.last4.all { it in '0'..'9' }) return CardSave.NotLast4
+        CardCycles.clash(c, all())?.let { return CardSave.Duplicate(it) }
+        return CardSave.Saved(dao.upsert(c.toEntity()))
+    }
 
     suspend fun delete(id: Long) = dao.delete(id)
 
@@ -30,7 +38,8 @@ class CardService(private val txDao: TransactionDao, private val dao: CardDao, p
 
     /**
      * Last-four digits worth offering when adding a card: [extra] first (cards known from statement SMS), then accounts
-     * that paid for things in the last 90 days, most used first. Numbers already set up as cards are left out.
+     * that paid for things in the last 90 days, most used first. Numbers already set up as cards, and anything that is not
+     * exactly four digits, are left out.
      */
     suspend fun suggestions(extra: List<String>): List<String> {
         val since = System.currentTimeMillis() - 90L * 86_400_000L
@@ -38,8 +47,17 @@ class CardService(private val txDao: TransactionDao, private val dao: CardDao, p
         val seen = txDao.getAll().asSequence()
             .filter { it.type == TransactionType.DEBIT.name && it.timestamp >= since && it.accountRef != null }
             .groupingBy { it.accountRef!! }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
-        return (extra + seen).distinct().filter { it !in taken }
+        return (extra + seen).distinct().filter { it !in taken && it.length == 4 && it.all { ch -> ch in '0'..'9' } }
     }
+}
+
+/** The outcome of [CardService.save]. */
+sealed interface CardSave {
+    data class Saved(val id: Long) : CardSave
+    /** Another card already has these last four digits; edit that one instead. */
+    data class Duplicate(val existing: Card) : CardSave
+    /** The digits were not exactly four. */
+    data object NotLast4 : CardSave
 }
 
 fun CardEntity.toDomain() = Card(id, last4, name, statementDay, dueDay, rewardBp)
