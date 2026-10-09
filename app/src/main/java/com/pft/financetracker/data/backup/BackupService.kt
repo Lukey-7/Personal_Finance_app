@@ -43,8 +43,11 @@ class BackupService(private val db: AppDatabase, private val codec: BackupCodec 
         return codec.encrypt(doc.toString(), passphrase)
     }
 
-    /** Replaces all data with the backup's. Throws [BackupException] (and changes nothing) when it cannot. */
-    fun restore(file: ByteArray, passphrase: CharArray) {
+    /**
+     * Replaces all data with the backup's. Throws [BackupException] (and changes nothing) when it cannot. Returns when
+     * the backup was made (epoch millis, 0 if unknown), so the next SMS scan can pick up from there.
+     */
+    fun restore(file: ByteArray, passphrase: CharArray): Long {
         val doc = try { JSONObject(codec.decrypt(file, passphrase)) } catch (e: JSONException) { throw BackupException.NotABackup() }
         if (doc.optString("app") != APP) throw BackupException.NotABackup()
         val sql = db.openHelper.writableDatabase
@@ -68,6 +71,7 @@ class BackupService(private val db: AppDatabase, private val codec: BackupCodec 
                 }
             }
         }
+        return doc.optLong("createdAt", 0L)
     }
 
     private fun columns(table: String): Set<String> {
