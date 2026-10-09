@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.IntSize
 import com.pft.financetracker.data.local.SmsLogEntity
 import com.pft.financetracker.data.sms.Outcomes
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.isLoaded
+import com.pft.financetracker.ui.components.SkeletonRows
 import com.pft.financetracker.ui.components.CapsLabel
 import com.pft.financetracker.ui.components.ChipFlow
 import com.pft.financetracker.ui.components.EmptyState
@@ -169,7 +171,9 @@ fun SmsLogScreen(vm: AppViewModel, runId: Long?, onBack: () -> Unit, onOpenTrans
                 )
             }
 
-            if (list.isEmpty()) item(key = "empty") {
+            // Until the database answers, a skeleton: never "No SMS scanned yet" for a log that has rows.
+            if (!isLoaded(all)) item(key = "loading") { SkeletonRows() }
+            else if (list.isEmpty()) item(key = "empty") {
                 when {
                     all.isEmpty() -> EmptyState(
                         Icons.Outlined.Sms, "No SMS scanned yet",

@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -134,7 +135,8 @@ fun TransactionsScreen(
     val badges by vm.refundBadges.collectAsState()
     val loaded by vm.loaded.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
-    var filter by remember { mutableStateOf(ActivityFilter()) }
+    // Kept across opening a payment and coming back, and across the app being closed in the background.
+    var filter by rememberSaveable(stateSaver = ActivityFilter.Saver) { mutableStateOf(ActivityFilter()) }
     var selection by remember { mutableStateOf(Selection()) }
     var showFilters by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
@@ -149,6 +151,9 @@ fun TransactionsScreen(
     val hidden = badges.hiddenByDefault
     val shown = filter.apply(txns, query, hidden).filter { !deleter.hides(it.id) }
     val days = shown.groupBy { dayOf(it.timestamp) }
+    // A search or filter that hides a chosen row also unselects it, so "Category" only moves rows you can see.
+    val visibleIds = shown.mapTo(HashSet()) { it.id }
+    LaunchedEffect(visibleIds) { if (selection.active) selection = selection.keepOnly(visibleIds) }
 
     fun delete(t: Transaction) {
         snackbar.currentSnackbarData?.dismiss()

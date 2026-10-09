@@ -60,6 +60,20 @@ class RefundLinker(private val txDao: TransactionDao, private val dao: RefundDao
         dao.update(link.copy(status = REJECTED))
     }
 
+    /**
+     * Before the purchase [debitTxId] is deleted: each credit paired with it goes back to what it was before pairing
+     * (income, its own category), unless a person has corrected it since, so it stops lowering spend. The links
+     * themselves go with the purchase.
+     */
+    suspend fun unlinkForDeletedPurchase(debitTxId: Long) {
+        for (link in dao.forDebit(debitTxId)) {
+            if (link.status != APPLIED || (link.prevFlow == null && link.prevCategory == null)) continue
+            val credit = txDao.getById(link.refundTxId) ?: continue
+            if (credit.userEdited) continue
+            txDao.update(credit.copy(flow = link.prevFlow ?: credit.flow, category = link.prevCategory ?: credit.category))
+        }
+    }
+
     companion object {
         const val APPLIED = "APPLIED"
         const val REJECTED = "REJECTED"

@@ -42,6 +42,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.isLoaded
+import com.pft.financetracker.ui.components.SkeletonRows
 import com.pft.financetracker.ui.components.CapsLabel
 import com.pft.financetracker.ui.components.EmptyState
 import com.pft.financetracker.ui.components.Gutter
@@ -89,6 +91,10 @@ fun ReviewScreen(vm: AppViewModel, onEnter: (Long) -> Unit, onBack: () -> Unit) 
             )
         },
     ) { padding ->
+        if (!isLoaded(queue)) {
+            SkeletonRows(4, Modifier.padding(padding))
+            return@Scaffold
+        }
         if (queue.isEmpty()) {
             EmptyState(
                 Icons.Outlined.TaskAlt,

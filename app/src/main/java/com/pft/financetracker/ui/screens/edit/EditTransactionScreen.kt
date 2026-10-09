@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.edit
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -38,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,7 +57,6 @@ import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.categorize.Categorizer
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Flow
-import com.pft.financetracker.domain.model.Money
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.domain.parser.FlowClassifier
@@ -62,6 +64,7 @@ import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.ActionRow
 import com.pft.financetracker.ui.components.CapsLabel
 import com.pft.financetracker.ui.components.ChipFlow
+import com.pft.financetracker.ui.components.EmptyState
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.PickerField
@@ -74,6 +77,10 @@ import com.pft.financetracker.ui.components.TextAction
 import com.pft.financetracker.ui.components.categoryIcon
 import com.pft.financetracker.ui.components.dateOnly
 import com.pft.financetracker.ui.components.paiseToInput
+import com.pft.financetracker.ui.model.AmountInput
+import com.pft.financetracker.ui.model.FlowRules
+import com.pft.financetracker.ui.model.PickerDate
+import com.pft.financetracker.ui.model.ReviewBank
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.MoneyType
 import com.pft.financetracker.ui.theme.rememberHaptics
@@ -81,9 +88,17 @@ import com.pft.financetracker.ui.theme.rememberHaptics
 /** What the quick-add sheet hands over when "More details" is tapped. */
 data class Prefill(val amount: String, val category: Category?, val note: String, val cash: Boolean)
 
+/** A tax choice made in the editor, applied on Save: the rule's guess again, not a deduction, or a section by name. */
+private const val TAX_RULE = "RULE"
+private const val TAX_NONE = "NONE"
+
 /**
  * Add or edit a transaction (or enter one from Review). The amount is the hero at the top; the rest is grouped: what it
  * was, when and where, how it counts, and its tax section. Reading a transaction happens on its detail screen.
+ *
+ * The form survives rotation and the app being closed in the background; the stored row fills it once only, so it
+ * never overwrites what was typed. [onDeleted] runs after a delete (default [onBack]); the caller can pop past the
+ * payment's detail screen there, which would otherwise say the payment is gone.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,64 +109,88 @@ fun EditTransactionScreen(
     prefill: Prefill? = null,
     onOpenSplit: (Long) -> Unit = {},
     onOpenTransaction: (Long) -> Unit = {},
+    onDeleted: (() -> Unit)? = null,
     onBack: () -> Unit,
 ) {
     val haptics = rememberHaptics()
     val cashCounted by vm.countCashAsSpend.collectAsState()
+    // The stored row and the review message are read again after a rotation; the fields below are the person's.
     var existing by remember { mutableStateOf<Transaction?>(null) }
-    var amount by remember { mutableStateOf("") }
-    var merchant by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf(TransactionType.DEBIT) }
-    var category by remember { mutableStateOf(Category.OTHER) }
-    var categoryTouched by remember { mutableStateOf(false) }
-    var flow by remember { mutableStateOf(Flow.EXPENSE) }
-    var flowTouched by remember { mutableStateOf(false) }
-    var refNumber by remember { mutableStateOf<String?>(null) }
-    var bank by remember { mutableStateOf("") }
-    var account by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var timestamp by remember { mutableStateOf(System.currentTimeMillis()) }
-    var smsHash by remember { mutableStateOf<String?>(null) }
     var reviewBody by remember { mutableStateOf<String?>(null) }
     var loaded by remember { mutableStateOf(false) }
-    var showDate by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
+    var missing by remember { mutableStateOf(false) }
+
+    var initialised by rememberSaveable { mutableStateOf(false) }
+    var amount by rememberSaveable { mutableStateOf("") }
+    var merchant by rememberSaveable { mutableStateOf("") }
+    var typeName by rememberSaveable { mutableStateOf(TransactionType.DEBIT.name) }
+    var categoryName by rememberSaveable { mutableStateOf(Category.OTHER.name) }
+    var categoryTouched by rememberSaveable { mutableStateOf(false) }
+    var flowName by rememberSaveable { mutableStateOf(Flow.EXPENSE.name) }
+    var flowTouched by rememberSaveable { mutableStateOf(false) }
+    var refNumber by rememberSaveable { mutableStateOf<String?>(null) }
+    var bank by rememberSaveable { mutableStateOf("") }
+    var account by rememberSaveable { mutableStateOf("") }
+    var note by rememberSaveable { mutableStateOf("") }
+    var timestamp by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
+    var smsHash by rememberSaveable { mutableStateOf<String?>(null) }
+    /** null: unchanged; [TAX_RULE], [TAX_NONE] or a section name: what Save will apply. */
+    var pendingTax by rememberSaveable { mutableStateOf<String?>(null) }
+    var showDate by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    // Set by the first Save, Back or Delete: a second tap neither saves twice nor leaves twice.
+    var saving by remember { mutableStateOf(false) }
+    var left by remember { mutableStateOf(false) }
+    fun leave(action: () -> Unit) { if (!left) { left = true; action() } }
+
+    val type = runCatching { TransactionType.valueOf(typeName) }.getOrDefault(TransactionType.DEBIT)
+    val category = Category.entries.firstOrNull { it.name == categoryName } ?: Category.OTHER
+    val flow = runCatching { Flow.valueOf(flowName) }.getOrDefault(FlowRules.default(type))
 
     LaunchedEffect(id, reviewId) {
-        if (id != null) vm.getTransaction(id)?.let { t ->
-            existing = t
-            amount = paiseToInput(t.amountPaise)
-            merchant = t.merchant; type = t.type; category = t.category; categoryTouched = true
-            flow = t.flow; flowTouched = true; refNumber = t.refNumber
-            bank = t.bankName ?: ""; account = t.accountRef ?: ""; note = t.note ?: ""; timestamp = t.timestamp; smsHash = t.smsHash
-        }
-        if (reviewId != null) vm.getReview(reviewId)?.let { r ->
-            reviewBody = r.body
-            amount = r.guessedAmountPaise?.let { paiseToInput(it) } ?: ""
-            type = r.guessedType?.let { runCatching { TransactionType.valueOf(it) }.getOrNull() } ?: TransactionType.DEBIT
-            timestamp = r.receivedAt; smsHash = r.smsHash; bank = r.sender
-        }
-        // From the quick-add sheet: the same fields it would have saved, now open for more detail.
-        if (id == null && reviewId == null && prefill != null) {
-            amount = prefill.amount
-            merchant = prefill.note.trim()
-            prefill.category?.let { category = it; categoryTouched = true }
-            if (prefill.cash) {
-                bank = "Cash"; note = "Paid in cash"
-                flow = if (cashCounted) Flow.TRANSFER else Flow.EXPENSE; flowTouched = true
+        val t = id?.let { vm.getTransaction(it) }
+        val r = reviewId?.let { vm.getReview(it) }
+        existing = t
+        reviewBody = r?.body
+        // Asked for a payment or a message that has gone (deleted, merged, already reviewed): say so, never a blank
+        // form that would save a second copy.
+        if ((id != null && t == null) || (reviewId != null && r == null)) { missing = true; loaded = true; return@LaunchedEffect }
+        if (!initialised) {
+            if (t != null) {
+                amount = paiseToInput(t.amountPaise)
+                merchant = t.merchant; typeName = t.type.name; categoryName = t.category.name; categoryTouched = true
+                flowName = t.flow.name; flowTouched = true; refNumber = t.refNumber
+                bank = t.bankName ?: ""; account = t.accountRef ?: ""; note = t.note ?: ""; timestamp = t.timestamp; smsHash = t.smsHash
             }
+            if (r != null) {
+                amount = r.guessedAmountPaise?.let { paiseToInput(it) } ?: ""
+                typeName = (r.guessedType?.let { g -> runCatching { TransactionType.valueOf(g) }.getOrNull() } ?: TransactionType.DEBIT).name
+                // The bank's name as the parser reads it from the sender ("AD-HDFCBK" is HDFC Bank); blank if unknown.
+                timestamp = r.receivedAt; smsHash = r.smsHash; bank = ReviewBank.of(r.sender, r.body) ?: ""
+            }
+            // From the quick-add sheet: the same fields it would have saved, now open for more detail.
+            if (id == null && reviewId == null && prefill != null) {
+                amount = prefill.amount
+                merchant = prefill.note.trim()
+                prefill.category?.let { categoryName = it.name; categoryTouched = true }
+                if (prefill.cash) {
+                    bank = "Cash"; note = "Paid in cash"
+                    flowName = (if (cashCounted) Flow.TRANSFER else Flow.EXPENSE).name; flowTouched = true
+                }
+            }
+            initialised = true
         }
         loaded = true
     }
 
     // Auto-suggest category and flow while the user has not picked them manually.
-    LaunchedEffect(merchant, type, category) {
-        if (!categoryTouched && merchant.length >= 3) category = Categorizer.categorize(merchant, type)
-        if (!flowTouched) flow = FlowClassifier.classify(type, reviewBody ?: "", merchant, category)
+    LaunchedEffect(merchant, typeName, categoryName) {
+        if (!categoryTouched && merchant.length >= 3) categoryName = Categorizer.categorize(merchant, type).name
+        if (!flowTouched) flowName = FlowClassifier.classify(type, reviewBody ?: "", merchant, category).name
     }
 
-    val amountValue = Money.parsePaise(amount)
-    val valid = amountValue != null && amountValue > 0 && merchant.isNotBlank()
+    val amountValue = AmountInput.paiseOf(amount)
+    val valid = amountValue != null && merchant.isNotBlank()
 
     fun build() = Transaction(
         id = existing?.id ?: 0,
@@ -163,7 +202,8 @@ fun EditTransactionScreen(
         bankName = bank.trim().ifBlank { null },
         accountRef = account.trim().takeLast(4).ifBlank { null },
         source = existing?.source ?: if (reviewId != null) Transaction.Source.SMS else Transaction.Source.MANUAL,
-        flow = flow,
+        // Never money in counted as spend, nor money out as income.
+        flow = FlowRules.fit(type, flow),
         note = note.trim().ifBlank { null },
         smsHash = smsHash,
         refNumber = refNumber,
@@ -174,6 +214,9 @@ fun EditTransactionScreen(
         importBatchId = existing?.importBatchId,
     )
 
+    // System back goes through the same guard as the arrow, so a Save finishing later never pops a second screen.
+    BackHandler { leave(onBack) }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -181,12 +224,21 @@ fun EditTransactionScreen(
                 // Decided from the route, not the loaded row: the row arrives a frame later.
                 title = { Text(if (id != null) "Edit transaction" else if (reviewId != null) "Review SMS" else "Add transaction") },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
+                navigationIcon = { IconButton(onClick = { leave(onBack) }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back") } },
                 actions = { if (existing != null) IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Outlined.Delete, "Delete transaction") } },
             )
         },
     ) { padding ->
         if (!loaded) return@Scaffold
+        if (missing) {
+            EmptyState(
+                Icons.Outlined.SearchOff,
+                if (id != null) "This payment isn't here any more" else "This message isn't waiting any more",
+                if (id != null) "It may have been deleted or merged with a duplicate." else "It may have been added or dismissed already.",
+                Modifier.padding(padding),
+            ) { TextAction("Go back", { leave(onBack) }) }
+            return@Scaffold
+        }
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
                 .padding(start = Gutter, top = Space.sm, end = Gutter, bottom = Space.xxl),
@@ -204,7 +256,7 @@ fun EditTransactionScreen(
                 CapsLabel("Amount")
                 // Centred, with the ₹ drawn as part of the text so the figure and its sign stay together as it grows.
                 BasicTextField(
-                    amount, { amount = it.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(13) },
+                    amount, { amount = AmountInput.clean(it) },
                     textStyle = MoneyType.large.copy(color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.Center),
                     singleLine = true,
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -221,7 +273,13 @@ fun EditTransactionScreen(
                 SegmentedControl(
                     listOf("Money out", "Money in"),
                     if (type == TransactionType.DEBIT) 0 else 1,
-                    { type = if (it == 0) TransactionType.DEBIT else TransactionType.CREDIT },
+                    { i ->
+                        val next = if (i == 0) TransactionType.DEBIT else TransactionType.CREDIT
+                        typeName = next.name
+                        // A choice that doesn't fit the new direction (income on money out, spend on money in) goes
+                        // back to the usual one, and the suggestion takes over again.
+                        if (!FlowRules.fits(next, flow)) { flowName = FlowRules.default(next).name; flowTouched = false }
+                    },
                 )
             }
 
@@ -230,7 +288,7 @@ fun EditTransactionScreen(
                 CapsLabel("Category")
                 ChipFlow {
                     Category.entries.forEach { c ->
-                        PillChip(category == c, c.label, icon = categoryIcon(c)) { category = c; categoryTouched = true }
+                        PillChip(category == c, c.label, icon = categoryIcon(c)) { categoryName = c.name; categoryTouched = true }
                     }
                 }
                 OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") }, modifier = Modifier.fillMaxWidth())
@@ -244,8 +302,7 @@ fun EditTransactionScreen(
 
             Section("Counts as") {
                 ChipFlow {
-                    val options = if (type == TransactionType.DEBIT) listOf(Flow.EXPENSE, Flow.TRANSFER, Flow.INVESTMENT, Flow.CASH, Flow.SETTLEMENT) else listOf(Flow.INCOME, Flow.REFUND, Flow.TRANSFER, Flow.INVESTMENT, Flow.SETTLEMENT)
-                    options.forEach { f -> PillChip(flow == f, f.label) { flow = f; flowTouched = true } }
+                    FlowRules.options(type).forEach { f -> PillChip(flow == f, f.label) { flowName = f.name; flowTouched = true } }
                 }
                 Text(
                     when (flow) {
@@ -261,45 +318,68 @@ fun EditTransactionScreen(
                 )
             }
 
-            // Tax: the rule's guess, or the person's own tag, changeable for any payment out.
-            existing?.takeIf { it.type == TransactionType.DEBIT }?.let { t ->
+            // Tax: the rule's guess, or the person's own tag, for a payment out as the form now stands. A new choice
+            // is applied on Save, so backing out leaves the tag as it was.
+            existing?.takeIf { type == TransactionType.DEBIT }?.let { t ->
                 val tags by vm.taxTags.collectAsState()
                 var picking by remember { mutableStateOf(false) }
-                val section = if (tags.containsKey(t.id)) tags[t.id] else com.pft.financetracker.domain.tax.TaxTagger.suggest(t)
+                val p = pendingTax
+                val (section, byYou) = when {
+                    p == TAX_RULE -> com.pft.financetracker.domain.tax.TaxTagger.suggest(build()) to false
+                    p == TAX_NONE -> null to true
+                    p != null -> com.pft.financetracker.domain.tax.TaxSection.fromName(p) to true
+                    tags.containsKey(t.id) -> tags[t.id] to true
+                    else -> com.pft.financetracker.domain.tax.TaxTagger.suggest(build()) to false
+                }
                 Section("Tax") {
                     ActionRow(
                         "Tax section", Icons.Outlined.AccountBalance, { picking = true },
-                        subtitle = (section?.let { "${it.code} · ${it.label}" } ?: "Not a deduction") + if (tags.containsKey(t.id)) " (set by you)" else "",
+                        subtitle = (section?.let { "${it.code} · ${it.label}" } ?: "Not a deduction") + if (byYou) " (set by you)" else "",
                     )
                 }
-                if (picking) com.pft.financetracker.ui.screens.tax.TaxTagDialog(t.merchant, onPick = { vm.tagTax(t.id, it); picking = false }, onRule = { vm.clearTaxTag(t.id); picking = false }, onDismiss = { picking = false })
+                if (picking) com.pft.financetracker.ui.screens.tax.TaxTagDialog(
+                    merchant.trim().ifBlank { t.merchant },
+                    onPick = { s -> pendingTax = s?.name ?: TAX_NONE; picking = false },
+                    onRule = { pendingTax = TAX_RULE; picking = false },
+                    onDismiss = { picking = false },
+                )
             }
 
             PrimaryButton(
                 text = "Save",
-                enabled = valid,
-                onClick = {
+                enabled = valid && !saving,
+                onClick = onClick@{
+                    if (saving || left) return@onClick
+                    saving = true
                     haptics.confirm()
                     val t = build()
-                    if (reviewId != null) vm.resolveReview(reviewId, t) { onBack() } else vm.save(t) { onBack() }
+                    val txId = existing?.id
+                    if (txId != null && t.type == TransactionType.DEBIT) when (val p = pendingTax) {
+                        null -> {}
+                        TAX_RULE -> vm.clearTaxTag(txId)
+                        TAX_NONE -> vm.tagTax(txId, null)
+                        else -> com.pft.financetracker.domain.tax.TaxSection.fromName(p)?.let { vm.tagTax(txId, it) }
+                    }
+                    if (reviewId != null) vm.resolveReview(reviewId, t) { leave(onBack) } else vm.save(t) { leave(onBack) }
                 },
             )
             if (!valid && (amount.isNotEmpty() || merchant.isNotEmpty())) Text(
                 when {
-                    amountValue == null || amountValue <= 0 -> "Enter an amount above ₹0."
+                    amountValue == null -> AmountInput.problem(amount) ?: "Enter an amount above ₹0."
                     else -> "Add who it was paid to or from."
                 },
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (reviewId != null) TextAction("Not a transaction", { vm.dismissReview(reviewId); onBack() }, Modifier.fillMaxWidth())
+            if (reviewId != null) TextAction("Not a transaction", { if (!saving && !left) { vm.dismissReview(reviewId); leave(onBack) } }, Modifier.fillMaxWidth())
         }
     }
 
     if (showDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = timestamp)
+        // The picker works in UTC midnights: it shows the payment's local day, and picking a day keeps its time.
+        val state = rememberDatePickerState(initialSelectedDateMillis = PickerDate.toPicker(timestamp))
         DatePickerDialog(
             onDismissRequest = { showDate = false },
-            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { timestamp = it + 12 * 3600 * 1000 }; showDate = false }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { timestamp = PickerDate.fromPicker(it, timestamp) }; showDate = false }) { Text("OK") } },
             dismissButton = { TextButton(onClick = { showDate = false }) { Text("Cancel") } }
         ) { DatePicker(state) }
     }
@@ -308,7 +388,12 @@ fun EditTransactionScreen(
         onDismissRequest = { confirmDelete = false },
         title = { Text("Delete transaction?") },
         text = { Text("This cannot be undone.") },
-        confirmButton = { TextButton(onClick = { existing?.let { vm.delete(it) }; confirmDelete = false; onBack() }) { Text("Delete", color = Expense) } },
+        confirmButton = {
+            TextButton(onClick = {
+                confirmDelete = false
+                if (!left && !saving) existing?.let { vm.delete(it); leave(onDeleted ?: onBack) }
+            }) { Text("Delete", color = Expense) }
+        },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
     )
 }

@@ -276,6 +276,9 @@ interface RefundDao {
     @Query("SELECT * FROM refund_links WHERE id = :id")
     suspend fun get(id: Long): RefundLinkEntity?
 
+    @Query("SELECT * FROM refund_links WHERE debitTxId = :debitTxId")
+    suspend fun forDebit(debitTxId: Long): List<RefundLinkEntity>
+
     @Insert suspend fun insert(e: RefundLinkEntity): Long
 
     @Update suspend fun update(e: RefundLinkEntity)
