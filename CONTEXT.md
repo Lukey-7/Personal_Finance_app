@@ -1,0 +1,23 @@
+# FinTrack domain terms
+
+The words the code and the docs use for money ideas. Keep names in code matching these.
+
+- **Payment**: one stored transaction row (a debit or a credit). Never "txn" in the app.
+- **Same payment**: the rule that decides whether two records are one payment (a bank alert and its UPI-app twin, a
+  statement row an SMS already reported, a v1.0.0 midnight row), and what survives when they merge. Lives in
+  `domain/ledger/SamePayment.kt`; nothing else decides it.
+- **Twins**: two stored rows that are one payment counted twice; the clean-up sweep finds and combines them.
+- **Generic name**: the placeholder a parser gives a payment whose SMS names no merchant ("Payment (HDFC Bank)",
+  "Credit (SBI)").
+- **Ledger**: the only way a person's change reaches the payments (`data/ledger/Ledger.kt`). Keeps the books straight
+  after each change: flow fits direction, corrections marked, refunds given back, deletions remembered.
+- **Follow-up**: the work after any change (refund pairing, split detection, the widget). Asked for through the ledger,
+  never run twice at once.
+- **Correction**: a change a person made to a payment (`userEdited`); automatic rewrites leave it alone. A split
+  shrinking a payment is a **reshape**, not a correction.
+- **Books**: the payments read through the counting rules (`domain/books/Books.kt`). Every figure on every screen comes
+  from here, and each can list the payments that add up to it.
+- **Counting rules**: what counts as spend and income. Today: whether ATM cash counts as spend (Settings).
+- **Figure**: one number on screen (net spend, a category, income, transfers out…). Its **bucket** names the payments
+  behind it; the drill-down list of a figure always totals to the figure.
+- **Suggestion**: a tip Insights gives from the books (a subscription that went up, a category over budget).

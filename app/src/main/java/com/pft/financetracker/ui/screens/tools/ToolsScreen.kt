@@ -25,7 +25,6 @@ import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.QuestionAnswer
-import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -91,7 +90,7 @@ private data class ToolTile(
 
 /**
  * Money tools: the v1.3 tools as a two-column grid, each tile showing a live number (subscriptions a month, the next
- * bill, this card cycle, the top goal, net worth, tax found) so the page answers before you open anything. One
+ * bill, this card cycle, the top goal, tax found) so the page answers before you open anything. One
  * column at a large font. Keeps the bottom bar at five tabs.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -104,12 +103,10 @@ fun ToolsScreen(vm: AppViewModel, onOpen: (route: String) -> Unit, onBack: () ->
     val goals by vm.goalProgress.collectAsState()
     val tax by vm.taxSummary.collectAsState()
     val fy by vm.taxYear.collectAsState()
-    val worth by vm.netWorth.collectAsState()
     val columns = if (LocalDensity.current.fontScale > 1.3f) 1 else 2
     // The tool figures are worked out from flows that start empty when this page opens; give them a moment before
     // showing "None found yet" in place of a number that is about to arrive.
-    val anyData = book.shown.isNotEmpty() || bills.isNotEmpty() || cards.isNotEmpty() || goals.isNotEmpty() || tax.isNotEmpty() ||
-        worth.ownPaise != 0L || worth.owePaise != 0L
+    val anyData = book.shown.isNotEmpty() || bills.isNotEmpty() || cards.isNotEmpty() || goals.isNotEmpty() || tax.isNotEmpty()
     var settled by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(400); settled = true }
 
@@ -169,15 +166,8 @@ fun ToolsScreen(vm: AppViewModel, onOpen: (route: String) -> Unit, onBack: () ->
         )
 
         add(
-            if (worth.ownPaise == 0L && worth.owePaise == 0L) ToolTile("Net worth", Icons.Outlined.ShowChart, Routes.NET_WORTH, TileValue.Words("Accounts, funds, FDs and loans"), null)
-            else ToolTile(
-                "Net worth", Icons.Outlined.ShowChart, Routes.NET_WORTH, TileValue.Figure(money(worth.totalPaise), warn = worth.totalPaise < 0),
-                "You own ${money(worth.ownPaise)} · owe ${money(worth.owePaise)}",
-            )
-        )
-
-        add(
-            if (tax.isEmpty()) ToolTile("Tax helper", Icons.Outlined.AccountBalance, Routes.TAX, TileValue.Words("80C, 80D, NPS, rent and donations"), null)
+            // Rent and most donations stay out of the figure, so a year with only those reads as words, not ₹0.
+            if (tax.sumOf { it.claimablePaise } == 0L) ToolTile("Tax helper", Icons.Outlined.AccountBalance, Routes.TAX, TileValue.Words("80C, 80D, NPS, rent and donations"), null)
             else ToolTile("Tax helper", Icons.Outlined.AccountBalance, Routes.TAX, TileValue.Figure(money(tax.sumOf { it.claimablePaise })), "found in ${fy.label} · ${countLabel(tax.size, "section")}")
         )
     }

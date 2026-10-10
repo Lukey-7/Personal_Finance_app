@@ -3,6 +3,7 @@ package com.pft.financetracker.ui.screens.settings
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -278,9 +280,33 @@ internal fun BackupSection(vm: AppViewModel, snackbar: SnackbarHostState) {
     val scope = rememberCoroutineScope()
     val lastBackup by vm.lastBackupAt.collectAsState()
     val backupBusy by vm.backupBusy.collectAsState()
-    var backupAsk by remember { mutableStateOf<Uri?>(null) }
-    var restoreAsk by remember { mutableStateOf<Uri?>(null) }
-    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> backupAsk = uri }
+    val ctx = LocalContext.current
+    // The passphrase comes first, then the file picker, so cancelling never leaves an empty backup file behind. The
+    // passphrase itself is only held in memory (never in saved state); if Android recreated the screen while the
+    // picker was open, it is asked for again, and a file left without one is deleted.
+    var askPassphrase by rememberSaveable { mutableStateOf(false) }
+    var pendingPassphrase by remember { mutableStateOf<CharArray?>(null) }
+    var backupAsk by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var restoreAsk by rememberSaveable { mutableStateOf<Uri?>(null) }
+    fun discard(uri: Uri) {
+        runCatching { DocumentsContract.deleteDocument(ctx.contentResolver, uri) }
+    }
+    fun write(uri: Uri, pw: CharArray) {
+        scope.launch {
+            val error = vm.writeBackup(uri, pw)
+            if (error != null) discard(uri)
+            snackbar.showSnackbar(error ?: "Backup saved")
+        }
+    }
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val pw = pendingPassphrase
+        pendingPassphrase = null
+        when {
+            uri == null -> pw?.fill(' ')
+            pw != null -> write(uri, pw)
+            else -> backupAsk = uri
+        }
+    }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> restoreAsk = uri }
 
     SettingsGroup {
@@ -301,17 +327,29 @@ internal fun BackupSection(vm: AppViewModel, snackbar: SnackbarHostState) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
         } else {
             Column {
-                ActionRow("Back up now", Icons.Outlined.Backup, { backupLauncher.launch("FinTrack-${java.time.LocalDate.now()}.ftbackup") })
+                ActionRow("Back up now", Icons.Outlined.Backup, { askPassphrase = true })
                 ActionRow("Restore from a backup", Icons.Outlined.Restore, { restoreLauncher.launch(arrayOf("*/*")) })
             }
         }
     }
 
+    if (askPassphrase) {
+        BackupPassphraseDialog(
+            restoring = false,
+            onConfirm = { pw ->
+                askPassphrase = false
+                pendingPassphrase = pw
+                backupLauncher.launch("FinTrack-${java.time.LocalDate.now()}.ftbackup")
+            },
+            onDismiss = { askPassphrase = false },
+        )
+    }
+    // Only after the screen was recreated while the file picker was open: the file exists, the passphrase was lost.
     backupAsk?.let { uri ->
         BackupPassphraseDialog(
             restoring = false,
-            onConfirm = { pw -> backupAsk = null; scope.launch { snackbar.showSnackbar(vm.writeBackup(uri, pw) ?: "Backup saved") } },
-            onDismiss = { backupAsk = null },
+            onConfirm = { pw -> backupAsk = null; write(uri, pw) },
+            onDismiss = { backupAsk = null; discard(uri) },
         )
     }
     restoreAsk?.let { uri ->
@@ -355,6 +393,7 @@ internal fun AiSection(vm: AppViewModel) {
     val keyBuiltIn by vm.apiKeyBuiltIn.collectAsState()
     val aiState by vm.aiState.collectAsState()
     val useNano by vm.useNano.collectAsState()
+    val askOpenAi by vm.askUseOpenAi.collectAsState()
     val nanoStatus by vm.nanoStatus.collectAsState()
     var keyInput by remember { mutableStateOf("") }
     var changingKey by remember { mutableStateOf(false) }
@@ -380,6 +419,17 @@ internal fun AiSection(vm: AppViewModel) {
     }
 
     SettingsGroup("OpenAI (optional)") {
+        CardTitle("Ask with ChatGPT", Icons.Outlined.AutoAwesome)
+        SwitchRow("Answer Ask with ChatGPT", askOpenAi && hasKey, { vm.setAskUseOpenAi(it) }, enabled = hasKey)
+        LearnMore(
+            if (hasKey) "Each question goes to OpenAI with a summary of your payments, so answers can use all your numbers."
+            else "Needs an OpenAI key, below.",
+            "What Ask sends",
+            "Your question, the last few questions and answers, a year of monthly totals, categories, your main payees " +
+                "and your latest 120 payments (date, payee name, category and amount). Phone numbers and UPI IDs are " +
+                "blanked out. Never SMS text, account numbers, reference numbers or notes. With this off, Ask answers on the phone.",
+        )
+        Hairline()
         CardTitle("AI monthly summary", Icons.Outlined.AutoAwesome)
         LearnMore(
             "Uses your own OpenAI key. Nothing is sent until you tap Generate.",
@@ -432,8 +482,11 @@ internal fun AiSection(vm: AppViewModel) {
     }
 
     if (showPayload) FinSheet({ showPayload = false }, title = "Exact payload sent to OpenAI") {
+        // Built from your payments once they have loaded, never from the empty lists the app starts with.
+        val ready by vm.loaded.collectAsState()
         SoftPanel {
-            Text(vm.aiPayloadPreview(), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+            if (ready) Text(vm.aiPayloadPreview(), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+            else BusyLine("Loading your figures…")
         }
         PrimaryButton("Close", { showPayload = false })
     }
@@ -473,7 +526,7 @@ internal fun DataSection(vm: AppViewModel, snackbar: SnackbarHostState) {
             TintedSquare(Icons.Outlined.Lock)
             Spacer(Modifier.width(Space.md))
             Text(
-                "All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting.",
+                "All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting. Ask and the AI features send summaries to OpenAI only while they are on.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),

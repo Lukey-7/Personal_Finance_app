@@ -65,5 +65,44 @@ object SmsCorpus {
         CorpusCase("not_debited", "VM-HDFCBK", "UPI txn of Rs 500 to Swiggy failed. Your account has not been debited.", Expect.Ignored),
         CorpusCase("failed_if_debited", "VM-HDFCBK", "UPI txn of Rs 500 failed. If amount debited, it will be reversed within 48 hrs.", Expect.Ignored),
         CorpusCase("refund_promised", "VM-HDFCBK", "Txn of Rs 500 failed. Amount will be refunded in 5-7 days.", Expect.Ignored),
+
+        // ---- v1.5 parser review ----
+        // A bare amount after the verb is the payment; a balance never is.
+        CorpusCase("bare_amount_not_balance", "VM-HDFCBK", "Your a/c XX1234 is debited for 500.00 on 05-10-26 to SWIGGY. Avl Bal Rs.10,000.00", Expect.Saved(DEBIT, 50_000, merchantContains = "swiggy")),
+        CorpusCase("only_balance_goes_to_review", "VM-HDFCBK", "Your a/c XX1234 is debited. Avl Bal Rs.10,000.00", Expect.Review),
+        // Card bill payments are transfers on both sides, never income or spend.
+        CorpusCase("sbi_card_payment_credited", "AD-SBICRD", "Dear Cardmember, Payment of Rs 15,000.00 has been credited to your SBI Card ending 1234", Expect.Saved(CREDIT, 1_500_000, Flow.TRANSFER)),
+        CorpusCase("sbi_card_received_payment", "AD-SBICRD", "We have received payment of Rs.15,000.00 towards your SBI Credit Card ending with 1234", Expect.Saved(CREDIT, 1_500_000, Flow.TRANSFER)),
+        CorpusCase("axis_card_payment_received_on", "AX-AXISBK", "Thank you! Payment of INR 15,000.00 received on your Axis Bank Credit Card XX1234", Expect.Saved(CREDIT, 1_500_000, Flow.TRANSFER)),
+        CorpusCase("axis_card_payment_received_for", "AX-AXISBK", "Payment of INR 15000.00 received for Axis Bank Credit Card no. XX1234", Expect.Saved(CREDIT, 1_500_000, Flow.TRANSFER)),
+        CorpusCase("card_payment_over_a_lakh", "VM-HDFCBK", "Payment of Rs 1,50,000.00 has been credited to your HDFC Bank Credit Card XX4455", Expect.Saved(CREDIT, 15_000_000, Flow.TRANSFER)),
+        CorpusCase("bank_debit_to_ccpay", "VM-ICICIB", "Rs.15,000 debited from A/c XX1234 to ccpay.4375XXXX@icici", Expect.Saved(DEBIT, 1_500_000, Flow.TRANSFER)),
+        CorpusCase("bank_payment_to_your_card", "VM-HDFCBK", "Payment of Rs 15,000 to your Credit Card XX4455 was successful", Expect.Saved(DEBIT, 1_500_000, Flow.TRANSFER)),
+        CorpusCase("billdesk_card_payment", "VM-HDFCBK", "Rs 15,000.00 debited from A/c XX1234 to BillDesk for HDFC Credit Card bill. Ref 427712345690", Expect.Saved(DEBIT, 1_500_000, Flow.TRANSFER)),
+        CorpusCase("cred_card_payment", "VM-HDFCBK", "Rs 15,000 paid to CRED for your HDFC Bank Credit Card XX4455 bill. Ref 427712345691", Expect.Saved(DEBIT, 1_500_000, Flow.TRANSFER)),
+        // Axis UPI alerts: payee and RRN from "UPI/P2M/<rrn>/<name>", stopping at "Not you".
+        CorpusCase("axis_upi_p2m", "AX-AXISBK", "INR 120.00 debited A/c no. XX1234 12-10-24, 13:45:12 UPI/P2M/428612345678/ZOMATO LTD Not you? SMS BLOCKUPI Cust ID to 919951860002 Axis Bank", Expect.Saved(DEBIT, 12_000, Flow.EXPENSE, "zomato", "428612345678")),
+        CorpusCase("axis_upi_p2a_credit", "AX-AXISBK", "INR 5,000.00 credited to A/c no. XX1234 12-10-24, 13:45:12 UPI/P2A/428612345679/RAHUL SHARMA Not you? SMS BLOCKUPI Cust ID to 919951860002 Axis Bank", Expect.Saved(CREDIT, 500_000, merchantContains = "rahul", ref = "428612345679")),
+        // A failed payment that says no money moved.
+        CorpusCase("failed_no_amount_debited", "VM-HDFCBK", "UPI txn of Rs 500 to SWIGGY has failed. No amount has been debited from your account.", Expect.Ignored),
+        CorpusCase("failed_no_money_debited", "VM-HDFCBK", "Payment of Rs 500 to SWIGGY failed. No money was debited from your account.", Expect.Ignored),
+        // SBI's UPI shape: bare amount, compact date, "trf to".
+        CorpusCase("sbi_upi_debited_by", "VM-SBIUPI", "Dear UPI user A/C X1234 debited by 20.0 on date 03Oct24 trf to SWIGGY Refno 427712345678. If not u? call 1800111109. -SBI", Expect.Saved(DEBIT, 2_000, merchantContains = "swiggy", ref = "427712345678")),
+        // "Sent" is a completed movement: a payee called BIG SALE MART is not a promotion.
+        CorpusCase("sent_to_sale_named_payee", "VM-HDFCBK", "Sent Rs.500.00 From HDFC Bank A/C *1234 To BIG SALE MART On 05/10/26 Ref 427712345678", Expect.Saved(DEBIT, 50_000, merchantContains = "big sale", ref = "427712345678")),
+        // Money arriving, worded with "sent ... to you" or "transferred from X to your".
+        CorpusCase("sent_to_you", "VM-PAYTMB", "Rahul has sent Rs.500 to you on Paytm. UPI Ref 427712345678", Expect.Saved(CREDIT, 50_000, merchantContains = "rahul", ref = "427712345678")),
+        CorpusCase("transferred_from_someone_to_your", "VM-SBIINB", "Rs 2,000 transferred from RAHUL to your a/c XX1234 via IMPS", Expect.Saved(CREDIT, 200_000, merchantContains = "rahul")),
+        // A date before "Rs" is not the amount.
+        CorpusCase("date_before_rs", "VM-HDFCBK", "On 05-10-26 Rs 500 debited from A/c XX1234 to SWIGGY. Ref 427712345678", Expect.Saved(DEBIT, 50_000, merchantContains = "swiggy")),
+        // "balance is INR 10,000" is a balance.
+        CorpusCase("balance_is_before_debit", "VM-HDFCBK", "Your available balance is INR 10,000 after debit of INR 500 at SWIGGY", Expect.Saved(DEBIT, 50_000, merchantContains = "swiggy")),
+        // Payment rails are not merchants.
+        CorpusCase("neft_from_company", "VM-HDFCBK", "Rs 25,000.00 credited to your A/c XX1234 by NEFT from ACME CORP. Ref 427712345692", Expect.Saved(CREDIT, 2_500_000, merchantContains = "acme")),
+        // A footer selling FDs does not make a food order an investment.
+        CorpusCase("fd_footer_is_not_investment", "VM-HDFCBK", "Rs 500.00 debited from A/c XX1234 at SWIGGY. Earn 7% on FD. T&C apply", Expect.Saved(DEBIT, 50_000, Flow.EXPENSE, "swiggy")),
+        // No-break spaces and the old rupee sign.
+        CorpusCase("no_break_spaces", "VM-HDFCBK", "Rs.\u00A0500.00 debited from a/c\u00A0**1234 to VPA swiggy@ybl (UPI Ref No\u202F427712345678)", Expect.Saved(DEBIT, 50_000, Flow.EXPENSE, "swiggy", "427712345678")),
+        CorpusCase("old_rupee_sign", "VM-HDFCBK", "\u20A8500.00 debited from a/c **1234 to VPA swiggy@ybl (UPI Ref No 427712345678)", Expect.Saved(DEBIT, 50_000, merchantContains = "swiggy")),
     )
 }

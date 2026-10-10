@@ -1,5 +1,7 @@
 package com.pft.financetracker
 
+import com.pft.financetracker.ui.model.BudgetLines
+import org.junit.Assert.assertTrue
 import com.pft.financetracker.domain.insights.BudgetStatus
 import com.pft.financetracker.domain.insights.CategorySpend
 import com.pft.financetracker.domain.insights.MerchantSpend
@@ -66,5 +68,45 @@ class ChartAndSummaryTest {
         assertEquals("₹10,000 moved · ₹5,000 invested", HomeLines.notCounted(movedPaise = 10_000_00, investedPaise = 5_000_00, cashPaise = 0, paidBackPaise = 0))
         assertEquals("₹800 paid back by friends", HomeLines.notCounted(0, 0, 0, 800_00))
         assertEquals("₹2,000 cash withdrawn", HomeLines.notCounted(0, 0, 2_000_00, 0))
+    }
+
+    @Test fun theRingAndTheSummaryLineShareOneTotal() {
+        val cats = listOf(
+            CategorySpend(Category.SHOPPING, 4_000_00, 1), CategorySpend(Category.FOOD, 2_000_00, 1), CategorySpend(Category.BILLS, 1_000_00, 1),
+            CategorySpend(Category.TRANSPORT, 800_00, 1), CategorySpend(Category.HEALTH, 600_00, 1), CategorySpend(Category.EDUCATION, 500_00, 1),
+            CategorySpend(Category.ENTERTAINMENT, 400_00, 1), CategorySpend(Category.ATM, 400_00, 1), CategorySpend(Category.OTHER, 300_00, 1),
+            CategorySpend(Category.TRANSFER, -200_00, 1),
+        )
+        val parts = HomeLines.ringParts(cats)
+        assertEquals(8, parts.size)
+        assertEquals(null, parts.last().category)
+        assertEquals(700_00L, parts.last().paise)
+        val total = parts.sumOf { it.paise }
+        assertEquals(10_000_00L, total)
+        // Shopping is 40% in the ring and in the line above it.
+        assertEquals(40, HomeLines.percentOf(parts.first().paise, total))
+        assertTrue(HomeLines.whereItWent(cats).startsWith("Shopping 40%"))
+    }
+
+    @Test fun aShortListHasNoRestSlice() {
+        val parts = HomeLines.ringParts(listOf(CategorySpend(Category.FOOD, 500_00, 1), CategorySpend(Category.SHOPPING, -100_00, 1)))
+        assertEquals(listOf(HomeLines.RingPart(Category.FOOD, 500_00)), parts)
+    }
+
+    // ---- Budgets screen words ----
+
+    @Test fun refundsBelowNothingReadAsNothingUsed() {
+        assertEquals("₹1,000 left · 0% used", BudgetLines.row(-300_00, 1_000_00))
+        assertEquals("₹650 left · 35% used", BudgetLines.row(350_00, 1_000_00))
+        assertEquals("₹200 over", BudgetLines.row(1_200_00, 1_000_00))
+        assertEquals("of ₹1,000 budgeted · ₹1,000 left", BudgetLines.hero(-300_00, 1_000_00))
+    }
+
+    @Test fun aBlankLimitAsksForAFigureInsteadOfRemovingIt() {
+        assertTrue(BudgetLines.parse("") is BudgetLines.Input.Invalid)
+        assertTrue(BudgetLines.parse("   ") is BudgetLines.Input.Invalid)
+        assertTrue(BudgetLines.parse("99999999999999") is BudgetLines.Input.Invalid)
+        assertEquals(BudgetLines.Input.Remove, BudgetLines.parse("0"))
+        assertEquals(BudgetLines.Input.Limit(5_000_00), BudgetLines.parse("5000"))
     }
 }

@@ -55,7 +55,8 @@ enum class Category(val label: String, val keywords: List<String>) {
             "restaurant", "dine", "food", "biryani", "dunkin", "subway", "haldiram", "bakery", "chai", "kitchen",
             "dhaba", "eatsure", "box8", "faasos", "behrouz", "blinkit", "zepto", "instamart", "bigbasket", "grofers",
             "dmart", "grocery", "kirana", "milk", "dairy", "supermarket", "brewpub", "brewery", "brewing", "pub", "bar", "lounge",
-            "bistro", "grill", "eatery", "diner", "canteen", "tavern", "tapas", "dosa", "chaat", "momos", "social"
+            "bistro", "grill", "eatery", "diner", "canteen", "tavern", "tapas", "dosa", "chaat", "momos", "social",
+            "uber eats", "ubereats", "amazon fresh", "chaiwala", "chai point", "chaayos", "dineout"
         )
     ),
     SHOPPING(
@@ -114,7 +115,7 @@ enum class Category(val label: String, val keywords: List<String>) {
             "nsdl", "ppf", "nps", "fixed deposit", "smallcase", "etmoney", "paytm money", "angel one", "5paisa"
         )
     ),
-    ATM("Cash / ATM", listOf("atm", "cash wdl", "cash withdrawal", "cwdr", "cash")),
+    ATM("Cash / ATM", listOf("atm", "cash wdl", "cash withdrawal", "cash withdrawn", "cwdr", "cash")),
     TRANSFER("Transfers", listOf("neft", "imps", "rtgs", "self transfer", "own account", "add money", "wallet", "credit card bill", "card bill", "cc payment", "card payment", "cred club", "cred.club", "billdesk")),
     INCOME("Income", listOf("salary", "payroll", "interest", "dividend", "bonus", "stipend")),
     OTHER("Other", emptyList());

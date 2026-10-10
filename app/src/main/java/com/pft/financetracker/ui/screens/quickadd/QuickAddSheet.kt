@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,6 +42,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +62,7 @@ import com.pft.financetracker.ui.components.money
 import com.pft.financetracker.ui.model.AmountKeys
 import com.pft.financetracker.ui.model.QuickAddDraft
 import com.pft.financetracker.ui.model.RecentCategories
+import com.pft.financetracker.ui.model.TypedAmount
 import com.pft.financetracker.ui.theme.MoneyType
 import com.pft.financetracker.ui.theme.rememberHaptics
 import com.pft.financetracker.ui.theme.surfaces
@@ -94,30 +97,48 @@ fun QuickAddSheet(
     var draft by remember { mutableStateOf(QuickAddDraft(category = categories.firstOrNull(), cash = startCash)) }
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-    fun close(after: () -> Unit) = scope.launch { state.hide() }.invokeOnCompletion { after() }
+    // Set on the first Save or "More details": a second tap while the sheet slides away does nothing, so a payment is
+    // never saved twice and the editor never opens twice.
+    var closing by remember { mutableStateOf(false) }
+    fun close(after: () -> Unit) {
+        if (closing) return
+        closing = true
+        scope.launch { state.hide() }.invokeOnCompletion { after() }
+    }
 
     FinSheet(onDismiss = onDismiss, state = state) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (draft.cash) "Paid in cash" else "Add an expense", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             TextAction("More details", { close { onMoreDetails(draft) } })
         }
-        // The figure being typed, centred and large, with a caret so it reads as an input.
-        val shown = draft.paise?.let { money(it) } ?: "₹" + draft.amount.ifEmpty { "0" }
-        Row(
+        // The figure being typed, centred and large, with a caret so it reads as an input. Shown as typed (a trailing
+        // point or zero stays), grouped the Indian way, and a size smaller rather than cut when it gets long.
+        val shown = TypedAmount.show(draft.amount)
+        val measurer = rememberTextMeasurer()
+        val density = LocalDensity.current
+        BoxWithConstraints(
             Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
                 contentDescription = "Amount: " + (draft.paise?.let { money(it) } ?: "none yet")
                 liveRegion = LiveRegionMode.Polite
             },
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
+            contentAlignment = Alignment.Center,
         ) {
-            Text(
-                if (draft.amount.endsWith(".")) "$shown." else shown,
-                style = MoneyType.large,
-                color = if (draft.amount.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                maxLines = 1, softWrap = false,
-            )
-            Box(Modifier.padding(start = 3.dp).width(2.dp).heightIn(min = 40.dp).background(MaterialTheme.colorScheme.primary))
+            val room = with(density) { (maxWidth - 8.dp).toPx() }
+            val ladder = listOf(MoneyType.large, MoneyType.medium, MoneyType.title)
+            val style = ladder.firstOrNull { measurer.measure(shown, it, softWrap = false, maxLines = 1).size.width <= room }
+                ?: ladder.last().let { s ->
+                    val w = measurer.measure(shown, s, softWrap = false, maxLines = 1).size.width
+                    if (w <= 0 || room <= 0f) s else s.copy(fontSize = s.fontSize * (room / w * 0.98f).coerceIn(0.5f, 1f))
+                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    shown,
+                    style = style,
+                    color = if (draft.amount.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1, softWrap = false,
+                )
+                Box(Modifier.padding(start = 3.dp).width(2.dp).heightIn(min = 40.dp).background(MaterialTheme.colorScheme.primary))
+            }
         }
 
         CategoryGrid(categories, draft.category) { haptics.tick(); draft = draft.copy(category = it) }
@@ -172,7 +193,7 @@ fun QuickAddSheet(
         PrimaryButton(label, {
             val t = draft.toTransaction(System.currentTimeMillis(), cashCounted)
             if (t == null) haptics.reject() else { haptics.confirm(); close { onSave(t) } }
-        }, enabled = draft.canSave)
+        }, enabled = draft.canSave && !closing)
     }
 }
 

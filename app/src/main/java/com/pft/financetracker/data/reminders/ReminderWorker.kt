@@ -12,12 +12,15 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.pft.financetracker.MainActivity
 import com.pft.financetracker.R
-import com.pft.financetracker.appContainer
+import com.pft.financetracker.appContainerOrNull
+import com.pft.financetracker.domain.reminders.DayClock
 import com.pft.financetracker.domain.reminders.Reminder
 import com.pft.financetracker.domain.reminders.ReminderPlanner
 import java.util.concurrent.TimeUnit
@@ -33,7 +36,7 @@ fun interface ReminderSource {
  */
 class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val c = applicationContext.appContainer
+        val c = applicationContext.appContainerOrNull ?: return Result.success()
         // Twice a day is also the widget's clock: "this month" and "next bill" move on even without new SMS.
         com.pft.financetracker.ui.widget.FinTrackWidget.refresh(applicationContext)
         if (!c.settings.remindersEnabled.value || !Reminders.canPost(applicationContext)) return Result.success()
@@ -46,14 +49,37 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
     }
 }
 
+/**
+ * Redraws the widget just after local midnight, so on the 1st it shows the new month (and "due today" moves on)
+ * without waiting up to 12 hours for [ReminderWorker]. One short run a day, then it books the next one.
+ */
+class MidnightWidgetWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        com.pft.financetracker.ui.widget.FinTrackWidget.refresh(applicationContext)
+        // Appended after this run, so booking tomorrow's never cancels the one that is running.
+        Reminders.scheduleMidnight(applicationContext, ExistingWorkPolicy.APPEND_OR_REPLACE)
+        return Result.success()
+    }
+}
+
 object Reminders {
     const val CHANNEL = "reminders"
     private const val WORK = "fintrack-reminders"
+    private const val MIDNIGHT_WORK = "fintrack-widget-midnight"
 
     /** Idempotent: keeps an existing schedule. Called at app start. */
     fun schedule(context: Context) {
         val req = PeriodicWorkRequestBuilder<ReminderWorker>(12, TimeUnit.HOURS).build()
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK, ExistingPeriodicWorkPolicy.KEEP, req)
+        scheduleMidnight(context, ExistingWorkPolicy.KEEP)
+    }
+
+    /** The widget's redraw at the next local midnight (plus a second). [policy] KEEP at app start keeps one already booked. */
+    fun scheduleMidnight(context: Context, policy: ExistingWorkPolicy) {
+        val req = OneTimeWorkRequestBuilder<MidnightWidgetWorker>()
+            .setInitialDelay(DayClock.millisToNextDay(System.currentTimeMillis()), TimeUnit.MILLISECONDS)
+            .build()
+        runCatching { WorkManager.getInstance(context).enqueueUniqueWork(MIDNIGHT_WORK, policy, req) }
     }
 
     fun ensureChannel(context: Context) {

@@ -6,7 +6,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.model.QuickAddDraft
 import com.pft.financetracker.ui.nav.AppNav
@@ -21,9 +23,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) pendingRoute.value = routeFrom(intent)
+        val app = application as FinanceApp
         setContent {
             FinTrackTheme {
-                AppNav(pendingRoute = pendingRoute.value, onRouteHandled = { pendingRoute.value = null })
+                var opened by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(app.container != null) }
+                if (opened) AppNav(pendingRoute = pendingRoute.value, onRouteHandled = { pendingRoute.value = null })
+                else com.pft.financetracker.ui.screens.KeyProblemScreen(
+                    onRetry = { opened = app.start() },
+                    onStartFresh = { opened = app.startFresh() },
+                )
             }
         }
     }

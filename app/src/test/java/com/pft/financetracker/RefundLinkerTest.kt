@@ -95,6 +95,35 @@ class RefundLinkerTest {
     }
 
     @Test
+    fun deletingThePurchaseTurnsItsRefundBackIntoIncome() = runBlocking {
+        val d = order(); val c = refundBookedAsIncome()
+        linker.run()
+        assertEquals(Flow.REFUND, tx(c).flow)
+        linker.unlinkForDeletedPurchase(d)
+        db.transactionDao().delete(db.transactionDao().getById(d)!!)
+        assertEquals(Flow.INCOME, tx(c).flow)
+        assertEquals(Category.OTHER, tx(c).category)
+        assertTrue(db.refundDao().getAll().isEmpty())
+    }
+
+    @Test
+    fun deletingThePurchaseKeepsAPersonsCorrectionOfTheRefund() = runBlocking {
+        val d = order(); val c = refundBookedAsIncome()
+        linker.run()
+        db.transactionDao().update(tx(c).copy(category = Category.HEALTH, userEdited = true).toEntity())
+        linker.unlinkForDeletedPurchase(d)
+        assertEquals(Flow.REFUND, tx(c).flow)
+        assertEquals(Category.HEALTH, tx(c).category)
+    }
+
+    @Test
+    fun deletingAnUnpairedPurchaseChangesNothing() = runBlocking {
+        val d = order(); val c = refundBookedAsIncome()
+        linker.unlinkForDeletedPurchase(d)
+        assertEquals(Flow.INCOME, tx(c).flow)
+    }
+
+    @Test
     fun aRescanThatPutsTheIncomeFlowBackIsCorrectedAgain() = runBlocking {
         order(); val c = refundBookedAsIncome()
         linker.run()

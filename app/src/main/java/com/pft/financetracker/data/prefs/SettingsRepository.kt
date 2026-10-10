@@ -69,6 +69,14 @@ class SettingsRepository(context: Context) {
     val useNano: StateFlow<Boolean> = _useNano
     fun setUseNano(v: Boolean) { plain.edit().putBoolean(KEY_USE_NANO, v).apply(); _useNano.value = v }
 
+    /**
+     * Ask sends every question, with a summary of the person's payments (see [com.pft.financetracker.domain.ask.AskAiPrompt]),
+     * to ChatGPT when there is an OpenAI key. On by default; the rules on the phone answer when it is off or offline.
+     */
+    private val _askUseOpenAi = MutableStateFlow(plain.getBoolean(KEY_ASK_OPENAI, true))
+    val askUseOpenAi: StateFlow<Boolean> = _askUseOpenAi
+    fun setAskUseOpenAi(v: Boolean) { plain.edit().putBoolean(KEY_ASK_OPENAI, v).apply(); _askUseOpenAi.value = v }
+
     /** When the person last saved an encrypted backup; 0 = never. Drives the monthly "time for a backup" reminder. */
     private val _lastBackupAt = MutableStateFlow(plain.getLong(KEY_LAST_BACKUP, 0L))
     val lastBackupAt: StateFlow<Long> = _lastBackupAt
@@ -125,6 +133,9 @@ class SettingsRepository(context: Context) {
     fun setOnboarded(v: Boolean) { plain.edit().putBoolean(KEY_ONBOARDED, v).apply(); _onboarded.value = v }
     fun setLastImportAt(t: Long) { plain.edit().putLong(KEY_LAST_IMPORT, t).apply(); _lastImportAt.value = t }
     fun setAutoImport(v: Boolean) { plain.edit().putBoolean(KEY_AUTO_IMPORT, v).apply(); _autoImport.value = v }
+    /** The counting rules as set now. Every figure (screens, the widget, Ask) reads through these. */
+    fun countingRules() = com.pft.financetracker.domain.books.CountingRules(cashIsSpend = countCashAsSpend.value)
+
     fun setCountCashAsSpend(v: Boolean) { plain.edit().putBoolean(KEY_CASH_SPEND, v).apply(); _countCashAsSpend.value = v }
     fun setMyName(v: String) { val n = v.trim().ifBlank { "Me" }; plain.edit().putString(KEY_MY_NAME, n).apply(); _myName.value = n }
 
@@ -143,6 +154,7 @@ class SettingsRepository(context: Context) {
         _widgetHideAmounts.value = true
         _lastBackupAt.value = 0L
         _useNano.value = true
+        _askUseOpenAi.value = true
         aiAnswerCache.clear()
     }
 
@@ -159,6 +171,7 @@ class SettingsRepository(context: Context) {
         const val KEY_WIDGET_HIDE = "widget_hide_amounts"
         const val KEY_LAST_BACKUP = "last_backup_at"
         const val KEY_USE_NANO = "use_nano"
+        const val KEY_ASK_OPENAI = "ask_use_openai"
         const val KEY_API_SEEDED = "api_key_seeded"
         const val KEY_API_USER_MANAGED = "api_key_user_managed"
     }

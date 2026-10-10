@@ -85,4 +85,8 @@ class CopyTest {
     @Test fun heroLineIsNeverBlank() {
         assertEquals("Too early to compare" to Trend.FLAT, heroLine(800_00, null, "1–2 Sep", running = true, daysIn = 2, dailyPaise = 400_00, projectedPaise = 24_800_00))
     }
+
+    @Test fun aFinishedShortRangeIsNotTooEarly() {
+        assertEquals("Nothing earlier to compare with" to Trend.FLAT, heroLine(800_00, null, "29–30 Aug", running = false, daysIn = 2, dailyPaise = 400_00, projectedPaise = null))
+    }
 }

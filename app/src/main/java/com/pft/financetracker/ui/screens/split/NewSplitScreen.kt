@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -38,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -58,6 +60,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -68,9 +71,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Money
+import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.split.BillExtras
 import com.pft.financetracker.domain.split.BillItem
+import com.pft.financetracker.domain.split.PeopleDraft
 import com.pft.financetracker.domain.split.Person
+import com.pft.financetracker.domain.split.SettleMatch
 import com.pft.financetracker.domain.split.Split
 import com.pft.financetracker.domain.split.SplitCalculator
 import com.pft.financetracker.domain.split.SplitMode
@@ -78,6 +84,7 @@ import com.pft.financetracker.domain.split.SplitResult
 import com.pft.financetracker.domain.split.SplitShare
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.OcrUiState
+import com.pft.financetracker.ui.isLoaded
 import com.pft.financetracker.ui.components.AdaptiveRow
 import com.pft.financetracker.ui.components.CapsLabel
 import com.pft.financetracker.ui.components.CardPadding
@@ -100,6 +107,7 @@ import com.pft.financetracker.ui.components.cappedScale
 import com.pft.financetracker.ui.components.categoryIcon
 import com.pft.financetracker.ui.components.countLabel
 import com.pft.financetracker.ui.components.dateOnly
+import com.pft.financetracker.ui.components.displayMerchant
 import com.pft.financetracker.ui.components.money
 import com.pft.financetracker.ui.components.paiseToInput
 import com.pft.financetracker.ui.theme.Expense
@@ -140,6 +148,8 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
     val ocr by vm.ocrState.collectAsState()
     val recent by vm.recentPeople.collectAsState()
     val myName by vm.myName.collectAsState()
+    val txns by vm.transactions.collectAsState()
+    val allSplits by vm.splits.collectAsState()
 
     var title by remember { mutableStateOf("") }
     var date by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -159,6 +169,12 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
     var ocrApplied by remember { mutableStateOf(false) }
     var cameraUri by remember { mutableStateOf<Uri?>(null) }
     var triedSave by remember { mutableStateOf(false) }
+    // One tap saves once: a second tap while the first is being written would store the split twice.
+    var saving by remember { mutableStateOf(false) }
+    // "Paid with": the payment already in the app that this bill is, or the person saying it isn't there yet.
+    var paidWith by remember { mutableStateOf<Long?>(null) }
+    var notRecorded by remember { mutableStateOf(false) }
+    var paidWithTouched by remember { mutableStateOf(false) }
 
     fun syncPerPersonLists() {
         while (shareWeights.size < people.size) shareWeights += "1"
@@ -168,6 +184,17 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
         if (payer >= people.size) payer = 0
     }
     syncPerPersonLists()
+
+    fun removePerson(i: Int) {
+        syncPerPersonLists()
+        val d = PeopleDraft(people.toList(), shareWeights.toList(), customAmounts.toList(), items.map { it.assigned.toSet() }, payer).remove(i)
+        people.clear(); people.addAll(d.people)
+        shareWeights.clear(); shareWeights.addAll(d.shareWeights)
+        customAmounts.clear(); customAmounts.addAll(d.customAmounts)
+        items.forEachIndexed { k, item -> item.assigned.clear(); item.assigned.addAll(d.itemAssignments[k]) }
+        payer = d.payer
+        syncPerPersonLists()
+    }
 
     fun addPerson() {
         if (newPerson.isBlank()) { haptics.reject(); return }
@@ -193,7 +220,15 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
     // and again when this screen goes away (cancelled capture, back button, process kill).
     fun discardCapture() { runCatching { File(ctx.cacheDir, "bill_capture.jpg").delete() } }
 
-    DisposableEffect(Unit) { onDispose { discardCapture() } }
+    // A bill read for this split must not fill in the next one: forget it whenever the screen goes (back, save, a
+    // tab), but not when it is only rebuilt for a rotation, where the result fills in the fresh form again.
+    val activity = remember(ctx) { ctx.findActivity() }
+    DisposableEffect(Unit) {
+        onDispose {
+            discardCapture()
+            if (activity?.isChangingConfigurations != true) vm.clearOcr()
+        }
+    }
 
     LaunchedEffect(ocr) {
         if (ocr is OcrUiState.Done || ocr is OcrUiState.Error) discardCapture()
@@ -234,7 +269,14 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
             }
         }
     }.getOrNull()
-    val canSave = result != null && people.size >= 2
+    // "Paid with": payments near this bill's date and total, the clear match picked until the person picks.
+    val paidCandidates = remember(txns, allSplits, total, date) { if (isLoaded(txns)) vm.paidWithCandidates(total, date) else emptyList() }
+    LaunchedEffect(paidCandidates, total, date) {
+        if (paidWith != null && paidCandidates.none { it.id == paidWith }) paidWith = null
+        if (!paidWithTouched) paidWith = SettleMatch.bestPaidWith(paidCandidates, total, date)?.id
+    }
+    val paymentChosen = payer != 0 || paidWith != null || notRecorded
+    val canSave = result != null && people.size >= 2 && paymentChosen
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -337,7 +379,7 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                         PillChip(
                             selected = false, label = name, icon = Icons.Outlined.Person,
                             trailingIcon = if (i > 0) Icons.Outlined.Close else null, trailingLabel = "Remove $name",
-                        ) { if (i > 0) { people.removeAt(i); syncPerPersonLists() } }
+                        ) { if (i > 0) removePerson(i) }
                     }
                 }
                 // Placeholder rather than a floating label, so the field and the button share a centre line.
@@ -410,6 +452,33 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
             // ---- Who paid ----
             FormSection("Who paid") {
                 ChipFlow { people.forEachIndexed { i, name -> PillChip(payer == i, name) { payer = i } } }
+                if (payer == 0) {
+                    CapsLabel("Paid with")
+                    if (!isLoaded(txns)) {
+                        Text("Looking for the payment…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        Text(
+                            if (paidCandidates.isEmpty()) "No payment near this date and total in FinTrack."
+                            else "Pick the payment for this bill. It drops to your share, so it isn't counted twice.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Column {
+                            paidCandidates.forEach { t ->
+                                PaymentChoice(t, paidWith == t.id) { paidWith = t.id; notRecorded = false; paidWithTouched = true }
+                            }
+                        }
+                        ChipFlow {
+                            PillChip(notRecorded, "It isn't in FinTrack yet") { notRecorded = true; paidWith = null; paidWithTouched = true }
+                        }
+                        val picked = paidCandidates.firstOrNull { it.id == paidWith }
+                        if (picked != null && total != null && picked.amountPaise != total) Text(
+                            "That payment is ${money(picked.amountPaise)} and the bill ${money(total)}. What the others owe comes off the payment.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (notRecorded) Text("Your share is added as a new payment.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (triedSave && !paymentChosen) Text("Pick the payment, or say it isn't in FinTrack yet.", style = MaterialTheme.typography.bodyMedium, color = Expense)
+                }
             }
 
             // ---- Category ----
@@ -458,27 +527,33 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
                 PrimaryButton(
                     text = "Save split",
                     onClick = onClick@{
+                        if (saving) return@onClick
                         val r = result
                         if (r == null || !canSave) { triedSave = true; haptics.reject(); return@onClick }
+                        saving = true
                         haptics.confirm()
                         val split = Split(
                             title = title.trim().ifBlank { "Split ${dateOnly(date)}" },
                             totalPaise = r.totalPaise, date = date, mode = mode, payerIndex = payer,
                             people = people.mapIndexed { i, n -> Person(name = n, isMe = i == 0) },
                             shares = r.shares.map { SplitShare(personIndex = it.personIndex, amountPaise = it.amountPaise, settledPaise = if (it.personIndex == payer) it.amountPaise else 0L) },
+                            // The payment this bill is; none when someone else paid or it isn't in the app yet.
+                            linkedTransactionId = if (payer == 0 && !notRecorded) paidWith else null,
                         )
                         vm.saveSplit(split, billItems, category) { id -> vm.clearOcr(); onSaved(id) }
                     },
+                    enabled = !saving,
                 )
             }
         }
     }
 
     if (showDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = date)
+        // The picker works in UTC midnights: show the local day, and keep the time when the day changes.
+        val state = rememberDatePickerState(initialSelectedDateMillis = com.pft.financetracker.ui.model.PickerDate.toPicker(date))
         DatePickerDialog(
             onDismissRequest = { showDate = false },
-            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { date = it + 12 * 3600 * 1000 }; showDate = false }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { date = com.pft.financetracker.ui.model.PickerDate.fromPicker(it, date) }; showDate = false }) { Text("OK") } },
             dismissButton = { TextButton(onClick = { showDate = false }) { Text("Cancel") } },
         ) { DatePicker(state) }
     }
@@ -515,6 +590,30 @@ private fun AmountHero(value: String, onChange: (String) -> Unit, parsed: Long?)
         }
         if (value.isNotBlank() && parsed == null) Text("That doesn't look like an amount", style = MaterialTheme.typography.bodySmall, color = Expense)
     }
+}
+
+/** A payment offered under "Paid with": where it went, when, and how much, picked like a radio button. */
+@Composable
+private fun PaymentChoice(t: Transaction, selected: Boolean, onPick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().selectable(selected = selected, onClick = onPick, role = Role.RadioButton).padding(vertical = Space.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Spacer(Modifier.width(Space.sm))
+        Column(Modifier.weight(1f)) {
+            Text(displayMerchant(t.merchant), style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(dateOnly(t.timestamp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(Space.md))
+        LedgerAmount(money(t.amountPaise), MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 /** A person's name with their avatar on the left and an input on the right (shares, a custom amount). */

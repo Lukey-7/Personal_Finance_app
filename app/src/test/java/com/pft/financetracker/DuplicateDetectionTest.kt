@@ -150,8 +150,8 @@ class DuplicateDetectionTest {
     @Test fun richerRecordWins() {
         val generic = tx(25_000, "Payment (Paytm)", "Paytm", now)
         val detailed = tx(25_000, "Swiggy", "HDFC Bank", now).copy(accountRef = "1234")
-        assertEquals("Swiggy", repo.richer(generic, detailed).merchant)
-        assertEquals("Swiggy", repo.richer(detailed, generic).merchant)
+        assertEquals("Swiggy", com.pft.financetracker.domain.ledger.SamePayment.richer(generic, detailed).merchant)
+        assertEquals("Swiggy", com.pft.financetracker.domain.ledger.SamePayment.richer(detailed, generic).merchant)
     }
 
     /**
@@ -184,6 +184,85 @@ class DuplicateDetectionTest {
         repo.insert(tx(5_000, "Chai Point", "HDFC Bank", at, ref = "111111"))
         repo.insert(tx(5_000, "Chai Point", "HDFC Bank", at + 6 * 3600_000, ref = "222222"))
         assertEquals(0, repo.findExistingDuplicates().size)
+    }
+
+    // ---- v1.5 review: the sweep and the import use one rule ----
+
+    /** Two Rs 180 coffees at 9:00 and 18:00, same card, no references: two coffees, not one counted twice. */
+    @Test fun sweepKeepsTheSameMerchantHoursApart() = runBlocking {
+        val day = startOfDay(now)
+        repo.insert(tx(18_000, "Starbucks", "HDFC Bank", day + 9 * 3600_000))
+        repo.insert(tx(18_000, "Starbucks", "HDFC Bank", day + 18 * 3600_000))
+        assertEquals(0, repo.findExistingDuplicates().size)
+    }
+
+    /** ICICI alerts with no merchant ("Payment (ICICI Bank)") hours apart are two payments. */
+    @Test fun sweepKeepsGenericAlertsHoursApart() = runBlocking {
+        val day = startOfDay(now)
+        repo.insert(tx(50_000, "Payment (ICICI Bank)", "ICICI Bank", day + 9 * 3600_000))
+        repo.insert(tx(50_000, "Payment (ICICI Bank)", "ICICI Bank", day + 15 * 3600_000))
+        assertEquals(0, repo.findExistingDuplicates().size)
+    }
+
+    @Test fun sweepStillPairsASecondSenderMinutesApart() = runBlocking {
+        val day = startOfDay(now)
+        repo.insert(tx(25_000, "Swiggy", "HDFC Bank", day + 13 * 3600_000))
+        repo.insert(tx(25_000, "Payment (Paytm)", "Paytm", day + 13 * 3600_000 + 4 * 60_000))
+        assertEquals(1, repo.findExistingDuplicates().size)
+    }
+
+    /** A shared reference is not enough on its own: the amount must match too. */
+    @Test fun sameRefWithADifferentAmountIsNotADuplicate() = runBlocking {
+        repo.insert(tx(25_000, "Swiggy", "HDFC Bank", now, ref = "427712345678"))
+        assertNull(repo.findLikelyDuplicate(tx(99_000, "Zomato", "HDFC Bank", now + 60_000, ref = "427712345678")))
+    }
+
+    /** ... and the dates must be close: some banks reuse short references. */
+    @Test fun sameRefWeeksApartIsNotADuplicate() = runBlocking {
+        repo.insert(tx(25_000, "Swiggy", "HDFC Bank", now - 20 * 86_400_000L, ref = "427712345678"))
+        assertNull(repo.findLikelyDuplicate(tx(25_000, "Swiggy", "HDFC Bank", now, ref = "427712345678")))
+    }
+
+    /** A weaker second alert (no merchant) must not overwrite the category, the merchant or a missing reference. */
+    @Test fun aWeakerSecondAlertKeepsWhatTheFirstKnew() = runBlocking {
+        val importer = SmsImporter(
+            ApplicationProvider.getApplicationContext(), SmsParser(), repo,
+            SmsLogRepository(db.smsLogDao()), SettingsRepository(ApplicationProvider.getApplicationContext()),
+        )
+        repo.insert(tx(25_000, "Swiggy", "HDFC Bank", now))
+        val outcome = importer.process(SmsMessage("JD-PAYTMB", "Paid Rs.250 via UPI. UPI Ref: 424012345678.", now + 2 * 60_000))
+        assertEquals(SmsImporter.Outcome.DUPLICATE, outcome)
+        val row = repo.getAll().single()
+        assertEquals("Swiggy", row.merchant)
+        assertEquals(Category.FOOD, row.category)
+        assertEquals("424012345678", row.refNumber)
+    }
+
+    /** A card-bill transfer stays a transfer when the UPI app's alert for it reads like plain spend. */
+    @Test fun aTransferStaysATransferWhenTheSecondAlertIsPlainer() = runBlocking {
+        val importer = SmsImporter(
+            ApplicationProvider.getApplicationContext(), SmsParser(), repo,
+            SmsLogRepository(db.smsLogDao()), SettingsRepository(ApplicationProvider.getApplicationContext()),
+        )
+        repo.insert(tx(1_500_000, "Cred", "HDFC Bank", now).copy(flow = Flow.TRANSFER, category = Category.OTHER))
+        importer.process(SmsMessage("VM-GPAYIN", "You paid Rs.15000 to Cred using Google Pay", now + 60_000))
+        assertEquals(Flow.TRANSFER, repo.getAll().single().flow)
+    }
+
+    /** Approving a review item runs the import's duplicate check and keeps the reference the review screen drops. */
+    @Test fun approvingAReviewItemDoesNotCountAStoredPaymentTwice() = runBlocking {
+        repo.insert(tx(25_000, "Swiggy", "HDFC Bank", now))
+        val reviewed = tx(25_000, "Swiggy", "Paytm", now + 60_000, hash = "review-hash").copy(userEdited = true)
+        val id = repo.insertReviewed(reviewed, "Paid Rs.250 to Swiggy via UPI. UPI Ref: 424012345678")
+        assertEquals(1, repo.getAll().size)
+        assertEquals("424012345678", repo.getById(id)!!.refNumber)
+    }
+
+    @Test fun approvingANewReviewItemStoresItsReferenceAndAccount() = runBlocking {
+        val id = repo.insertReviewed(tx(5_000, "Chai Point", "HDFC Bank", now, hash = "review-1"), "Rs 50 debited from a/c XX9876 at Chai Point. Ref 427712345699")
+        val row = repo.getById(id)!!
+        assertEquals("427712345699", row.refNumber)
+        assertEquals("9876", row.accountRef)
     }
 
     /**

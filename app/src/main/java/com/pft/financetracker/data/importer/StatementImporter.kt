@@ -11,7 +11,7 @@ import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.domain.importer.ParsedStatement
 import com.pft.financetracker.domain.importer.StatementRow
 import com.pft.financetracker.domain.model.Transaction
-import com.pft.financetracker.domain.split.PayerClassifier
+import com.pft.financetracker.domain.ledger.SamePayment
 import java.security.MessageDigest
 
 /**
@@ -31,36 +31,31 @@ class StatementImporter(
         val newRows: List<StatementRow>,
         /** A row and the stored transaction it matched. */
         val duplicates: List<Pair<StatementRow, Transaction>>,
+        /** Rows from an earlier import of this statement that the person deleted since: not added again. */
+        val deletedBefore: List<StatementRow> = emptyList(),
     )
 
     suspend fun preview(statement: ParsedStatement, fileName: String): Preview {
         val newRows = mutableListOf<StatementRow>()
         val dupes = mutableListOf<Pair<StatementRow, Transaction>>()
+        val deleted = mutableListOf<StatementRow>()
         val consumed = mutableSetOf<Long>()
         for (r in statement.rows) {
+            if (wasDeleted(r)) { deleted += r; continue }
             val match = findExisting(r, consumed)
             if (match != null) { dupes += r to match; consumed += match.id } else newRows += r
         }
-        return Preview(statement, fileName, newRows, dupes)
+        return Preview(statement, fileName, newRows, dupes, deleted)
     }
+
+    /** The person deleted the row an earlier import of this same statement added (see SmsImporter.forgetDeleted). */
+    private suspend fun wasDeleted(r: StatementRow): Boolean =
+        smsLog?.getByHash(com.pft.financetracker.data.sms.SmsImporter.statementTombstone(hash(r))) != null
 
     private suspend fun findExisting(r: StatementRow, consumed: Set<Long>): Transaction? {
         // The same file (or an overlapping one) imported before.
         txDao.getByHash(hash(r))?.let { return it.toDomain() }
-        // The same reference number, amount and (within a week) date. The date guard matters: some banks reuse
-        // cheque-style numbers, and a ref alone once matched a payment months away.
-        r.ref?.let { ref ->
-            txDao.findAllByRef(ref).map { it.toDomain() }
-                .firstOrNull { it.id !in consumed && (it.amountPaise == r.amountPaise || it.originalAmountPaise == r.amountPaise) && kotlin.math.abs(it.timestamp - r.date) <= 7 * DAY }
-                ?.let { return it }
-        }
-        // Same amount and direction within a day either side (statements book some payments a day late). Names
-        // must agree: ten Rs 1,000 paybacks on one day are ten different people.
-        val cands = txDao.findSameAmount(r.amountPaise, r.type.name, r.date - 86_400_000L, r.date + 2 * 86_400_000L - 1)
-            .map { it.toDomain() }.filter { it.id !in consumed && it.source != Transaction.Source.SPLIT }
-        cands.firstOrNull { PayerClassifier.sameParty(it.merchant, r.counterparty) }?.let { return it }
-        val generic = cands.filter { it.merchant.startsWith("Payment") || it.merchant.startsWith("Credit") || it.merchant.length < 3 }
-        return generic.singleOrNull()?.takeIf { cands.size == 1 }
+        return SamePayment.findForStatement(r, repo.stored, consumed)
     }
 
     suspend fun commit(p: Preview): ImportBatchEntity {
@@ -76,6 +71,7 @@ class StatementImporter(
         val consumed = p.duplicates.map { it.second.id }.toMutableSet()
         val lateDuplicates = mutableListOf<Pair<StatementRow, Transaction>>()
         for (r in p.newRows) {
+            if (wasDeleted(r)) continue
             val late = findExisting(r, consumed)
             if (late != null) { lateDuplicates += r to late; consumed += late.id; continue }
             val t = Transaction(
@@ -119,10 +115,12 @@ class StatementImporter(
 
     /**
      * Remove every transaction an import added. Rows it only matched (already in the app) are left alone, and a row a
-     * later import also contained stays and moves to that import.
+     * later import also contained stays and moves to that import. [beforeDelete] runs for each row about to go.
      */
-    suspend fun undo(batchId: Long) {
-        for (t in txDao.getByBatch(batchId)) {
+    suspend fun undo(batchId: Long, beforeDelete: suspend (Long) -> Unit = {}) {
+        for (listed in txDao.getByBatch(batchId)) {
+            // Read again: giving back an earlier purchase's refund may have changed this row since the list was read.
+            val t = txDao.getById(listed.id) ?: continue
             val other = importDao.matchesFor(t.id).firstOrNull { it.batchId != batchId && importDao.get(it.batchId) != null }
             when {
                 other != null -> {
@@ -132,7 +130,7 @@ class StatementImporter(
                 }
                 // An SMS reported the same payment since: it is the SMS's row now, and the SMS won't be read again.
                 smsLog?.pointsAt(t.id) == true -> txDao.update(t.copy(importBatchId = null))
-                else -> txDao.delete(t)
+                else -> { beforeDelete(t.id); txDao.delete(t) }
             }
         }
         importDao.deleteMatchesForBatch(batchId)
@@ -142,8 +140,6 @@ class StatementImporter(
     /** Identical rows in one file (two Rs 20 teas) are told apart by their occurrence; the first keeps the old hash. */
     private fun hash(r: StatementRow) = "stmt:" + sha("${r.date}|${r.amountPaise}|${r.type}|${r.narration.trim().lowercase()}|${r.balancePaise}" +
         if (r.occurrence > 0) "|#${r.occurrence}" else "")
-
-    private companion object { const val DAY = 86_400_000L }
 
     private fun sha(s: String): String = MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }.take(32)
 }

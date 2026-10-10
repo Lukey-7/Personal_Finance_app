@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Telephony
-import com.pft.financetracker.appContainer
+import com.pft.financetracker.appContainerOrNull
 import com.pft.financetracker.domain.parser.SmsMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
-        val container = context.appContainer
+        val container = context.appContainerOrNull ?: return
         if (!container.settings.autoImport.value) return
         val parts = Telephony.Sms.Intents.getMessagesFromIntent(intent) ?: return
         if (parts.isEmpty()) return
@@ -30,14 +30,34 @@ class SmsReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 container.importer.process(SmsMessage(sender, body, ts))
-                // A friend's payback may complete a shared payment. Local rules only: a receiver has seconds, and the
-                // AI judge runs on the next scan or import instead.
-                container.afterChange(useAi = false)
+                // Refunds, splits and the widget follow in a background job: a receiver has about ten seconds, and on a
+                // slow phone with a long history they could run past it and be reported as not responding.
+                AfterSmsWorker.enqueue(context)
             } catch (_: Exception) {
                 // Never crash the receiver; a missed message can be picked up by the next inbox scan.
             } finally {
                 pending.finish()
             }
+        }
+    }
+}
+
+/** The work after a new SMS (refund pairing, split detection with local rules, the widget), run off the receiver. */
+class AfterSmsWorker(context: Context, params: androidx.work.WorkerParameters) : androidx.work.CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        val c = applicationContext.appContainerOrNull ?: return Result.success()
+        // A friend's payback may complete a shared payment. Local rules only; the AI judge runs on the next scan.
+        c.ledger.catchUp()
+        return Result.success()
+    }
+
+    companion object {
+        private const val WORK = "fintrack-after-sms"
+
+        /** One run after a burst of SMS: each new message appends, so none is skipped and none runs twice at once. */
+        fun enqueue(context: Context) {
+            val req = androidx.work.OneTimeWorkRequestBuilder<AfterSmsWorker>().build()
+            androidx.work.WorkManager.getInstance(context).enqueueUniqueWork(WORK, androidx.work.ExistingWorkPolicy.APPEND_OR_REPLACE, req)
         }
     }
 }

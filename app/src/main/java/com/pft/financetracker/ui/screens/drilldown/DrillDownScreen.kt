@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.drilldown
 
+import com.pft.financetracker.domain.books.Books
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,11 +25,13 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.InsightsEngine.Bucket
+import com.pft.financetracker.domain.insights.Period
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.AmountDisplay
@@ -60,13 +63,23 @@ import java.util.Locale
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: Category?, onBack: () -> Unit, onEdit: (Long) -> Unit) {
-    val txns by vm.transactions.collectAsState()
+fun DrillDownScreen(
+    vm: AppViewModel,
+    bucket: InsightsEngine.Bucket,
+    category: Category?,
+    onBack: () -> Unit,
+    onEdit: (Long) -> Unit,
+    /** The period the tapping screen showed; null follows Home's period. */
+    range: Period? = null,
+) {
+    val books by vm.books.collectAsState()
     val choice by vm.period.collectAsState()
     val loaded by vm.loaded.collectAsState()
-    val period = choice.period()
-    val list = InsightsEngine.drillDown(txns, period, bucket, category)
-    val total = list.sumOf { it.amountPaise }
+    val period = range ?: choice.period()
+    // Spend lists its refunds too, so the total is the same net figure the tapping screen showed.
+    val list = remember(books, choice, range, bucket, category) { books.payments(period, bucket, category) }
+    val total = Books.total(list, bucket)
+    val refunds = if (bucket == InsightsEngine.Bucket.SPEND) list.count { it.flow == com.pft.financetracker.domain.model.Flow.REFUND } else 0
     val name = category?.label ?: bucketLabel(bucket)
     val days = list.groupBy { dayOf(it.timestamp) }
 
@@ -101,6 +114,7 @@ fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: C
                     Spacer(Modifier.height(Space.sm))
                     Text(
                         if (list.isEmpty()) "Nothing in this period"
+                        else if (refunds > 0) "${countLabel(list.size - refunds, "payment")} less ${countLabel(refunds, "refund")} · the amounts below"
                         else "${countLabel(list.size, "payment")} · the sum of the amounts below",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -112,7 +126,7 @@ fun DrillDownScreen(vm: AppViewModel, bucket: InsightsEngine.Bucket, category: C
                 EmptyState(
                     Icons.Outlined.SearchOff,
                     "Nothing here for ${period.label}",
-                    "Payments that count towards this figure show up here. Choose another period on Home to look further back.",
+                    if (range != null) "Payments that count towards this figure show up here." else "Payments that count towards this figure show up here. Choose another period on Home to look further back.",
                 ) { SecondaryButton("Go back", onBack) }
             }
 
@@ -137,7 +151,9 @@ private fun bucketLabel(b: Bucket): String = when (b) {
     Bucket.SPEND -> "Spent"
     Bucket.REFUNDS -> "Refunds"
     Bucket.INCOME -> "Income"
-    Bucket.TRANSFERS -> "Transfers"
+    Bucket.TRANSFERS_OUT -> "Transfers & card bill payments"
+    Bucket.TRANSFERS_IN -> "Transfers in"
+    Bucket.PAID_BACK -> "Paid back by friends"
     Bucket.INVESTMENTS -> "Investments"
     Bucket.CASH -> "Cash withdrawals"
     Bucket.ALL -> "Everything"
@@ -147,7 +163,7 @@ private fun bucketLabel(b: Bucket): String = when (b) {
 @Composable
 private fun heroColor(b: Bucket): Color = when (b) {
     Bucket.INCOME, Bucket.REFUNDS -> Income
-    Bucket.TRANSFERS, Bucket.INVESTMENTS -> Neutral
+    Bucket.TRANSFERS_OUT, Bucket.TRANSFERS_IN, Bucket.PAID_BACK, Bucket.INVESTMENTS -> Neutral
     else -> MaterialTheme.colorScheme.onBackground
 }
 

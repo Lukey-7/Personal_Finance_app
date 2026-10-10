@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.pft.financetracker.data.bills.BillService
 import com.pft.financetracker.data.local.AppDatabase
+import com.pft.financetracker.data.local.toEntity
 import com.pft.financetracker.domain.bills.Bill
 import com.pft.financetracker.domain.bills.BillState
 import com.pft.financetracker.domain.bills.CardStatement
@@ -36,7 +37,9 @@ class BillServiceTest {
     @Test fun aBillAndALoanRoundTrip() = runBlocking {
         val loan = Bill(name = "Car loan", amountPaise = null, dueDay = 10, keyword = "hdfc loan", loan = Loan(5_00_000_00L, 900, 36, LocalDate.of(2026, 1, 10)))
         val id = bills.save(loan)
-        assertEquals(loan.copy(id = id), bills.all().single())
+        // A saved bill is stamped with when it was added.
+        assertEquals(loan.copy(id = id), bills.all().single().copy(createdAt = null))
+        assertTrue(bills.all().single().createdAt != null)
     }
 
     @Test fun aCardStatementCreatesThenUpdatesOneBillPerCard() = runBlocking {
@@ -48,8 +51,10 @@ class BillServiceTest {
         assertEquals(LocalDate.of(2026, 11, 18), b.fixedDue)
     }
 
+    private val septemberFirst = LocalDate.of(2026, 9, 1).atStartOfDay(zone).toInstant().toEpochMilli()
+
     @Test fun markingPaidByHandShowsPaidAndCanBeUndone() = runBlocking {
-        val id = bills.save(Bill(name = "Rent", amountPaise = 25_000_00L, dueDay = 5, keyword = null))
+        val id = bills.save(Bill(name = "Rent", amountPaise = 25_000_00L, dueDay = 5, keyword = null, createdAt = septemberFirst))
         val today = LocalDate.of(2026, 10, 6)
         assertTrue(bills.states(today).single().second is BillState.Overdue)
         bills.markPaid(id, LocalDate.of(2026, 10, 5))
@@ -77,5 +82,26 @@ class BillServiceTest {
         bills.fromStatement(CardStatement("1234", 12_345_67L, 620_00L, LocalDate.of(2026, 10, 18)), "HDFC Bank")
         assertEquals(LocalDate.of(2026, 11, 18), bills.all().single().fixedDue)
         assertEquals(8_000_00L, bills.all().single().amountPaise)
+    }
+
+    @Test fun editingABillKeepsTheDayItWasAdded() = runBlocking {
+        val id = bills.save(Bill(name = "Rent", amountPaise = 25_000_00L, dueDay = 5, keyword = null, createdAt = septemberFirst))
+        bills.save(bills.all().single().copy(name = "House rent"))
+        assertEquals(septemberFirst, bills.all().single { it.id == id }.createdAt)
+    }
+
+    @Test fun aMatchedPaymentCanBeUnlinkedFromTheBill() = runBlocking {
+        val id = bills.save(Bill(name = "Rent", amountPaise = 25_000_00L, dueDay = 5, keyword = null, createdAt = septemberFirst))
+        val paidAt = LocalDate.of(2026, 10, 4).atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        val txId = db.transactionDao().insert(
+            com.pft.financetracker.domain.model.Transaction(amountPaise = 25_000_00L, type = com.pft.financetracker.domain.model.TransactionType.DEBIT,
+                merchant = "NoBroker", category = com.pft.financetracker.domain.model.Category.BILLS, timestamp = paidAt, bankName = null,
+                accountRef = null, source = com.pft.financetracker.domain.model.Transaction.Source.SMS,
+                flow = com.pft.financetracker.domain.model.Flow.EXPENSE).toEntity()
+        )
+        val today = LocalDate.of(2026, 10, 6)
+        assertEquals(BillState.Paid(LocalDate.of(2026, 10, 5), txId), bills.states(today).single().second)
+        bills.ignorePayment(id, txId)
+        assertTrue(bills.states(today).single().second is BillState.Overdue)
     }
 }

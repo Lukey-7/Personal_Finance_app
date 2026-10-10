@@ -105,7 +105,7 @@ fun SpendChart(
         val shown = selected ?: if (compact) null else bars.indexOfLast { it.current }.takeIf { it >= 0 } ?: bars.lastIndex
         Row(Modifier.fillMaxWidth().heightIn(min = if (compact) 36.dp else 28.dp), verticalAlignment = Alignment.CenterVertically) {
             if (shown != null && shown in bars.indices) {
-                Text(caption?.invoke(shown) ?: bars[shown].label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f, fill = false))
+                Text(caption?.invoke(shown) ?: bars[shown].label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.width(Space.sm))
                 Text(money(bars[shown].paise.coerceAtLeast(0)), style = MoneyType.tile, maxLines = 1, softWrap = false)
                 if (compact && onOpen != null && !bars[shown].current) {
@@ -190,9 +190,11 @@ fun CategoryRing(
     centreValue: String,
     centreLabel: String,
     modifier: Modifier = Modifier,
+    /** What the percentages are of; defaults to the slices' sum. Pass the full total when the slices leave some out. */
+    totalValue: Double? = null,
     onOpen: ((Category) -> Unit)? = null,
 ) {
-    val total = slices.sumOf { it.value }.takeIf { it > 0 } ?: 1.0
+    val total = (totalValue ?: slices.sumOf { it.value }).takeIf { it > 0 } ?: 1.0
     val empty = surfaces.sunken
     val ring = surfaces.card
     val rm = reducedMotion

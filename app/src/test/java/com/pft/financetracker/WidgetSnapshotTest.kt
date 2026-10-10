@@ -57,4 +57,18 @@ class WidgetSnapshotTest {
         val s = WidgetSnapshot.build(listOf(spend(1_23_456_78)), emptyList(), emptyList(), hideAmounts = false, now = now, zone = zone)
         assertEquals("₹1,23,457", s.spent)
     }
+
+    @Test fun hiddenAmountsHideBillNamesToo() {
+        val loan = Bill(id = 3, name = "Car loan EMI", amountPaise = 15_000_00, dueDay = 10, keyword = null)
+        val overdue = WidgetSnapshot.build(emptyList(), emptyList(), listOf(loan to BillState.Overdue(LocalDate.of(2026, 10, 10), 5)), hideAmounts = true, now = now, zone = zone)
+        assertEquals("A bill is overdue", overdue.nextBill)
+        val upcoming = WidgetSnapshot.build(emptyList(), emptyList(), listOf(loan to BillState.Upcoming(LocalDate.of(2026, 10, 20), 5)), hideAmounts = true, now = now, zone = zone)
+        assertFalse(upcoming.nextBill!!.contains("Car loan"))
+        assertEquals("A bill · 20 Oct", upcoming.nextBill)
+    }
+
+    @Test fun aBudgetSpentExactlyIsNotSomeLeft() {
+        val s = WidgetSnapshot.build(listOf(spend(5_000_00)), listOf(Budget(Category.FOOD, 5_000_00)), emptyList(), hideAmounts = true, now = now, zone = zone)
+        assertEquals("Budgets all used", s.budgetLine)
+    }
 }

@@ -15,6 +15,7 @@ import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.domain.split.PayerClassifier
+import com.pft.financetracker.domain.split.SettleMatch
 import com.pft.financetracker.domain.split.SplitAiProvider
 import com.pft.financetracker.domain.split.SplitAiRequest
 import com.pft.financetracker.domain.split.SplitDecider
@@ -161,21 +162,32 @@ class SplitEngine(
             // are. Answers that did come back are cached for the next AI run.
             if (unanswered) return runLocked(useAi = false)
         }
-        val decided = SplitDecider.decide(local, aiProposals, asked, viewById, windowDays)
-            .map { d -> if (d.auto && d.proposal.allocations.any { it.txId in rejectedTransfers }) d.copy(auto = false) else d }
-            .associateBy { it.proposal.paymentId }
+        val current = splitDao.allSplits().filter { it.source != SplitSource.MANUAL.name && it.id !in frozen }
+        val currentLinks = splitDao.allLinks().groupBy { it.splitId }
+        val currentByPayment = current.filter { it.linkedTransactionId != null }.associateBy { it.linkedTransactionId!! }
+        // An applied split the new answer still matches stays applied even when its confidence dipped. Then splits that
+        // share a transfer stand together: one of them only suggested makes them all suggestions, so a transfer is never
+        // marked as a settlement while only part of it is accounted for (a Rs 1,200 transfer covering the dinner and
+        // the cab, with only the dinner applied).
+        val decided = SplitDecider.groupShared(
+            SplitDecider.decide(local, aiProposals, asked, viewById, windowDays)
+                .map { d -> if (d.auto && d.proposal.allocations.any { it.txId in rejectedTransfers }) d.copy(auto = false) else d }
+                .map { d ->
+                    val existing = currentByPayment[d.proposal.paymentId]
+                    val staysApplied = existing != null && existing.status == SplitStatus.APPLIED.name && sameLinks(d.proposal, currentLinks[existing.id].orEmpty())
+                    if (!d.auto && staysApplied) d.copy(auto = true) else d
+                }
+        ).associateBy { it.proposal.paymentId }
 
         // Reconcile the stored automatic splits with the new decisions.
         var applied = 0; var suggested = 0
-        val current = splitDao.allSplits().filter { it.source != SplitSource.MANUAL.name && it.id !in frozen }
-        val currentLinks = splitDao.allLinks().groupBy { it.splitId }
         val keep = mutableSetOf<Long>()
         for (s in current) {
             val pid = s.linkedTransactionId ?: continue
             val d = decided[pid]
             val ls = currentLinks[s.id].orEmpty()
             val same = d != null && sameLinks(d.proposal, ls)
-            val statusOk = d != null && (s.status == SplitStatus.APPLIED.name || !d.auto)
+            val statusOk = d != null && (s.status == SplitStatus.APPLIED.name) == d.auto
             if (same && statusOk) {
                 keep += pid
                 // Refresh the explanation (a late payback, AI agreement) without touching the numbers.
@@ -186,7 +198,7 @@ class SplitEngine(
         }
         for ((pid, d) in decided) {
             if (pid in keep) continue
-            create(d, viewById)
+            if (!create(d, viewById)) continue
             if (d.auto) applied++ else suggested++
         }
         return RunResult(applied, suggested, undone, asked.isNotEmpty())
@@ -201,12 +213,17 @@ class SplitEngine(
             val me = people.firstOrNull { it.isMe }?.personIndex ?: continue
             if (s.payerIndex != me) continue // someone else paid: nobody pays me back for it
             for (share in splitDao.sharesFor(s.id)) {
-                val open = share.amountPaise - share.settledPaise
-                if (share.personIndex == me || open <= 0) continue
+                if (share.personIndex == me) continue
+                // What is still owed, plus what was marked paid by a typed amount rather than a linked transfer: the
+                // friend's transfer for that part is still in the app as income, and is theirs, not another payment's.
+                val linkedPaise = links.filter { it.shareId == share.id }.sumOf { it.allocatedPaise }
+                val typedPaise = (share.settledPaise - linkedPaise).coerceAtLeast(0)
+                val cover = (share.amountPaise - share.settledPaise).coerceAtLeast(0) + typedPaise
+                if (cover <= 0) continue
                 val name = people.firstOrNull { it.personIndex == share.personIndex }?.name ?: continue
                 txns.filter { t ->
                     t.type == TransactionType.CREDIT && t.id !in linked && t.timestamp >= s.date - SplitSolver.DAY && t.timestamp - s.date <= window &&
-                        t.amountPaise <= open + 100 && PayerClassifier.sameParty(t.merchant, name)
+                        t.amountPaise <= cover + SettleMatch.roundUpPaise(cover) && PayerClassifier.sameParty(t.merchant, name)
                 }.forEach { out += it.id }
             }
         }
@@ -261,9 +278,18 @@ class SplitEngine(
     // Applying and undoing.
     // ---------------------------------------------------------------------------------------------------------
 
-    private suspend fun create(d: SplitDecision, view: Map<Long, SplitTx>) {
+    /**
+     * Store split [d] and, when it is applied, change the numbers. Nothing is stored when a row it uses changed since
+     * the view was read (the person edited the payment while the AI was being asked): the next run looks again.
+     */
+    private suspend fun create(d: SplitDecision, view: Map<Long, SplitTx>): Boolean {
         val p = d.proposal
-        val pay = view[p.paymentId] ?: return
+        val pay = view[p.paymentId] ?: return false
+        val unchanged = (listOf(pay.id) + p.allocations.map { it.txId }).all { id ->
+            val now = txDao.getById(id)?.toDomain()
+            now != null && !now.userEdited && now.amountPaise == view[id]?.amountPaise
+        }
+        if (!unchanged) return false
         val status = if (d.auto) SplitStatus.APPLIED else SplitStatus.SUGGESTED
         val mine = pay.amountPaise - p.allocatedPaise
         val senders = p.allocations.groupBy { a -> view[a.txId]?.merchant ?: "Friend" }
@@ -280,7 +306,7 @@ class SplitEngine(
             listOf(SplitShareEntity(0, splitId, 0, mine, 0)) +
                 senders.values.mapIndexed { i, parts -> parts.sumOf { it.paise }.let { SplitShareEntity(0, splitId, i + 1, it, it) } }
         )
-        val payTx = txDao.getById(pay.id)?.toDomain() ?: return
+        val payTx = txDao.getById(pay.id)?.toDomain() ?: run { splitDao.deleteSplit(splitId); return false }
         splitDao.insertLinks(
             listOf(SplitLinkEntity(0, splitId, pay.id, Role.PAYMENT, mine, payTx.flow.name, pay.amountPaise)) +
                 p.allocations.map { a ->
@@ -288,23 +314,40 @@ class SplitEngine(
                     SplitLinkEntity(0, splitId, a.txId, if (p.kind == SplitKind.ADVANCE) Role.ADVANCE else Role.PAYBACK, a.paise, (c?.flow ?: Flow.INCOME).let { f -> if (f == Flow.SETTLEMENT) Flow.INCOME else f }.name, null)
                 }
         )
-        if (status == SplitStatus.APPLIED) applyEffects(splitId)
+        if (status == SplitStatus.APPLIED && !applyEffects(splitId)) { splitDao.deleteSplit(splitId); return false }
+        return true
     }
 
     /**
      * Make the numbers reflect split [splitId]: the payment counts only my share, the transfers stop being income. A row
      * a person changed since the split was found (a suggestion waits for days) keeps what they set.
      */
-    private suspend fun applyEffects(splitId: Long) {
-        for (l in splitDao.linksFor(splitId)) {
+    private suspend fun applyEffects(splitId: Long): Boolean {
+        val ls = splitDao.linksFor(splitId)
+        // The payment changed since the split was worked out (edited while the AI was asked): change nothing at all,
+        // not even the transfers. The next run works it out again from the row as it is now.
+        ls.firstOrNull { it.role == Role.PAYMENT }?.let { pay ->
+            val t = txDao.getById(pay.transactionId)?.toDomain() ?: return false
+            if (t.amountPaise != (pay.prevAmountPaise ?: t.amountPaise)) return false
+        }
+        val splitsById = splitDao.allSplits().associateBy { it.id }
+        val allLinks = splitDao.allLinks()
+        for (l in ls) {
             val t = txDao.getById(l.transactionId)?.toDomain() ?: continue
             val updated = if (l.role == Role.PAYMENT) {
-                if (t.amountPaise == (l.prevAmountPaise ?: t.amountPaise)) t.copy(amountPaise = l.allocatedPaise, originalAmountPaise = l.prevAmountPaise ?: t.amountPaise) else t
+                t.copy(amountPaise = l.allocatedPaise, originalAmountPaise = l.prevAmountPaise ?: t.amountPaise)
             } else {
-                if (t.flow == Flow.SETTLEMENT || t.flow == (Flow.fromName(l.prevFlow) ?: Flow.INCOME)) t.copy(flow = Flow.SETTLEMENT) else t
+                // A transfer becomes a settlement only once applied splits account for all of it: a Rs 1,200 transfer
+                // of which only Rs 1,000 is applied stays income until the rest is applied too.
+                val usedPaise = allLinks.filter { o ->
+                    o.transactionId == t.id && o.role != Role.PAYMENT &&
+                        splitsById[o.splitId]?.let { it.source == SplitSource.MANUAL.name || it.status == SplitStatus.APPLIED.name } == true
+                }.sumOf { it.allocatedPaise }
+                if (usedPaise >= t.amountPaise && (t.flow == Flow.SETTLEMENT || t.flow == (Flow.fromName(l.prevFlow) ?: Flow.INCOME))) t.copy(flow = Flow.SETTLEMENT) else t
             }
             if (updated != t) txDao.update(updated.toEntity())
         }
+        return true
     }
 
     /** Restore every row [s] changed and delete it. A transfer still used by another applied split stays a settlement. */
@@ -330,38 +373,84 @@ class SplitEngine(
     // The user's decisions.
     // ---------------------------------------------------------------------------------------------------------
 
-    /** "Yes, apply it": a suggestion becomes applied, and the split is frozen as the user confirmed it. */
+    private class AcceptPlan(val split: SplitEntity, val payment: SplitLinkEntity?, val correctedTotal: Long?, val mine: Long?)
+
+    /**
+     * "Yes, apply it": a suggestion becomes applied, and the split is frozen as the user confirmed it. Automatic splits
+     * that share a friend's transfer with it (Rs 1,200 = Rs 1,000 for the dinner + Rs 200 for the cab) are accepted
+     * with it, so the transfer is accounted for in full; when any of them can't be applied, none is.
+     */
     suspend fun accept(splitId: Long): Boolean = lock.withLock {
-        var s = splitDao.getSplit(splitId) ?: return@withLock false
-        if (s.status != SplitStatus.APPLIED.name) {
-            val links = splitDao.linksFor(splitId)
+        val first = splitDao.getSplit(splitId) ?: return@withLock false
+        val group = sharedGroup(first)
+        val groupIds = group.map { it.id }.toSet()
+        val splitsById = splitDao.allSplits().associateBy { it.id }
+        val allLinks = splitDao.allLinks()
+        // A suggestion can wait for days. A friend's transfer that since settled a manual split (or another applied
+        // split), or that the person re-filed, can't pay for this one too: leave the suggestion as it is.
+        val elsewhere = allLinks.filter { l ->
+            l.splitId !in groupIds && l.role != Role.PAYMENT &&
+                splitsById[l.splitId]?.let { it.source == SplitSource.MANUAL.name || it.status == SplitStatus.APPLIED.name } == true
+        }
+        val groupFriends = allLinks.filter { it.splitId in groupIds && it.role != Role.PAYMENT }
+        val plans = mutableListOf<AcceptPlan>()
+        for (s in group) {
+            if (s.status == SplitStatus.APPLIED.name) continue
+            val links = allLinks.filter { it.splitId == s.id }
             val friends = links.filter { it.role != Role.PAYMENT }
-            // A suggestion can wait for days. A friend's transfer that since settled a manual split (or another applied
-            // split), or that the person re-filed, can't pay for this one too: leave the suggestion as it is.
-            val splitsById = splitDao.allSplits().associateBy { it.id }
-            val elsewhere = splitDao.allLinks().filter { l -> l.splitId != splitId && splitsById[l.splitId]?.let { it.source == SplitSource.MANUAL.name || it.status == SplitStatus.APPLIED.name } == true }
             for (l in friends) {
                 val t = txDao.getById(l.transactionId)?.toDomain() ?: return@withLock false
-                if (elsewhere.filter { it.transactionId == t.id }.sumOf { it.allocatedPaise } + l.allocatedPaise > t.amountPaise) return@withLock false
+                val claimed = elsewhere.filter { it.transactionId == t.id }.sumOf { it.allocatedPaise } + groupFriends.filter { it.transactionId == t.id }.sumOf { it.allocatedPaise }
+                if (claimed > t.amountPaise) return@withLock false
                 if (t.flow != Flow.SETTLEMENT && t.flow != (Flow.fromName(l.prevFlow) ?: Flow.INCOME)) return@withLock false
             }
             // The person corrected the bill since it was suggested: split the corrected amount (my share is what the
             // friends didn't pay of it). A corrected bill smaller than the friends' shares can't be this split.
             val pay = links.firstOrNull { it.role == Role.PAYMENT }
             val payTx = pay?.let { txDao.getById(it.transactionId)?.toDomain() }
+            if (pay != null && payTx == null) return@withLock false
             if (pay != null && payTx != null && payTx.amountPaise != (pay.prevAmountPaise ?: payTx.amountPaise)) {
                 val friendsPaise = friends.sumOf { it.allocatedPaise }
                 if (payTx.amountPaise <= friendsPaise) return@withLock false
-                val mine = payTx.amountPaise - friendsPaise
-                splitDao.updateLink(pay.copy(allocatedPaise = mine, prevAmountPaise = payTx.amountPaise))
-                splitDao.sharesFor(splitId).firstOrNull { it.personIndex == 0 }?.let { splitDao.updateShare(it.copy(amountPaise = mine)) }
-                s = s.copy(totalPaise = payTx.amountPaise)
+                plans += AcceptPlan(s, pay, payTx.amountPaise, payTx.amountPaise - friendsPaise)
+            } else {
+                plans += AcceptPlan(s, pay, null, null)
+            }
+        }
+        for (p in plans) {
+            var s = p.split
+            if (p.payment != null && p.correctedTotal != null && p.mine != null) {
+                splitDao.updateLink(p.payment.copy(allocatedPaise = p.mine, prevAmountPaise = p.correctedTotal))
+                splitDao.sharesFor(s.id).firstOrNull { it.personIndex == 0 }?.let { splitDao.updateShare(it.copy(amountPaise = p.mine)) }
+                s = s.copy(totalPaise = p.correctedTotal)
             }
             splitDao.updateSplit(s.copy(status = SplitStatus.APPLIED.name))
-            applyEffects(splitId)
         }
-        s.linkedTransactionId?.let { splitDao.insertDecision(SplitDecisionEntity(paymentTransactionId = it, decision = Decision.ACCEPTED)) }
+        // Statuses first, effects second: a shared transfer becomes a settlement once every split using it is applied.
+        var ok = true
+        for (p in plans) {
+            if (!applyEffects(p.split.id)) {
+                splitDao.getSplit(p.split.id)?.let { splitDao.updateSplit(it.copy(status = SplitStatus.SUGGESTED.name)) }
+                ok = false
+            }
+        }
+        if (!ok) return@withLock false
+        group.forEach { s -> s.linkedTransactionId?.let { splitDao.insertDecision(SplitDecisionEntity(paymentTransactionId = it, decision = Decision.ACCEPTED)) } }
         true
+    }
+
+    /** [start] and every automatic split joined to it through a friend's transfer they share, directly or in a chain. */
+    private suspend fun sharedGroup(start: SplitEntity): List<SplitEntity> {
+        val autos = splitDao.allSplits().filter { it.source != SplitSource.MANUAL.name }.associateBy { it.id }
+        val friendLinks = splitDao.allLinks().filter { autos.containsKey(it.splitId) && it.role != Role.PAYMENT }
+        val found = linkedSetOf(start.id)
+        val queue = ArrayDeque(listOf(start.id))
+        while (queue.isNotEmpty()) {
+            val id = queue.removeFirst()
+            val txs = friendLinks.filter { it.splitId == id }.map { it.transactionId }.toSet()
+            for (l in friendLinks) if (l.transactionId in txs && found.add(l.splitId)) queue.addLast(l.splitId)
+        }
+        return found.mapNotNull { autos[it] ?: start.takeIf { s -> s.id == it } }
     }
 
     /** "Not a split" / undo: everything goes back exactly as it was, and this payment is never split automatically again. */
@@ -369,15 +458,34 @@ class SplitEngine(
         val s = splitDao.getSplit(splitId) ?: return@withLock
         val byTx = txDao.getAll().map { it.toDomain() }.associateBy { it.id }
         val ls = splitDao.linksFor(splitId)
+        val splitsById = splitDao.allSplits().associateBy { it.id }
+        // Transfers another applied (or manual) split stands on are not this "no" to give: marking them rejected would
+        // turn that split back into a suggestion on the next run.
+        val claimedElsewhere = splitDao.allLinks().filter { l ->
+            l.splitId != splitId && splitsById[l.splitId]?.let { it.source == SplitSource.MANUAL.name || it.status == SplitStatus.APPLIED.name } == true
+        }.map { it.transactionId }.toSet()
         undo(s, ls, byTx, splitDao.allLinks())
         s.linkedTransactionId?.let { splitDao.insertDecision(SplitDecisionEntity(paymentTransactionId = it, decision = Decision.REJECTED)) }
         // "Not a split" also says these transfers weren't paybacks for it: don't hand them to another payment unasked.
-        ls.filter { it.role != Role.PAYMENT }.forEach { splitDao.insertDecision(SplitDecisionEntity(paymentTransactionId = it.transactionId, decision = Decision.REJECTED_TRANSFER)) }
+        ls.filter { it.role != Role.PAYMENT && it.transactionId !in claimedElsewhere }
+            .forEach { splitDao.insertDecision(SplitDecisionEntity(paymentTransactionId = it.transactionId, decision = Decision.REJECTED_TRANSFER)) }
     }
 
     /**
-     * A friend's transfer settles (part of) their share in a manual split: it stops counting as income and the
-     * share is marked paid. Undone by [unlinkManual] when the split is deleted.
+     * Before a manual split takes payment [paymentId]: an automatic split or suggestion on it is undone first (the
+     * payment back to its bank amount), so the two never both change it.
+     */
+    suspend fun releaseForManual(paymentId: Long) = lock.withLock {
+        val autos = splitDao.allSplits().filter { it.source != SplitSource.MANUAL.name && it.linkedTransactionId == paymentId }
+        for (s in autos) {
+            val byTx = txDao.getAll().map { it.toDomain() }.associateBy { it.id }
+            undo(s, splitDao.linksFor(s.id), byTx, splitDao.allLinks())
+        }
+    }
+
+    /**
+     * A transfer settles (part of) a share in a manual split: a friend's transfer to me, or my own payment to whoever
+     * paid. It stops counting as income or spend and the share is marked paid. Undone by [deleteManual].
      */
     suspend fun linkSettlement(splitId: Long, shareId: Long, newSettledPaise: Long, credit: Transaction, amountPaise: Long) = lock.withLock {
         // Read the row again: the settle sheet may have been open while an SMS, an import or an edit changed it.
@@ -388,13 +496,42 @@ class SplitEngine(
         splitDao.settle(shareId, settled)
     }
 
-    /** Before a manual split is deleted: transfers linked to it count as what they were again. */
-    suspend fun unlinkManual(splitId: Long) = lock.withLock {
+    /**
+     * Delete manual split [splitId] and put back what it changed: the payment it shrank to my share has its full
+     * amount again (without the "Split:" note), a "my share" row it added goes, and transfers linked to it count as
+     * what they were again.
+     */
+    suspend fun deleteManual(splitId: Long) = lock.withLock {
+        val s = splitDao.getSplit(splitId) ?: return@withLock
         for (l in splitDao.linksFor(splitId)) {
             if (l.role == Role.PAYMENT) continue
             val t = txDao.getById(l.transactionId)?.toDomain() ?: continue
-            txDao.update(t.copy(flow = Flow.fromName(l.prevFlow) ?: Flow.INCOME).toEntity())
+            // Only what the link set is put back: a row the person re-filed since stays as they filed it.
+            if (t.flow != Flow.SETTLEMENT) continue
+            val before = Flow.fromName(l.prevFlow)?.takeIf { it != Flow.SETTLEMENT } ?: if (t.type == TransactionType.DEBIT) Flow.EXPENSE else Flow.INCOME
+            txDao.update(t.copy(flow = before).toEntity())
+        }
+        val payment = s.linkedTransactionId?.let { txDao.getById(it)?.toDomain() }
+        if (payment != null && splitDao.allSplits().none { it.id != splitId && it.linkedTransactionId == payment.id }) {
+            val original = payment.originalAmountPaise
+            when {
+                payment.source == Transaction.Source.SPLIT -> txDao.delete(payment.toEntity())
+                original != null -> txDao.update(payment.copy(amountPaise = original, originalAmountPaise = null, note = withoutSplitNote(payment.note, s.title)).toEntity())
+            }
         }
         splitDao.deleteLinks(splitId)
+        splitDao.deleteSplit(splitId)
+    }
+
+    companion object {
+        /** The note a manual split adds to the payment it shrinks. [withoutSplitNote] takes it off again. */
+        fun splitNote(title: String, owedText: String): String = "Split: $title. $owedText owed to you."
+
+        /** [note] without the line [splitNote] added for the split called [title]; null when nothing else is left. */
+        fun withoutSplitNote(note: String?, title: String): String? {
+            if (note == null) return null
+            val rx = Regex("""\s*Split: ${Regex.escape(title)}\. .*? owed to you\.""")
+            return note.replace(rx, "").trim().ifBlank { null }
+        }
     }
 }

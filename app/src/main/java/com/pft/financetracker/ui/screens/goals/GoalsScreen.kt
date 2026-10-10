@@ -74,6 +74,7 @@ import com.pft.financetracker.ui.components.approxMoney
 import com.pft.financetracker.ui.components.bottomPadding
 import com.pft.financetracker.ui.components.countLabel
 import com.pft.financetracker.ui.components.money
+import com.pft.financetracker.ui.components.paiseToInput
 import com.pft.financetracker.ui.components.rememberAtTop
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.MoneyType
@@ -101,6 +102,7 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
     val loaded = dbLoaded && com.pft.financetracker.ui.isLoaded(goals)
     var editing by remember { mutableStateOf<Goal?>(null) }
     var adding by remember { mutableStateOf<GoalProgress?>(null) }
+    var takingOut by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     Scaffold(
@@ -138,13 +140,16 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
 
             item(key = "hero") { Hero(goals) }
             items(goals, key = { it.goal.id }) { p ->
-                GoalCard(p, Modifier.padding(horizontal = Gutter).animateItem(), onAdd = { adding = p }, onEdit = { editing = p.goal })
+                GoalCard(
+                    p, Modifier.padding(horizontal = Gutter).animateItem(),
+                    onAdd = { takingOut = false; adding = p }, onTakeOut = { takingOut = true; adding = p }, onEdit = { editing = p.goal },
+                )
             }
         }
     }
 
     adding?.let { p ->
-        AddMoneySheet(p, lastMonthSavings, onSave = { v -> vm.contributeToGoal(p.goal.id, v) }, onDismiss = { adding = null })
+        AddMoneySheet(p, lastMonthSavings, takingOut, onSave = { v -> vm.contributeToGoal(p.goal.id, v) }, onDismiss = { adding = null })
     }
 
     editing?.let { g ->
@@ -183,7 +188,7 @@ private fun goalTag(p: GoalProgress): Pair<String, Color>? = when {
 
 /** One goal: name and date, progress bar, "₹X of ₹Y · 42%", what it needs a month, and its actions. */
 @Composable
-private fun GoalCard(p: GoalProgress, modifier: Modifier, onAdd: () -> Unit, onEdit: () -> Unit) {
+private fun GoalCard(p: GoalProgress, modifier: Modifier, onAdd: () -> Unit, onTakeOut: () -> Unit, onEdit: () -> Unit) {
     val tag = goalTag(p)
     FinCard(modifier, spacing = Space.md) {
         Row(verticalAlignment = Alignment.Top) {
@@ -223,8 +228,10 @@ private fun GoalCard(p: GoalProgress, modifier: Modifier, onAdd: () -> Unit, onE
             color = if (p.late || (!p.onTrack && !p.done)) Expense else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
+            // A reached goal can still have money taken out of it (spent on the trip, moved elsewhere).
             if (!p.done) TextAction("Add money", onAdd, alignStart = true)
-            TextAction("Edit", onEdit, alignStart = p.done)
+            else if (p.savedPaise > 0) TextAction("Take money out", onTakeOut, alignStart = true)
+            TextAction("Edit", onEdit, alignStart = p.done && p.savedPaise <= 0)
         }
     }
 }
@@ -249,39 +256,57 @@ private fun Field(
     )
 }
 
-/** Put money into a goal (or take it out with a minus), offering last month's savings as the amount. */
+/**
+ * Put money into a goal (or take it out with a minus), offering last month's savings as the amount. With [takeOut]
+ * (a reached goal) the amount typed is taken out. Never more than is saved can come out.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddMoneySheet(p: GoalProgress, lastMonthSavings: Long, onSave: (Long) -> Unit, onDismiss: () -> Unit) {
-    val suggestedRupees = GoalMath.suggestedTopUp(lastMonthSavings, p.remainingPaise) / 100
-    val suggestedText = suggestedRupees.takeIf { it > 0 }?.toString() ?: ""
+private fun AddMoneySheet(p: GoalProgress, lastMonthSavings: Long, takeOut: Boolean, onSave: (Long) -> Unit, onDismiss: () -> Unit) {
+    val suggested = if (takeOut) 0L else GoalMath.suggestedTopUp(lastMonthSavings, p.remainingPaise)
+    val suggestedText = suggested.takeIf { it > 0 }?.let { paiseToInput(it) } ?: ""
     var amount by remember { mutableStateOf(suggestedText) }
-    val v = amount.trim().let { s -> if (s.startsWith("-")) Money.parsePaise(s.drop(1))?.let { -it } else Money.parsePaise(s) }
+    var saving by remember { mutableStateOf(false) }
+    val typed = amount.trim().let { s -> if (s.startsWith("-")) Money.parsePaise(s.drop(1))?.let { -it } else Money.parsePaise(s) }
+    val v = if (takeOut) typed?.let { -kotlin.math.abs(it) } else typed
+    val tooMuch = v != null && v < 0 && !GoalMath.canChange(v, p.savedPaise)
 
     val haptics = rememberHaptics()
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     fun close(after: () -> Unit) { scope.launch { state.hide() }.invokeOnCompletion { after() } }
 
-    FinSheet(onDismiss = onDismiss, title = "Add to ${p.goal.name}", state = state) {
+    FinSheet(onDismiss = onDismiss, title = if (takeOut) "Take from ${p.goal.name}" else "Add to ${p.goal.name}", state = state) {
         Text(
             "${money(p.savedPaise)} saved · ${money(p.remainingPaise)} to go",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (lastMonthSavings > 0) {
+        if (!takeOut && lastMonthSavings > 0) {
             SoftPanel(spacing = Space.sm) {
                 Text("Last month you saved ${money(lastMonthSavings)}.", style = MaterialTheme.typography.bodyMedium)
-                if (suggestedRupees > 0) {
-                    PillChip(amount.trim() == suggestedText, "Put in ${money(suggestedRupees * 100)} now") { amount = suggestedText }
+                if (suggested > 0) {
+                    PillChip(amount.trim() == suggestedText, "Put in ${money(suggested)} now") { amount = suggestedText }
                 }
             }
         }
-        Field(amount, { amount = it }, "Amount (₹), minus to take out")
+        Field(amount, { amount = it }, if (takeOut) "Amount to take out (₹)" else "Amount (₹), minus to take out")
+        if (tooMuch) {
+            Text(
+                "You can take out up to ${money(GoalMath.maxWithdrawal(p.savedPaise))}, what is saved in this goal.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Expense,
+            )
+        }
         PrimaryButton(
             "Save",
-            onClick = { haptics.confirm(); onSave(v!!); close(onDismiss) },
-            enabled = v != null && v != 0L,
+            onClick = {
+                // One save per sheet, however fast the button is tapped while it closes.
+                if (saving || v == null) return@PrimaryButton
+                saving = true
+                haptics.confirm(); onSave(v); close(onDismiss)
+            },
+            enabled = v != null && v != 0L && !tooMuch && !saving,
         )
     }
 }
@@ -291,7 +316,8 @@ private fun AddMoneySheet(p: GoalProgress, lastMonthSavings: Long, onSave: (Long
 @Composable
 private fun GoalForm(g: Goal, onSave: (Goal) -> Unit, onDelete: () -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(g.name) }
-    var target by remember { mutableStateOf(if (g.targetPaise > 0) (g.targetPaise / 100).toString() else "") }
+    var target by remember { mutableStateOf(if (g.targetPaise > 0) paiseToInput(g.targetPaise) else "") }
+    var saving by remember { mutableStateOf(false) }
     var date by remember { mutableStateOf(g.targetDate?.toString() ?: "") }
     var confirmDelete by remember { mutableStateOf(false) }
     val t = Money.parsePaise(target)?.takeIf { it > 0 }
@@ -309,8 +335,12 @@ private fun GoalForm(g: Goal, onSave: (Goal) -> Unit, onDelete: () -> Unit, onDi
         DateField("Target date (optional)", d, { date = it.toString() }, onClear = { date = "" })
         PrimaryButton(
             "Save",
-            onClick = { haptics.confirm(); onSave(g.copy(name = name.trim(), targetPaise = t!!, targetDate = d)); close(onDismiss) },
-            enabled = valid,
+            onClick = {
+                if (saving || t == null) return@PrimaryButton
+                saving = true
+                haptics.confirm(); onSave(g.copy(name = name.trim(), targetPaise = t, targetDate = d)); close(onDismiss)
+            },
+            enabled = valid && !saving,
         )
         if (g.id != 0L) {
             Box(Modifier.fillMaxWidth().heightIn(min = 48.dp), contentAlignment = Alignment.Center) {

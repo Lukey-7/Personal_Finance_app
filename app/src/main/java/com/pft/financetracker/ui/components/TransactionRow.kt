@@ -202,10 +202,10 @@ fun DayHeader(day: String, date: String?, netPaise: Long, modifier: Modifier = M
                 .semantics(mergeDescendants = true) { heading() },
             verticalAlignment = Alignment.Bottom,
         ) {
-            Text(day, style = MaterialTheme.typography.titleSmall)
+            Text(day, style = MaterialTheme.typography.titleSmall, maxLines = 1, softWrap = false)
             if (date != null) {
                 Spacer(Modifier.width(6.dp))
-                Text(date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(date, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.weight(1f))
             if (net != null) Text(

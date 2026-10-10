@@ -71,7 +71,16 @@ object SplitCalculator {
 
     /** Net balances across open splits from "my" point of view: positive = owed to me. */
     fun balances(splits: List<Split>): List<Balance> {
+        // One person is one balance however their name was typed ("Asha", "asha "). A "Person 2" filled in by the
+        // quick-add chips is someone different in every split, so it is kept to its own split.
         val net = linkedMapOf<String, Long>()
+        val shown = mutableMapOf<String, String>()
+        fun add(s: Split, rawName: String, paise: Long) {
+            val name = rawName.trim()
+            val key = if (placeholder.matches(name)) "split:${s.id}:${s.createdAt}:$name" else name.lowercase()
+            shown.getOrPut(key) { name }
+            net[key] = (net[key] ?: 0L) + paise
+        }
         for (s in splits) {
             val me = s.myIndex
             if (me < 0) continue
@@ -79,16 +88,19 @@ object SplitCalculator {
                 if (share.personIndex == s.payerIndex) continue
                 val remaining = share.remainingPaise
                 if (remaining <= 0) continue
-                val name = s.people[share.personIndex].name
+                val person = s.people.getOrNull(share.personIndex) ?: continue
                 if (s.payerIndex == me) {
                     // they owe me
-                    net[name] = (net[name] ?: 0L) + remaining
+                    add(s, person.name, remaining)
                 } else if (share.personIndex == me) {
-                    val payer = s.people[s.payerIndex].name
-                    net[payer] = (net[payer] ?: 0L) - remaining
+                    val payer = s.people.getOrNull(s.payerIndex) ?: continue
+                    add(s, payer.name, -remaining)
                 }
             }
         }
-        return net.filter { it.value != 0L }.map { Balance(it.key, it.value) }.sortedByDescending { it.netPaise }
+        return net.filter { it.value != 0L }.map { Balance(shown.getValue(it.key), it.value) }.sortedByDescending { it.netPaise }
     }
+
+    /** The names the "2 people", "3 people" chips fill in. */
+    private val placeholder = Regex("""Person \d+""")
 }

@@ -11,7 +11,7 @@ import com.pft.financetracker.data.prefs.SettingsRepository
 import com.pft.financetracker.data.repository.SmsLogRepository
 import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.domain.categorize.Categorizer
-import com.pft.financetracker.domain.model.Flow
+import com.pft.financetracker.domain.ledger.SamePayment
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.parser.FlowClassifier
 import com.pft.financetracker.domain.parser.Hashing
@@ -20,6 +20,8 @@ import com.pft.financetracker.domain.parser.SmsMessage
 import com.pft.financetracker.domain.parser.SmsParser
 import com.pft.financetracker.domain.split.PayerClassifier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 data class ImportStats(val runId: Long, val scanned: Int, val inserted: Int, val queuedForReview: Int, val ignored: Int, val duplicates: Int)
@@ -50,8 +52,6 @@ class SmsImporter(
     private val settings: SettingsRepository,
     /** A card statement alert (ignored as a transaction) still tells us a bill is due. */
     private val onCardStatement: suspend (com.pft.financetracker.domain.bills.CardStatement, String?) -> Unit = { _, _ -> },
-    /** The "Avl Bal" an alert reports, for net worth: account last digits, bank, balance, message time. */
-    private val onBalance: suspend (String, String?, Long, Long) -> Unit = { _, _, _, _ -> },
 ) {
     fun hasSmsPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
@@ -78,6 +78,17 @@ class SmsImporter(
     }
 
     enum class Outcome { INSERTED, REVIEW, IGNORED, DUPLICATE }
+
+    companion object {
+        /** One importer at a time across the app: the SMS receiver and an inbox scan each build their own calls. */
+        private val processLock = Mutex()
+
+        /**
+         * The log key that remembers a deleted statement row. Its own prefix, so the v1.0.0 tombstone lookup (which
+         * matches "deleted:%") never lets a statement deletion swallow an SMS.
+         */
+        fun statementTombstone(rowHash: String) = "stmtdeleted:$rowHash"
+    }
 
     /** The live receiver and an inbox scan see one message within seconds; identical alerts further apart are separate payments. */
     private val sameMessageWindowMs = 5 * 60_000L
@@ -114,6 +125,14 @@ class SmsImporter(
      */
     suspend fun forgetDeleted(t: Transaction) {
         val hash = t.smsHash ?: return
+        // A statement row: remember its row hash, so importing the same statement again does not bring it back.
+        if (t.source == Transaction.Source.STATEMENT) {
+            if (hash.startsWith("stmt:")) log.log(
+                SmsLogEntity(sender = "Statement", receivedAt = t.timestamp, outcome = Outcomes.IGNORED, reason = Outcomes.DELETED_BY_USER,
+                    amountPaise = t.amountPaise, type = t.type.name, transactionId = null, smsHash = statementTombstone(hash), runId = System.currentTimeMillis())
+            )
+            return
+        }
         if (log.updateOutcome(hash, Outcomes.IGNORED, Outcomes.DELETED_BY_USER, null) > 0 || t.source != Transaction.Source.SMS) return
         log.log(
             SmsLogEntity(sender = t.bankName ?: t.merchant, receivedAt = t.timestamp, outcome = Outcomes.IGNORED, reason = Outcomes.DELETED_BY_USER,
@@ -146,7 +165,13 @@ class SmsImporter(
         log.updateOutcome(logged.smsHash, Outcomes.SAVED, "repaired_${p.merchant}", existing.id)
     }
 
-    suspend fun process(sms: SmsMessage, runId: Long = System.currentTimeMillis()): Outcome {
+    /**
+     * The live receiver and an inbox scan can run at once. Both check for a duplicate and then insert, so without one
+     * lock a bank alert and its UPI-app twin arriving together could both be inserted.
+     */
+    suspend fun process(sms: SmsMessage, runId: Long = System.currentTimeMillis()): Outcome = processLock.withLock { processUnlocked(sms, runId) }
+
+    private suspend fun processUnlocked(sms: SmsMessage, runId: Long): Outcome {
         val hash = when (val s = seen(Hashing.smsHash(sms.sender, sms.body, sms.receivedAt), sms.receivedAt)) {
             is Seen.New -> s.hash
             is Seen.Settled -> { s.log?.let { repairIfWrong(sms, it) }; return Outcome.DUPLICATE }
@@ -158,20 +183,19 @@ class SmsImporter(
         return when (val r = parser.parse(sms)) {
             is ParseResult.Success -> {
                 val p = r.transaction
-                p.accountRef?.let { ref ->
-                    com.pft.financetracker.domain.networth.BalanceExtractor.extract(sms.body)?.let { runCatching { onBalance(ref, p.bankName, it, p.timestamp) } }
-                }
-                val category = Categorizer.categorize(p.merchant, p.type, p.bankName)
+                val guessed = Categorizer.categorize(p.merchant, p.type, p.bankName)
+                val flow = FlowClassifier.classify(p.type, sms.body, p.merchant, guessed)
+                val category = FlowClassifier.categoryFor(flow, guessed)
                 val candidate = Transaction(
                     amountPaise = p.amountPaise,
                     type = p.type,
-                    merchant = p.merchant,
+                    merchant = FlowClassifier.nameFor(flow, sms.body, p.merchant, p.bankName),
                     category = category,
                     timestamp = p.timestamp,
                     bankName = p.bankName,
                     accountRef = p.accountRef,
                     source = Transaction.Source.SMS,
-                    flow = FlowClassifier.classify(p.type, sms.body, p.merchant, category),
+                    flow = flow,
                     smsHash = hash,
                     refNumber = p.refNumber,
                     confidence = p.confidence,
@@ -179,32 +203,22 @@ class SmsImporter(
                     // Decided now, while the full text (VPA, P2A/P2M markers) is at hand: the body is not stored.
                     counterpartyKind = PayerClassifier.classify(sms.body, p.merchant, p.type),
                 )
-                val existing = repo.findLikelyDuplicate(candidate) { log.pointsAt(it) }
-                if (existing != null) {
+                val found = SamePayment.find(candidate, repo.stored) { log.pointsAt(it) }
+                val existing = found?.row
+                if (found != null && existing != null) {
                     // Same payment reported by a second sender, or a row imported by an older version whose
                     // hash no longer matches. Keep one record: the richer of the two for the descriptive
                     // fields, but always this parse's flow and category. We are holding the full SMS body,
                     // whereas a row carried over from v1.0.0 only ever had a flow guessed from its category,
                     // so a rescan is the moment a mis-filed card-bill payment or transfer gets corrected.
-                    val merged = if (existing.userEdited) {
-                        // A person corrected this row: only fill in identifiers it lacks.
-                        existing.copy(refNumber = existing.refNumber ?: candidate.refNumber, accountRef = existing.accountRef ?: candidate.accountRef)
-                    } else {
-                        // Keep the richer descriptive fields, take this parse's direction/flow/category (we hold the
-                        // full SMS body), but never the amount or note: a split may have shrunk the amount on purpose.
-                        repo.richer(existing, candidate).copy(
-                            // A split owns a settled transfer's flow: re-reading its SMS must not make it income again.
-                            id = existing.id, smsHash = existing.smsHash, type = candidate.type,
-                            flow = if (existing.flow == Flow.SETTLEMENT) existing.flow else candidate.flow, category = candidate.category,
-                            amountPaise = existing.amountPaise, originalAmountPaise = existing.originalAmountPaise, note = existing.note,
-                            counterpartyKind = existing.counterpartyKind ?: candidate.counterpartyKind, importBatchId = existing.importBatchId,
-                            source = existing.source,
-                            // A statement row only knew the day; the SMS knows the minute.
-                            timestamp = if (existing.source == Transaction.Source.STATEMENT) candidate.timestamp else existing.timestamp,
-                        )
-                    }
+                    val merged = SamePayment.merge(existing, candidate)
                     if (merged != existing) repo.update(merged)
-                    val why = if (candidate.refNumber != null && candidate.refNumber == existing.refNumber) "same_ref_${existing.id}" else "same_amount_within_10min_${existing.id}"
+                    val why = when (found.why) {
+                        SamePayment.Why.REF -> "same_ref_${existing.id}"
+                        SamePayment.Why.STATEMENT -> "same_statement_row_${existing.id}"
+                        SamePayment.Why.LEGACY -> "same_older_import_${existing.id}"
+                        SamePayment.Why.WINDOW -> "same_amount_within_10min_${existing.id}"
+                    }
                     log.log(entry(Outcomes.DUPLICATE, why, p.amountPaise, p.type.name, existing.id))
                     return Outcome.DUPLICATE
                 }
@@ -246,12 +260,13 @@ class SmsImporter(
     }
 
     /** Re-read one message's body from the phone's inbox (for the log detail screen). Nothing is stored. */
-    fun readBody(sender: String, receivedAt: Long): String? = SmsReader.readOne(context, sender, receivedAt)
+    /** The message's text from the inbox; [hash] picks the exact one when the same sender sent several close together. */
+    fun readBody(sender: String, receivedAt: Long, hash: String? = null): String? = SmsReader.readOne(context, sender, receivedAt, hash)
 
     /** The user says an ignored/duplicate message was actually a transaction: put it in the review queue. */
     suspend fun sendToReview(logId: Long): Boolean {
         val e = log.getById(logId) ?: return false
-        val body = readBody(e.sender, e.receivedAt) ?: return false
+        val body = readBody(e.sender, e.receivedAt, e.smsHash) ?: return false
         val ok = repo.enqueueReview(ReviewItemEntity(sender = e.sender, body = body, receivedAt = e.receivedAt, smsHash = e.smsHash, guessedAmountPaise = e.amountPaise, guessedType = e.type, reason = "user_flagged"))
         if (ok) log.updateOutcome(e.smsHash, Outcomes.REVIEW, "user_flagged", null)
         return ok
@@ -292,7 +307,7 @@ object SmsReader {
     }
 
     /** Fetch one body by sender + timestamp (±2 min, to cover sent/received skew). */
-    fun readOne(context: Context, sender: String, at: Long): String? {
+    fun readOne(context: Context, sender: String, at: Long, hash: String? = null): String? {
         val projection = arrayOf(Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.DATE_SENT)
         val cursor = context.contentResolver.query(
             Telephony.Sms.Inbox.CONTENT_URI, projection,
@@ -300,7 +315,29 @@ object SmsReader {
             arrayOf(sender, (at - 120_000).toString(), (at + 120_000).toString(), (at - 120_000).toString(), (at + 120_000).toString()),
             "${Telephony.Sms.DATE} ASC"
         ) ?: return null
-        cursor.use { c -> return if (c.moveToFirst()) c.getString(c.getColumnIndexOrThrow(Telephony.Sms.BODY)) else null }
+        val found = mutableListOf<InboxCandidate>()
+        cursor.use { c ->
+            val bodyCol = c.getColumnIndexOrThrow(Telephony.Sms.BODY)
+            val dateCol = c.getColumnIndexOrThrow(Telephony.Sms.DATE)
+            val sentCol = c.getColumnIndexOrThrow(Telephony.Sms.DATE_SENT)
+            while (c.moveToNext()) {
+                val sent = c.getLong(sentCol).takeIf { it > 0 } ?: c.getLong(dateCol)
+                found += InboxCandidate(c.getString(bodyCol) ?: continue, sent)
+            }
+        }
+        return pick(found, sender, at, hash)
+    }
+
+    class InboxCandidate(val body: String, val sentAt: Long)
+
+    /**
+     * The message meant: the one whose fingerprint is [hash] (ignoring a "#n" repeat suffix), else the one closest in
+     * time. Taking simply the first in the window showed a neighbouring message from the same bank.
+     */
+    fun pick(found: List<InboxCandidate>, sender: String, at: Long, hash: String?): String? {
+        val base = hash?.substringBefore('#')
+        if (base != null) found.firstOrNull { com.pft.financetracker.domain.parser.Hashing.smsHash(sender, it.body, it.sentAt) == base }?.let { return it.body }
+        return found.minByOrNull { kotlin.math.abs(it.sentAt - at) }?.body
     }
 
     /** Sender IDs like "VM-HDFCBK", "AX-ICICIB-S", "JD-PAYTMB" contain letters; personal numbers do not. */

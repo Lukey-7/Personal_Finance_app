@@ -1,5 +1,7 @@
 package com.pft.financetracker
 
+import com.pft.financetracker.domain.books.Books
+import com.pft.financetracker.domain.books.CountingRules
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.Periods
 import org.junit.Assert.assertEquals
@@ -56,7 +58,16 @@ class PeriodCompareTest {
             bankName = null, accountRef = null, source = com.pft.financetracker.domain.model.Transaction.Source.SMS,
             flow = com.pft.financetracker.domain.model.Flow.EXPENSE)
         val txns = listOf(food(300_00, 2026, Calendar.SEPTEMBER, 2), food(5_000_00, 2026, Calendar.SEPTEMBER, 20), food(1_000_00, 2026, Calendar.OCTOBER, 3))
-        val tips = InsightsEngine.suggestions(txns, emptyList(), now)
+        val tips = Books.of(txns).suggestions(emptyList(), now)
         org.junit.Assert.assertTrue(tips.joinToString { it.title }, tips.any { it.title.startsWith("Food & Dining up") })
     }
+
+    @Test fun theFirstOfTheMonthComparesWithOneDayNotARange() {
+        val oct1 = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 1, 9, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+        assertEquals("1 Sep", Periods.sameSpanBefore(Periods.month(0, oct1), Periods.month(-1, oct1), oct1).label)
+        val midnight = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 1, 0, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+        assertEquals("1 Sep", Periods.sameSpanBefore(Periods.month(0, midnight), Periods.month(-1, midnight), midnight).label)
+    }
+
+    @Test fun weeksAreNamedWithoutAZeroAndInFull() = assertEquals("Week of 5 Oct", Periods.week(0, now).label)
 }

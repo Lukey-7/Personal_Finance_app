@@ -40,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.ui.AppViewModel
@@ -65,11 +64,11 @@ import com.pft.financetracker.ui.components.TextAction
 import com.pft.financetracker.ui.components.Tone
 import com.pft.financetracker.ui.components.bottomPadding
 import com.pft.financetracker.ui.components.money
+import com.pft.financetracker.ui.model.BudgetLines
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.MoneyType
 import com.pft.financetracker.ui.theme.rememberHaptics
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 /**
  * Monthly budgets: spend against the limits this month as the hero, then every spending category with its bar (striped
@@ -78,10 +77,10 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
-    val txns by vm.transactions.collectAsState()
+    val books by vm.books.collectAsState()
     val budgets by vm.budgets.collectAsState()
     val loaded by vm.loaded.collectAsState()
-    val summary = InsightsEngine.summarize(txns, Periods.month())
+    val summary = books.summary(Periods.month())
     var editing by remember { mutableStateOf<Category?>(null) }
     var input by remember { mutableStateOf("") }
 
@@ -142,7 +141,7 @@ fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
             onInput = { input = it },
             limit = limitOf(cat),
             spent = spentOf(cat),
-            onSave = { vm.setBudget(cat, (input.toLongOrNull() ?: 0L) * 100) },
+            onSave = { paise -> vm.setBudget(cat, paise) },
             onRemove = { vm.setBudget(cat, 0L) },
             onDismiss = { editing = null },
         )
@@ -173,8 +172,7 @@ private fun Hero(period: String, limits: Long, spent: Long, totalSpent: Long) {
         ProgressMeter((spent.toDouble() / limits).toFloat(), over = over)
         Spacer(Modifier.height(Space.sm))
         Text(
-            if (over) "of ${money(limits)} budgeted · ${money(spent - limits)} over"
-            else "of ${money(limits)} budgeted · ${money(limits - spent)} left",
+            BudgetLines.hero(spent, limits),
             style = MaterialTheme.typography.bodyMedium,
             color = if (over) Expense else MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -223,7 +221,7 @@ private fun BudgetRow(cat: Category, limit: Long?, spent: Long, onClick: () -> U
             if (limit != null) {
                 ProgressMeter(frac, over = over, height = 6.dp)
                 Text(
-                    if (over) "${money(spent - limit)} over" else "${money(limit - spent)} left · ${(frac * 100).roundToInt()}% used",
+                    BudgetLines.row(spent, limit),
                     style = MaterialTheme.typography.labelMedium,
                     color = if (over) Expense else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -234,7 +232,7 @@ private fun BudgetRow(cat: Category, limit: Long?, spent: Long, onClick: () -> U
     }
 }
 
-/** Set, change or remove one category's monthly limit. 0 (or Remove limit) takes it away. */
+/** Set, change or remove one category's monthly limit. 0 (or Remove limit) takes it away; a blank field asks for a figure. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BudgetSheet(
@@ -243,11 +241,12 @@ private fun BudgetSheet(
     onInput: (String) -> Unit,
     limit: Long?,
     spent: Long,
-    onSave: () -> Unit,
+    onSave: (Long) -> Unit,
     onRemove: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val haptics = rememberHaptics()
+    var error by remember { mutableStateOf<String?>(null) }
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     fun close(after: () -> Unit) { scope.launch { state.hide() }.invokeOnCompletion { after() } }
@@ -263,13 +262,22 @@ private fun BudgetSheet(
             }
         }
         OutlinedTextField(
-            input, { onInput(it.filter { ch -> ch.isDigit() }) }, Modifier.fillMaxWidth(),
+            input, { error = null; onInput(it.filter { ch -> ch.isDigit() }) }, Modifier.fillMaxWidth(),
             label = { Text("Monthly limit (₹), 0 to remove") },
+            isError = error != null,
+            supportingText = error?.let { e -> { Text(e) } },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             singleLine = true,
             shape = ControlShape,
         )
-        PrimaryButton("Save", { haptics.confirm(); onSave(); close(onDismiss) })
+        PrimaryButton("Save", {
+            when (val r = BudgetLines.parse(input)) {
+                is BudgetLines.Input.Invalid -> { error = r.message }
+                is BudgetLines.Input.Limit -> { haptics.confirm(); onSave(r.paise); close(onDismiss) }
+                // 0 takes the limit away; with no limit set there is nothing to remove, so the sheet just closes.
+                BudgetLines.Input.Remove -> { haptics.confirm(); if (limit != null) onRemove(); close(onDismiss) }
+            }
+        })
         if (limit != null) {
             TextAction("Remove limit", { haptics.confirm(); onRemove(); close(onDismiss) }, Modifier.align(Alignment.CenterHorizontally), tone = Tone.Danger)
         }

@@ -12,7 +12,10 @@ import com.pft.financetracker.data.split.SplitEngine
 import com.pft.financetracker.domain.importer.CsvReader
 import com.pft.financetracker.domain.importer.ImportFormat
 import com.pft.financetracker.domain.importer.StatementInterpreter
+import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Transaction
+import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.domain.parser.SmsMessage
 import com.pft.financetracker.domain.parser.SmsParser
 import kotlinx.coroutines.flow.first
@@ -120,5 +123,44 @@ class StatementImporterTest {
         assertEquals(1, b.added)
         assertEquals(1, b.needsReview)
         assertEquals("statement_balance_mismatch", repo.reviewQueue.first().single().reason)
+    }
+
+    // ---- v1.5 review: references and deletions ----
+
+    private val refHead = "Date,Narration,Chq./Ref.No.,Withdrawal Amt.,Deposit Amt.,Closing Balance"
+    private fun ddmmyyyy(t: Long) = SimpleDateFormat("dd/MM/yyyy", Locale.ENGLISH).format(t)
+    private fun statement(rows: String) = StatementInterpreter.interpret(CsvReader.read("$refHead\n$rows".toByteArray()), ImportFormat.CSV)
+    private suspend fun smsRow(type: TransactionType, merchant: String, ref: String, at: Long) = repo.insert(
+        Transaction(amountPaise = 50_000, type = type, merchant = merchant, category = Category.OTHER, timestamp = at, bankName = "HDFC Bank", accountRef = null,
+            source = Transaction.Source.SMS, flow = if (type == TransactionType.DEBIT) Flow.EXPENSE else Flow.INCOME, smsHash = "sms-$merchant-$ref", refNumber = ref)
+    )
+
+    /** Money received and money paid can share a reference number; only the same direction is the same payment. */
+    @Test fun aRefMatchNeedsTheSameDirection() = runBlocking {
+        smsRow(TransactionType.CREDIT, "Kiran Rao", "412345678901", at(1, 11))
+        val p = stmt.preview(statement("${ddmmyyyy(at(1, 0))},UPI-BUNDL TECHNOLOGIES-PAYMENT,412345678901,500.00,,9500.00"), "x.csv")
+        assertEquals(1, p.newRows.size)
+    }
+
+    /** Statements pad references with zeros; the SMS has the bare RRN. */
+    @Test fun aPaddedStatementRefMatchesTheSmsRef() = runBlocking {
+        smsRow(TransactionType.DEBIT, "Swiggy", "427712345678", at(1, 13))
+        val p = stmt.preview(statement("${ddmmyyyy(at(1, 0))},UPI-BUNDL TECHNOLOGIES-PAYMENT,000427712345678,500.00,,9500.00"), "x.csv")
+        assertEquals(0, p.newRows.size)
+    }
+
+    /** A row the person deleted does not come back when the same statement is imported again. */
+    @Test fun aDeletedStatementRowStaysDeletedOnReimport() = runBlocking {
+        val withLog = StatementImporter(db.transactionDao(), repo, db.importDao(), SmsLogRepository(db.smsLogDao()))
+        withLog.commit(withLog.preview(parsed(), "hdfc.csv"))
+        assertEquals(5, repo.getAll().size)
+        val sbow = repo.getAll().first { it.merchant.contains("Sbow", true) }
+        repo.delete(sbow)
+        sms.forgetDeleted(sbow)
+        val again = withLog.preview(parsed(), "hdfc.csv")
+        assertEquals(0, again.newRows.size)
+        assertEquals(1, again.deletedBefore.size)
+        assertEquals(0, withLog.commit(again).added)
+        assertEquals(4, repo.getAll().size)
     }
 }

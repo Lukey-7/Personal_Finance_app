@@ -91,6 +91,7 @@ import com.pft.financetracker.ui.components.bottomPadding
 import com.pft.financetracker.ui.components.colorFor
 import com.pft.financetracker.ui.components.countLabel
 import com.pft.financetracker.ui.components.money
+import com.pft.financetracker.ui.components.paiseToInput
 import com.pft.financetracker.ui.components.rememberAtTop
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.MoneyType
@@ -201,6 +202,8 @@ fun BillsScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () 
             b, s,
             onMarkPaid = { due -> vm.markBillPaid(b.id, due) },
             onUnmark = { due -> vm.unmarkBillPaid(b.id, due) },
+            // Stored with the bill's paid marks (BillTracker.ignoreMark), so the bill stops counting that payment.
+            onUnlink = { txId -> vm.markBillPaid(b.id, BillTracker.ignoreMark(txId)) },
             onDelete = { vm.deleteBill(b.id) },
             onEdit = { editing = b; selected = null },
             onOpenTransaction = onOpenTransaction,
@@ -315,6 +318,7 @@ private fun BillSheet(
     s: BillState,
     onMarkPaid: (LocalDate) -> Unit,
     onUnmark: (LocalDate) -> Unit,
+    onUnlink: (Long) -> Unit,
     onDelete: () -> Unit,
     onEdit: () -> Unit,
     onOpenTransaction: (Long) -> Unit,
@@ -352,6 +356,11 @@ private fun BillSheet(
         }
         if (s is BillState.Paid && s.transactionId == null) {
             SecondaryButton("Not paid", { haptics.confirm(); onUnmark(s.due); close(onDismiss) }, fill = true)
+        }
+        if (s is BillState.Paid && s.transactionId != null) {
+            // The payment was matched by itself: let the person say it was for something else.
+            val txId = s.transactionId
+            SecondaryButton("Not this payment", { haptics.confirm(); onUnmark(s.due); onUnlink(txId); close(onDismiss) }, fill = true)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             SecondaryButton("Edit", { close(onEdit) }, Modifier.weight(1f))
@@ -398,12 +407,15 @@ private fun Field(
 @Composable
 private fun BillEditor(start: Bill, onSave: (Bill) -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf(start.name) }
-    var amount by remember { mutableStateOf(start.amountPaise?.let { (it / 100).toString() } ?: "") }
+    var amount by remember { mutableStateOf(start.amountPaise?.let { paiseToInput(it) } ?: "") }
     var day by remember { mutableStateOf(start.dueDay.takeIf { it > 0 }?.toString() ?: "") }
     var every by remember { mutableStateOf(start.everyMonths) }
+    // Which months a quarterly, half-yearly or yearly bill falls in: kept as it was when editing, this month for a new one.
+    var firstMonth by remember { mutableStateOf(if (start.id != 0L && start.everyMonths > 1) start.startMonth else LocalDate.now().monthValue) }
     var keyword by remember { mutableStateOf(start.keyword ?: "") }
     var isLoan by remember { mutableStateOf(start.loan != null) }
-    var principal by remember { mutableStateOf(start.loan?.let { (it.principalPaise / 100).toString() } ?: "") }
+    var principal by remember { mutableStateOf(start.loan?.let { paiseToInput(it.principalPaise) } ?: "") }
+    var saving by remember { mutableStateOf(false) }
     var rate by remember { mutableStateOf(start.loan?.let { "%.2f".format(Locale.ENGLISH, it.annualRateBp / 100.0) } ?: "") }
     var tenure by remember { mutableStateOf(start.loan?.tenureMonths?.toString() ?: "") }
     var first by remember { mutableStateOf(start.loan?.firstDue?.toString() ?: LocalDate.now().withDayOfMonth(1).plusMonths(1).toString()) }
@@ -456,25 +468,40 @@ private fun BillEditor(start: Bill, onSave: (Bill) -> Unit, onDismiss: () -> Uni
             ChipFlow {
                 listOf(1 to "Monthly", 3 to "Quarterly", 6 to "Half-yearly", 12 to "Yearly").forEach { (m, l) -> PillChip(every == m, l) { every = m } }
             }
+            if (every > 1) {
+                CapsLabel("Due in")
+                // One chip per set of months, e.g. "Jan, Apr, Jul, Oct" for a quarterly bill.
+                ChipFlow {
+                    (1..every).forEach { m ->
+                        val label = (m..12 step every).joinToString(", ") { java.time.Month.of(it).getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH) }
+                        PillChip(Math.floorMod(firstMonth - m, every) == 0, label) { firstMonth = m }
+                    }
+                }
+            }
         }
         if (start.fixedDue == null) Field(day, { day = it }, "Due on day (1–31)", keyboard = KeyboardType.Number)
         Field(keyword, { keyword = it }, "Payment shows as (optional), e.g. airtel")
         PrimaryButton(
             "Save",
             onClick = {
+                // One save per sheet, however fast the button is tapped while it closes.
+                if (saving) return@PrimaryButton
+                saving = true
                 val f = loan?.firstDue
                 haptics.confirm()
                 onSave(
                     start.copy(
                         name = name.trim(), amountPaise = if (isLoan) null else Money.parsePaise(amount)?.takeIf { it > 0 },
                         dueDay = f?.dayOfMonth ?: dueDay ?: start.dueDay, everyMonths = if (isLoan) 1 else every,
-                        startMonth = if (isLoan) 1 else LocalDate.now().monthValue, keyword = keyword.trim().ifBlank { null }, loan = loan,
+                        // A monthly bill or a loan keeps whatever it had; only the "Due in" choice moves the months.
+                        startMonth = if (!isLoan && every > 1) firstMonth else start.startMonth,
+                        keyword = keyword.trim().ifBlank { null }, loan = loan,
                         category = if (isLoan) Category.BILLS else start.category,
                     )
                 )
                 close(onDismiss)
             },
-            enabled = valid,
+            enabled = valid && !saving,
         )
     }
 }

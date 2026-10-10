@@ -2,6 +2,7 @@ package com.pft.financetracker
 
 import android.app.Application
 import android.content.Context
+import androidx.room.withTransaction
 import kotlinx.coroutines.launch
 import com.pft.financetracker.data.local.AppDatabase
 import com.pft.financetracker.data.prefs.SettingsRepository
@@ -35,13 +36,11 @@ class AppContainer(context: Context) {
     val cards: com.pft.financetracker.data.cards.CardService = com.pft.financetracker.data.cards.CardService(db.transactionDao(), db.cardDao())
     val goals: com.pft.financetracker.data.goals.GoalService = com.pft.financetracker.data.goals.GoalService(db.goalDao())
     val tax: com.pft.financetracker.data.tax.TaxService = com.pft.financetracker.data.tax.TaxService(db.transactionDao(), db.taxDao())
-    val netWorth: com.pft.financetracker.data.networth.NetWorthService = com.pft.financetracker.data.networth.NetWorthService(db.netWorthDao(), bills)
     val backup: com.pft.financetracker.data.backup.BackupService = com.pft.financetracker.data.backup.BackupService(db)
     val nano: com.pft.financetracker.data.ai.NanoAi = com.pft.financetracker.data.ai.NanoAi()
     val importer: SmsImporter = SmsImporter(
         context, parser, transactions, smsLog, settings,
         onCardStatement = { s, bank -> bills.fromStatement(s, bank) },
-        onBalance = { ref, bank, paise, at -> netWorth.recordBalance(ref, bank, paise, at) },
     )
     val splitEngine: SplitEngine = SplitEngine(
         db.transactionDao(), db.splitDao(),
@@ -57,35 +56,77 @@ class AppContainer(context: Context) {
     val refunds: RefundLinker = RefundLinker(db.transactionDao(), db.refundDao())
     val recurring: com.pft.financetracker.data.recurring.RecurringService = com.pft.financetracker.data.recurring.RecurringService(db.transactionDao(), db.recurringDao())
 
+    /** Every change a person makes to payments goes through here; it also runs the follow-up below, one at a time. */
+    val ledger: com.pft.financetracker.data.ledger.Ledger = com.pft.financetracker.data.ledger.Ledger(
+        transactions, smsLog, refunds, importer, statementImporter,
+        transactor = object : com.pft.financetracker.data.ledger.Ledger.Transactor {
+            override suspend fun <T> run(block: suspend () -> T): T = db.withTransaction { block() }
+        },
+        afterChange = { useAi -> afterChange(useAi) },
+        scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO),
+    )
+
     /**
      * Everything that derives from the transactions, re-run after any import, edit or delete: refund pairing first
      * (it never touches money from people), then split intelligence. Each step is idempotent and isolated, so one
-     * failing never blocks the others.
+     * failing never blocks the others. Asked for through [ledger], which never runs two at once.
      */
-    suspend fun afterChange(useAi: Boolean = true) {
+    private suspend fun afterChange(useAi: Boolean) {
         runCatching { refunds.run() }
         runCatching { splitEngine.run(useAi) }
-        runCatching { netWorth.snapshot() }
         com.pft.financetracker.ui.widget.FinTrackWidget.refresh(appContext)
     }
 }
 
 class FinanceApp : Application() {
-    lateinit var container: AppContainer
+    /** Null only when the database's key could not be read; [startupError] says why, and MainActivity explains. */
+    var container: AppContainer? = null
+        private set
+    var startupError: Throwable? = null
         private set
 
     override fun onCreate() {
         super.onCreate()
-        container = AppContainer(this)
-        seedBuiltInApiKey()
         Reminders.ensureChannel(this)
+        start()
+    }
+
+    /** Opens the data. False when the secure key store can't give the key; the data is left exactly as it was. */
+    fun start(): Boolean {
+        val c = try {
+            AppContainer(this)
+        } catch (e: com.pft.financetracker.data.local.DbKeyUnavailable) {
+            startupError = e
+            return false
+        }
+        startupError = null
+        container = c
+        onStarted(c)
+        return true
+    }
+
+    /**
+     * The person chose to start again after the key store broke: the unreadable database is moved aside (kept on the
+     * phone, never deleted) and a new key and an empty database are made. A backup can then be restored in Settings.
+     */
+    fun startFresh(): Boolean {
+        val db = getDatabasePath(com.pft.financetracker.data.local.DbKey.DB_NAME)
+        val kept = com.pft.financetracker.data.local.KeyRecovery.keptName(System.currentTimeMillis())
+        for (suffix in listOf("", "-wal", "-shm", "-journal")) {
+            val f = java.io.File(db.path + suffix)
+            if (f.exists() && !f.renameTo(java.io.File(db.parentFile, kept + suffix))) return false
+        }
+        com.pft.financetracker.data.local.DbKey.reset(this)
+        return start()
+    }
+
+    private fun onStarted(container: AppContainer) {
+        seedBuiltInApiKey()
         container.reminderSources += ReminderSource { now -> container.recurring.book(now).reminders() }
         container.reminderSources += ReminderSource { now -> container.bills.reminders(now) }
-        // Only for people who already keep backups: a nudge when the last one is a month old.
+        // Only for people who already keep backups: a nudge when the last one is a month old, then at most weekly.
         container.reminderSources += ReminderSource { now ->
-            val last = container.settings.lastBackupAt.value
-            if (last == 0L || now - last < 30L * 86_400_000L) emptyList()
-            else listOf(com.pft.financetracker.domain.reminders.Reminder("backup", "Time for a backup", "Your last FinTrack backup is over a month old.", now, listOf(0)))
+            listOfNotNull(com.pft.financetracker.domain.reminders.BackupNudge.reminder(container.settings.lastBackupAt.value, now))
         }
         publishShortcuts()
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { runCatching { container.templates.load() } }
@@ -114,9 +155,13 @@ class FinanceApp : Application() {
     private fun seedBuiltInApiKey() {
         val seed = BuildConfig.SEED_OPENAI_KEY
         if (seed.isBlank()) return
-        container.settings.seedApiKey(seed)
+        container?.settings?.seedApiKey(seed)
     }
 }
 
 val Context.appContainer: AppContainer
+    get() = (applicationContext as FinanceApp).container ?: error("FinTrack could not open its data.")
+
+/** The container, or null when the data could not be opened (background work then simply skips). */
+val Context.appContainerOrNull: AppContainer?
     get() = (applicationContext as FinanceApp).container

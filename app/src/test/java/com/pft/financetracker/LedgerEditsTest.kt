@@ -6,7 +6,7 @@ import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.ui.model.DeleteWithUndo
 import com.pft.financetracker.ui.model.Selection
-import com.pft.financetracker.ui.model.recategorise
+import com.pft.financetracker.domain.ledger.recategorise
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull

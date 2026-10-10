@@ -168,12 +168,18 @@ fun SplitDetailScreen(vm: AppViewModel, id: Long, onBack: () -> Unit, onOpenTran
     }
 
     val s = split
-    settling?.let { sh -> if (s != null) SettleSheet(vm, s, sh) { settling = null } }
+    settling?.let { sh ->
+        if (s != null) {
+            // My own share when someone else paid: I pay them. Anyone else's share is money coming to me.
+            if (!s.iPaid && sh.personIndex == s.myIndex) PayBackSheet(vm, s, sh) { settling = null }
+            else SettleSheet(vm, s, sh) { settling = null }
+        }
+    }
 
     if (confirmDelete) AlertDialog(
         onDismissRequest = { confirmDelete = false },
         title = { Text("Delete this split?") },
-        text = { Text(if (split?.isAuto == true) "Your numbers go back to how the bank reported them, and this payment won't be split automatically again." else "The split and its balances are removed. Any transaction it created or adjusted is left as it is; transfers you linked to it count as income again.") },
+        text = { Text(if (split?.isAuto == true) "Your numbers go back to how the bank reported them, and this payment won't be split automatically again." else "The split and its balances are removed. The payment goes back to its full amount, a share it added as a payment is removed, and transfers you linked to it count as before.") },
         confirmButton = { TextButton(onClick = { vm.deleteSplit(id); confirmDelete = false; onBack() }) { Text("Delete split", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
     )
@@ -285,7 +291,15 @@ private fun ShareRow(split: Split, sh: SplitShare, onSettle: (SplitShare) -> Uni
                     LedgerAmount(money(sh.amountPaise), MaterialTheme.colorScheme.onSurface)
                 }
             }
-            if (!isPayer && sh.remainingPaise > 0 && !split.isAuto) TextAction("Settle up", { onSettle(sh) }, alignStart = true)
+            // Only what involves me: when I paid, each friend's share owed to me; when someone else paid, my share owed
+            // to them. What a third person owes the payer is between them.
+            if (!isPayer && sh.remainingPaise > 0 && !split.isAuto) {
+                val payerName = split.people.getOrNull(split.payerIndex)?.name ?: "them"
+                when {
+                    split.iPaid -> TextAction("Settle up", { onSettle(sh) }, alignStart = true)
+                    sh.personIndex == split.myIndex -> TextAction("I paid $payerName", { onSettle(sh) }, alignStart = true)
+                }
+            }
         }
     }
 }
@@ -319,9 +333,12 @@ private fun SettleSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone: 
     val haptics = rememberHaptics()
     val name = split.people.getOrNull(sh.personIndex)?.name ?: "them"
     // Their transfer is already in the app: pick it, and it stops counting as income.
-    val matches = remember(split, sh) { vm.settleCandidates(split, sh.remainingPaise).take(4) }
+    val candidates = remember(split, sh) { vm.settleCandidates(split, sh.remainingPaise) }
+    val matches = candidates.take(4)
     var input by remember(sh.id) { mutableStateOf(paiseToInput(sh.remainingPaise)) }
     val amt = Money.parsePaise(input)
+    // A typed amount that one of their transfers matches: offer to use that transfer, so it stops counting as income.
+    val typedMatch = amt?.takeIf { it > 0 }?.let { com.pft.financetracker.domain.split.SettleMatch.forTypedAmount(candidates, it) }
 
     FinSheet(onDismiss = onDone, title = "Settle up with $name") {
         SoftPanel(spacing = Space.xs) {
@@ -353,6 +370,17 @@ private fun SettleSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone: 
             shape = ControlShape,
             modifier = Modifier.fillMaxWidth(),
         )
+        typedMatch?.let { t ->
+            Text(
+                "${displayMerchant(t.merchant)} sent ${money(t.amountPaise)} on ${dateOnly(t.timestamp)}. Use that payment so it isn't counted as income.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextAction("Use that payment", {
+                haptics.confirm()
+                vm.settleWithTransaction(split.id, sh.id, (sh.settledPaise + t.amountPaise).coerceAtMost(sh.amountPaise), t)
+                onDone()
+            }, alignStart = true)
+        }
         PrimaryButton("Mark paid", {
             val a = amt
             if (a == null || a <= 0) { haptics.reject(); return@PrimaryButton }
@@ -363,24 +391,76 @@ private fun SettleSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone: 
     }
 }
 
-/** An incoming payment offered as the settlement: who it came from, when, and how much came in. */
+/**
+ * Pay back whoever paid, as a sheet: my own payments that could be it first (pick one and it stops counting as spend,
+ * since my share is already counted), then an amount typed by hand for cash.
+ */
 @Composable
-private fun CandidateRow(t: Transaction, onPick: () -> Unit) {
+private fun PayBackSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone: () -> Unit) {
+    val haptics = rememberHaptics()
+    val payer = split.people.getOrNull(split.payerIndex)?.name ?: "them"
+    val matches = remember(split, sh) { vm.payoutCandidates(split, sh.remainingPaise).take(4) }
+    var input by remember(sh.id) { mutableStateOf(paiseToInput(sh.remainingPaise)) }
+    val amt = Money.parsePaise(input)
+
+    FinSheet(onDismiss = onDone, title = "Pay back $payer") {
+        SoftPanel(spacing = Space.xs) {
+            CapsLabel("You owe")
+            AmountDisplay(sh.remainingPaise, size = AmountSize.Title, color = MaterialTheme.colorScheme.onSurface, spokenLabel = "You owe")
+        }
+        if (matches.isNotEmpty()) {
+            CapsLabel("Pick the payment you sent")
+            Column {
+                matches.forEach { t ->
+                    CandidateRow(t, incoming = false) {
+                        haptics.confirm()
+                        vm.settleWithTransaction(split.id, sh.id, (sh.settledPaise + t.amountPaise).coerceAtMost(sh.amountPaise), t)
+                        onDone()
+                    }
+                }
+            }
+            Hairline()
+            CapsLabel("Or enter an amount")
+            Text("Cash, or paid from an account FinTrack doesn't read. Part of it is fine.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            Text("Enter what you paid $payer. Part of it is fine.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        OutlinedTextField(
+            input, { input = it },
+            label = { Text("Amount") }, prefix = { Text("₹") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
+            isError = input.isNotBlank() && (amt == null || amt <= 0),
+            shape = ControlShape,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        PrimaryButton("Mark paid", {
+            val a = amt
+            if (a == null || a <= 0) { haptics.reject(); return@PrimaryButton }
+            haptics.confirm()
+            vm.settleShare(sh.id, (sh.settledPaise + a).coerceAtMost(sh.amountPaise))
+            onDone()
+        }, enabled = amt != null && amt > 0)
+    }
+}
+
+/** A payment offered as the settlement: who it came from (or went to), when, and how much. */
+@Composable
+private fun CandidateRow(t: Transaction, incoming: Boolean = true, onPick: () -> Unit) {
     val who = displayMerchant(t.merchant)
     Row(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(12.dp))
             .clickable(onClickLabel = "Use this payment", role = Role.Button, onClick = onPick)
-            .clearAndSetSemantics { contentDescription = "${money(t.amountPaise)} in from $who, ${dateOnly(t.timestamp)}"; role = Role.Button }
+            .clearAndSetSemantics { contentDescription = "${money(t.amountPaise)} ${if (incoming) "in from" else "paid to"} $who, ${dateOnly(t.timestamp)}"; role = Role.Button }
             .padding(vertical = Space.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TintedSquare(Icons.Outlined.Payments, tint = Income, size = 36.dp, background = surfaces.sunken)
+        TintedSquare(Icons.Outlined.Payments, tint = if (incoming) Income else MaterialTheme.colorScheme.onSurfaceVariant, size = 36.dp, background = surfaces.sunken)
         Spacer(Modifier.width(Space.md))
         Column(Modifier.weight(1f)) {
             Text(who, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(dateOnly(t.timestamp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(Space.md))
-        LedgerAmount("+" + money(t.amountPaise), Income)
+        if (incoming) LedgerAmount("+" + money(t.amountPaise), Income) else LedgerAmount(money(t.amountPaise), MaterialTheme.colorScheme.onSurface)
     }
 }
