@@ -3,6 +3,46 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [1.5.0] - 2026-10-10
+
+Focus: **numbers you can trust**. Every figure now comes from one set of books, every change you make goes through one
+ledger, and one rule decides when two messages are the same payment. No database change (still version 7).
+
+### Added
+- **Ask answers with ChatGPT** from your own payments (12 months of totals, categories, payees and recent payments),
+  using the built-in key or your own; turn it off in Settings. Phone numbers and UPI IDs are never sent.
+- **Money tools on Home**: Add, Budgets, Bills, Cards, Subscriptions, Goals, Tax and Ask, one tap away.
+- **Step months and weeks** with arrows, or pick a custom range; each period compares with the whole one before.
+- **A new app icon**, with a themed (monochrome) version.
+- **A broken key store shows a screen** to try again or start fresh (the old data is kept aside, never deleted)
+  instead of crashing.
+
+### Changed
+- **One set of books.** Home, Insights, Budgets, drill-downs, Ask, the widget, goals and the AI summary all count the
+  same way, and follow the ATM cash setting. Every figure opens a list that adds up to it, including transfers in,
+  paid back by friends and investments.
+- **One ledger for your changes.** Adding, editing, deleting, recategorising, approving from Review, splitting and
+  merging duplicates each keep the books straight: money in is never spend, your corrections stick, a deleted
+  purchase gives its refund back, and refunds, splits and the widget refresh afterwards. An edit only changes the
+  fields you touched, so a refund pairing made meanwhile is kept, and a change that fails part way is rolled back.
+- **Subscriptions** find the real ones (no payments to people, loans or insurance), merge known brands and cost
+  fortnightly, half-yearly and 60-day rhythms correctly.
+- **Tax helper** finds more deductions (insurers, NPS, PPF, SSY, home loan EMIs, rent) and asks before counting the
+  unsure ones.
+- **Credit cards** show the bill actually due and refuse a second card with the same last 4 digits.
+
+### Fixed
+- Home's figures belong to the period you pick and agree with each other; no flash of ₹0 while loading.
+- One payment reported by two senders is stored once, including a statement row an SMS already reported and an item
+  approved in Review; undoing a statement import gives back the refunds of its purchases.
+- SMS reading: balances are never saved as payments, card bill payments count as transfers, failed payments are
+  skipped, a payment's page shows its own SMS.
+- Splits: a bill paid with an existing payment is never counted twice; deleting a split restores the payment.
+- Bills count each payment once and match whole-word payees; a restore re-reads SMS from when the backup was made.
+
+### Removed
+- **Net worth**.
+
 ## [1.4.0] - 2026-10-07
 
 Focus: **a new look**, "Quiet ledger". Every feature and every number is unchanged; no database change (still
