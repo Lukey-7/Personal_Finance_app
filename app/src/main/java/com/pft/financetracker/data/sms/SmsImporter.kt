@@ -203,8 +203,9 @@ class SmsImporter(
                     // Decided now, while the full text (VPA, P2A/P2M markers) is at hand: the body is not stored.
                     counterpartyKind = PayerClassifier.classify(sms.body, p.merchant, p.type),
                 )
-                val existing = repo.findLikelyDuplicate(candidate) { log.pointsAt(it) }
-                if (existing != null) {
+                val found = SamePayment.find(candidate, repo.stored) { log.pointsAt(it) }
+                val existing = found?.row
+                if (found != null && existing != null) {
                     // Same payment reported by a second sender, or a row imported by an older version whose
                     // hash no longer matches. Keep one record: the richer of the two for the descriptive
                     // fields, but always this parse's flow and category. We are holding the full SMS body,
@@ -212,7 +213,12 @@ class SmsImporter(
                     // so a rescan is the moment a mis-filed card-bill payment or transfer gets corrected.
                     val merged = SamePayment.merge(existing, candidate)
                     if (merged != existing) repo.update(merged)
-                    val why = if (candidate.refNumber != null && candidate.refNumber == existing.refNumber) "same_ref_${existing.id}" else "same_amount_within_10min_${existing.id}"
+                    val why = when (found.why) {
+                        SamePayment.Why.REF -> "same_ref_${existing.id}"
+                        SamePayment.Why.STATEMENT -> "same_statement_row_${existing.id}"
+                        SamePayment.Why.LEGACY -> "same_older_import_${existing.id}"
+                        SamePayment.Why.WINDOW -> "same_amount_within_10min_${existing.id}"
+                    }
                     log.log(entry(Outcomes.DUPLICATE, why, p.amountPaise, p.type.name, existing.id))
                     return Outcome.DUPLICATE
                 }

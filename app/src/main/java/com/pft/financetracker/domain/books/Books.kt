@@ -19,7 +19,6 @@ import com.pft.financetracker.domain.recurring.Period as RecurringPeriod
 import com.pft.financetracker.domain.recurring.RecurringDetector
 import java.util.Calendar
 import java.util.Locale
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -40,13 +39,18 @@ class Books private constructor(
     val all: List<Transaction>,
     val rules: CountingRules,
 ) {
-    private val summaries = ConcurrentHashMap<Period, PeriodSummary>()
+    // Most recent periods first out; bounded, because periods compared with "the same days last month" end at the
+    // current millisecond and would otherwise add a new entry on every screen redraw.
+    private val summaries = object : LinkedHashMap<Period, PeriodSummary>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Period, PeriodSummary>) = size > SUMMARY_CACHE
+    }
 
     /** Whether [t] counts towards spend under these books' rules. */
     fun isSpend(t: Transaction) = rules.isSpend(t)
 
     /** Every figure for [period]. Worked out once per period; the books never change. */
-    fun summary(period: Period): PeriodSummary = summaries.getOrPut(period) { summarize(period) }
+    fun summary(period: Period): PeriodSummary =
+        synchronized(summaries) { summaries[period] } ?: summarize(period).also { s -> synchronized(summaries) { summaries[period] = s } }
 
     private fun summarize(period: Period): PeriodSummary {
         val inPeriod = all.filter { it.timestamp in period && !it.needsReview }
@@ -259,6 +263,8 @@ class Books private constructor(
 
 
     companion object {
+        private const val SUMMARY_CACHE = 24
+
         fun of(payments: List<Transaction>, rules: CountingRules = CountingRules()) = Books(payments, rules)
 
         /** The figure a drill-down list adds up to: for spend, payments minus the refunds listed with them. */

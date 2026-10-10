@@ -14,8 +14,6 @@ import com.pft.financetracker.data.sms.ImportStats
 import com.pft.financetracker.domain.ai.OpenAiClient
 import com.pft.financetracker.domain.export.CsvExporter
 import com.pft.financetracker.domain.books.Books
-import com.pft.financetracker.domain.books.CountingRules
-import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.insights.Period
 import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.domain.model.Budget
@@ -137,7 +135,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val transactions: StateFlow<List<Transaction>> = c.transactions.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     val budgets: StateFlow<List<Budget>> = c.budgets.all.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     /** The payments read through the counting rules. Every figure on every screen comes from here. */
-    val books: StateFlow<Books> = combine(transactions, c.settings.countCashAsSpend) { t, cash -> Books.of(t, CountingRules(cashIsSpend = cash)) }
+    val books: StateFlow<Books> = combine(transactions, c.settings.countCashAsSpend) { t, _ -> Books.of(t, c.settings.countingRules()) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, Books.of(notLoaded()))
     val reviewQueue: StateFlow<List<ReviewItemEntity>> = c.transactions.reviewQueue.stateIn(viewModelScope, SharingStarted.Eagerly, notLoaded())
     val reviewCount: StateFlow<Int> = c.transactions.reviewCount.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
@@ -191,7 +189,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Re-run split intelligence. Cheap without AI; with AI, unchanged weeks come from the cache. */
-    fun refreshSplits(useAi: Boolean = true) { c.ledger.followUp(useAi) }
+    fun refreshSplits(useAi: Boolean = true) {
+        // The AI judge runs in this screen's scope, so closing the app stops it; local rules run in the ledger's own.
+        if (useAi) viewModelScope.launch(Dispatchers.IO) { c.ledger.refreshWithAi() } else c.ledger.followUp()
+    }
 
     fun hasSmsPermission() = c.importer.hasSmsPermission()
 
@@ -202,7 +203,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val since = if (full) 0L else lastImportAt.value
             val stats = runCatching { c.importer.scanInbox(since) }.getOrNull()
             _importState.value = if (stats == null) ImportUiState.Failed else ImportUiState.Done(stats)
-            c.ledger.followUp(useAi = true)
+            refreshSplits(useAi = true)
         }
     }
 
@@ -217,9 +218,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun setMyName(v: String) = c.settings.setMyName(v)
 
-    fun save(t: Transaction, onDone: () -> Unit = {}) = viewModelScope.launch {
+    /** [opened] is the payment as the editor first showed it, so only what the person changed is written. */
+    fun save(t: Transaction, opened: Transaction? = null, onDone: () -> Unit = {}) = viewModelScope.launch {
         // The ledger fits the flow to the direction and marks an existing row as corrected by a person.
-        if (t.id == 0L) c.ledger.add(t) else c.ledger.correct(t)
+        if (t.id == 0L) c.ledger.add(t) else c.ledger.correct(t, opened)
         onDone()
     }
 
@@ -393,7 +395,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         return com.pft.financetracker.domain.split.SettleMatch.paidWith(transactions.value, totalPaise, date, used)
     }
 
-    fun settleShare(shareId: Long, settledPaise: Long) = viewModelScope.launch { c.splits.settle(shareId, settledPaise) }
+    fun settleShare(shareId: Long, settledPaise: Long) = viewModelScope.launch { c.splits.settle(shareId, settledPaise); c.ledger.followUp() }
     fun deleteSplit(id: Long) = viewModelScope.launch {
         // Read from the database when the list hasn't got it (still loading, or just changed).
         val auto = splits.value.firstOrNull { it.id == id }?.isAuto
@@ -406,7 +408,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- Split intelligence ----
-    fun acceptSplit(id: Long) = viewModelScope.launch { c.splitEngine.accept(id) }
+    fun acceptSplit(id: Long) = viewModelScope.launch { c.splitEngine.accept(id); c.ledger.followUp() }
     /** Undo or "not a split"; then re-check at once, so a transfer this split shared with another one is re-read. */
     fun rejectSplit(id: Long) = viewModelScope.launch { c.splitEngine.reject(id); refreshSplits(useAi = false) }
     fun setRemindersEnabled(v: Boolean) { c.settings.setRemindersEnabled(v) }
@@ -421,7 +423,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             })
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.pft.financetracker.domain.refunds.RefundBadges.EMPTY)
-    fun undoRefund(linkId: Long) = viewModelScope.launch(Dispatchers.IO) { c.refunds.undo(linkId) }
+    fun undoRefund(linkId: Long) = viewModelScope.launch(Dispatchers.IO) { c.refunds.undo(linkId); c.ledger.followUp() }
 
     val learnedTemplates = c.db.templateDao().observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     fun deleteTemplate(id: Long) = viewModelScope.launch(Dispatchers.IO) { c.templates.delete(id) }
@@ -512,7 +514,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             // Reminders already sent belong to the replaced data.
             c.settings.setSentReminders(emptySet())
             c.templates.load()
-            c.ledger.catchUp(useAi = false)
+            c.ledger.catchUp()
         }.exceptionOrNull()?.let { it.message ?: "Restore failed." }.also { passphrase.fill(' '); _backupBusy.value = null }
     }
 
@@ -521,11 +523,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * question they do not understand, Gemini Nano with the phone's totals, where the phone has it.
      */
     suspend fun ask(question: String, history: List<Pair<String, String>> = emptyList()): com.pft.financetracker.domain.ask.AskAnswer = withContext(Dispatchers.Default) {
-        // One read of the books, so the payments and the counting rules always belong together.
-        val snapshot = books.value
+        // The books the screens show, once loaded: never an answer from the empty list the app starts with.
+        val snapshot = books.first { isLoaded(it.all) }
         val ctx = com.pft.financetracker.domain.ask.AskContext(
             txns = snapshot.all, budgets = budgets.value, recurring = c.recurring.book(), bills = c.bills.states(),
-            rules = snapshot.rules,
+            rules = snapshot.rules, shared = snapshot,
         )
         val rules = com.pft.financetracker.domain.ask.AskEngine.answer(question, ctx)
         // With a key and the switch on, ChatGPT answers every question from a summary of the payments; the rules'
@@ -592,6 +594,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** A friend's transfer settles their share of a manual split (or my payment settles mine): it stops counting as income or spend. */
     fun settleWithTransaction(splitId: Long, shareId: Long, newSettledPaise: Long, credit: Transaction) = viewModelScope.launch {
         c.splitEngine.linkSettlement(splitId, shareId, newSettledPaise, credit, credit.amountPaise)
+        c.ledger.followUp()
     }
 
     // ---- Statement / screenshot import ----
@@ -629,7 +632,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val batch = withContext(Dispatchers.IO) { c.statementImporter.commit(s.preview) }
             _statementState.value = StatementUiState.Saved(batch)
-            c.ledger.followUp(useAi = true)
+            refreshSplits(useAi = true)
         }
     }
 

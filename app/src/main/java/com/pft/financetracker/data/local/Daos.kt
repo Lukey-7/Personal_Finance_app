@@ -29,6 +29,9 @@ interface TransactionDao {
     @Update
     suspend fun update(entity: TransactionEntity)
 
+    @Update
+    suspend fun updateAll(entities: List<TransactionEntity>)
+
     @Delete
     suspend fun delete(entity: TransactionEntity)
 
@@ -278,6 +281,14 @@ interface RefundDao {
 
     @Query("SELECT * FROM refund_links WHERE debitTxId = :debitTxId")
     suspend fun forDebit(debitTxId: Long): List<RefundLinkEntity>
+
+    /** A merged-away purchase's pairings move to the purchase that survives it. */
+    @Query("UPDATE refund_links SET debitTxId = :to WHERE debitTxId = :from")
+    suspend fun moveDebit(from: Long, to: Long)
+
+    /** A merged-away refund's pairing moves to the refund that survives it, unless that one is already paired. */
+    @Query("UPDATE OR IGNORE refund_links SET refundTxId = :to WHERE refundTxId = :from")
+    suspend fun moveRefund(from: Long, to: Long)
 
     @Insert suspend fun insert(e: RefundLinkEntity): Long
 

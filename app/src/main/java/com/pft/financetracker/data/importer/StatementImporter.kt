@@ -118,7 +118,9 @@ class StatementImporter(
      * later import also contained stays and moves to that import. [beforeDelete] runs for each row about to go.
      */
     suspend fun undo(batchId: Long, beforeDelete: suspend (Long) -> Unit = {}) {
-        for (t in txDao.getByBatch(batchId)) {
+        for (listed in txDao.getByBatch(batchId)) {
+            // Read again: giving back an earlier purchase's refund may have changed this row since the list was read.
+            val t = txDao.getById(listed.id) ?: continue
             val other = importDao.matchesFor(t.id).firstOrNull { it.batchId != batchId && importDao.get(it.batchId) != null }
             when {
                 other != null -> {

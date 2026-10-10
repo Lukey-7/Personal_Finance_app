@@ -133,6 +133,9 @@ class SettingsRepository(context: Context) {
     fun setOnboarded(v: Boolean) { plain.edit().putBoolean(KEY_ONBOARDED, v).apply(); _onboarded.value = v }
     fun setLastImportAt(t: Long) { plain.edit().putLong(KEY_LAST_IMPORT, t).apply(); _lastImportAt.value = t }
     fun setAutoImport(v: Boolean) { plain.edit().putBoolean(KEY_AUTO_IMPORT, v).apply(); _autoImport.value = v }
+    /** The counting rules as set now. Every figure (screens, the widget, Ask) reads through these. */
+    fun countingRules() = com.pft.financetracker.domain.books.CountingRules(cashIsSpend = countCashAsSpend.value)
+
     fun setCountCashAsSpend(v: Boolean) { plain.edit().putBoolean(KEY_CASH_SPEND, v).apply(); _countCashAsSpend.value = v }
     fun setMyName(v: String) { val n = v.trim().ifBlank { "Me" }; plain.edit().putString(KEY_MY_NAME, n).apply(); _myName.value = n }
 

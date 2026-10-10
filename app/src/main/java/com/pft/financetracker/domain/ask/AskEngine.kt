@@ -31,9 +31,14 @@ data class AskContext(
     val rules: CountingRules = CountingRules(),
     val now: Long = System.currentTimeMillis(),
     val zone: ZoneId = ZoneId.systemDefault(),
+    /** The screens' books for these same payments and rules, so Ask reuses what they already worked out. */
+    private val shared: Books? = null,
 ) {
-    /** The payments read through the counting rules: every figure Ask gives comes from here, as on Home. */
-    val books: Books by lazy { Books.of(txns, rules) }
+    /**
+     * The payments read through the counting rules: every figure Ask gives comes from here, as on Home. [shared] is used
+     * only while it holds exactly [txns] and [rules] (a `copy` with other payments gets its own books).
+     */
+    val books: Books by lazy { shared?.takeIf { it.all === txns && it.rules == rules } ?: Books.of(txns, rules) }
 }
 
 /**

@@ -360,7 +360,7 @@ fun EditTransactionScreen(
                         TAX_NONE -> vm.tagTax(txId, null)
                         else -> com.pft.financetracker.domain.tax.TaxSection.fromName(p)?.let { vm.tagTax(txId, it) }
                     }
-                    if (reviewId != null) vm.resolveReview(reviewId, t) { leave(onBack) } else vm.save(t) { leave(onBack) }
+                    if (reviewId != null) vm.resolveReview(reviewId, t) { leave(onBack) } else vm.save(t, existing) { leave(onBack) }
                 },
             )
             if (!valid && (amount.isNotEmpty() || merchant.isNotEmpty())) Text(

@@ -41,6 +41,8 @@ class TransactionRepository(
     /** Returns the new row id, or -1 if a duplicate (same smsHash) already existed. */
     suspend fun insert(t: Transaction): Long = dao.insert(t.toEntity())
     suspend fun update(t: Transaction) = dao.update(t.toEntity())
+    suspend fun updateAll(rows: List<Transaction>) { if (rows.isNotEmpty()) dao.updateAll(rows.map { it.toEntity() }) }
+    suspend fun getByIds(ids: Collection<Long>): List<Transaction> = if (ids.isEmpty()) emptyList() else dao.getByIds(ids.toList()).map { it.toDomain() }
     suspend fun delete(t: Transaction) = dao.delete(t.toEntity())
     suspend fun hashSeen(hash: String): Boolean = dao.hashExists(hash) || reviewDao.hashExists(hash)
 
@@ -93,11 +95,17 @@ class TransactionRepository(
         SamePayment.twinsIn(dao.getAll().map { it.toDomain() }, windowMillis).map { DuplicatePair(it.keep, it.drop) }
 
     /** Delete the redundant row of each pair, keeping any detail it had that the survivor lacked. */
-    suspend fun mergeDuplicates(pairs: List<DuplicatePair>, isLinked: suspend (Long) -> Boolean = { false }) {
+    suspend fun mergeDuplicates(
+        pairs: List<DuplicatePair>,
+        /** Runs before a dropped row goes, with the id of the row that survives it. */
+        beforeDrop: suspend (dropId: Long, keepId: Long) -> Unit = { _, _ -> },
+        isLinked: suspend (Long) -> Boolean = { false },
+    ) {
         for (pair in pairs) {
             val (merged, drop) = SamePayment.combine(SamePayment.Twins(pair.keep, pair.drop), isLinked)
             val before = if (merged.id == pair.keep.id) pair.keep else pair.drop
             if (merged != before) dao.update(merged.toEntity())
+            beforeDrop(drop.id, merged.id)
             dao.delete(drop.toEntity())
         }
     }

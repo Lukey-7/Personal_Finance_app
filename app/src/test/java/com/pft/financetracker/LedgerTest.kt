@@ -7,6 +7,8 @@ import com.pft.financetracker.data.ledger.Ledger
 import com.pft.financetracker.data.local.AppDatabase
 import com.pft.financetracker.data.local.ImportBatchEntity
 import com.pft.financetracker.data.local.ReviewItemEntity
+import com.pft.financetracker.data.local.SmsLogEntity
+import androidx.room.withTransaction
 import com.pft.financetracker.data.prefs.SettingsRepository
 import com.pft.financetracker.data.refunds.RefundLinker
 import com.pft.financetracker.data.repository.SmsLogRepository
@@ -54,7 +56,10 @@ class LedgerTest {
         val importer = SmsImporter(context, SmsParser(), repo, smsLog, SettingsRepository(context))
         val statements = StatementImporter(db.transactionDao(), repo, db.importDao(), smsLog)
         // Unconfined: the follow-up runs inside the call that asked for it, until something makes it wait.
-        ledger = Ledger(repo, smsLog, refunds, importer, statements, afterChange = { ai -> followUps += ai; gate?.await() }, scope = CoroutineScope(Dispatchers.Unconfined))
+        val transactor = object : Ledger.Transactor {
+            override suspend fun <T> run(block: suspend () -> T): T = db.withTransaction { block() }
+        }
+        ledger = Ledger(repo, smsLog, refunds, importer, statements, transactor, afterChange = { ai -> followUps += ai; gate?.await() }, scope = CoroutineScope(Dispatchers.Unconfined))
     }
 
     @After fun tearDown() = db.close()
@@ -72,7 +77,8 @@ class LedgerTest {
 
     @Test fun aCorrectionIsMarkedAndFitsItsDirection() = runBlocking {
         val id = repo.insert(tx(50_000, "Swiggy"))
-        ledger.correct(repo.getById(id)!!.copy(flow = Flow.REFUND, merchant = "Swiggy Instamart"))
+        val opened = repo.getById(id)!!
+        ledger.correct(opened.copy(flow = Flow.REFUND, merchant = "Swiggy Instamart"), opened)
         val row = repo.getById(id)!!
         assertTrue(row.userEdited)
         assertEquals(Flow.EXPENSE, row.flow)
@@ -149,27 +155,77 @@ class LedgerTest {
         assertEquals(1, followUps.size)
     }
 
-    @Test fun aChangeThatFailsPartWayStillGetsItsFollowUp() = runBlocking {
+    @Test fun aChangeThatFailsPartWayLeavesNothingHalfWrittenAndStillGetsItsFollowUp() = runBlocking {
+        val id = repo.insert(tx(120_000, "Barbeque Nation"))
+        followUps.clear()
         runCatching {
             ledger.together {
-                ledger.add(tx(10_000, "Chai", source = Transaction.Source.MANUAL, hash = null))
+                ledger.reshape(repo.getById(id)!!.copy(amountPaise = 40_000, originalAmountPaise = 120_000))
                 error("the split could not be saved")
             }
         }
-        assertEquals(1, repo.getAll().size)
+        // The shrink to my share is rolled back with the split that failed.
+        assertEquals(120_000L, repo.getById(id)!!.amountPaise)
+        assertEquals(null, repo.getById(id)!!.originalAmountPaise)
         assertEquals(1, followUps.size)
+    }
+
+    @Test fun aCorrectionKeepsWhatTheAppChangedWhileTheEditorWasOpen() = runBlocking {
+        val id = repo.insert(tx(249_900, "Amazon", type = TransactionType.CREDIT, flow = Flow.INCOME).copy(category = Category.OTHER))
+        val opened = repo.getById(id)!!
+        // While the editor is open, refund pairing turns the credit into a refund.
+        repo.update(opened.copy(flow = Flow.REFUND, category = Category.SHOPPING))
+        // The person only changed the note.
+        ledger.correct(opened.copy(note = "returned shoes"), opened)
+        val row = repo.getById(id)!!
+        assertEquals("returned shoes", row.note)
+        assertEquals(Flow.REFUND, row.flow)
+        assertEquals(Category.SHOPPING, row.category)
+        assertTrue(row.userEdited)
+    }
+
+    @Test fun mergingTwinsHandsTheRefundPairingToTheSurvivor() = runBlocking {
+        val keep = repo.insert(tx(249_900, "Amazon", ref = "R77"))
+        val twin = repo.insert(tx(249_900, "Payment (Paytm)", ref = "R77", at = t0 + 60_000).copy(bankName = "Paytm", accountRef = null))
+        val credit = repo.insert(tx(249_900, "Amazon", type = TransactionType.CREDIT, flow = Flow.INCOME, at = t0 + 8 * day, ref = "R77").copy(category = Category.OTHER))
+        refunds.run()
+        val link = db.refundDao().getAll().single()
+        val (survivor, dropped) = if (link.debitTxId == twin) keep to twin else twin to keep
+        ledger.mergeTwins(listOf(TransactionRepository.DuplicatePair(keep = repo.getById(survivor)!!, drop = repo.getById(dropped)!!))) { false }
+        assertEquals(survivor, db.refundDao().getAll().single().debitTxId)
+        // Deleting the surviving purchase still gives the refund back.
+        ledger.remove(repo.getById(survivor)!!)
+        assertEquals(Flow.INCOME, repo.getById(credit)!!.flow)
+        assertEquals(Category.OTHER, repo.getById(credit)!!.category)
+    }
+
+    @Test fun undoingAnImportDoesNotOverwriteARefundItGaveBack() = runBlocking {
+        val batch = db.importDao().insert(ImportBatchEntity(fileName = "may.csv", format = "CSV", rowsFound = 2, added = 2, duplicates = 0, needsReview = 0,
+            balanceMismatches = 0, firstDate = t0, lastDate = t0))
+        repo.insert(tx(249_900, "Amazon", ref = "R77", source = Transaction.Source.STATEMENT, hash = "stmt:1").copy(importBatchId = batch))
+        val credit = repo.insert(tx(249_900, "Amazon", type = TransactionType.CREDIT, flow = Flow.INCOME, at = t0 + 8 * day, ref = "R77",
+            source = Transaction.Source.STATEMENT, hash = "stmt:2").copy(category = Category.OTHER, importBatchId = batch))
+        // An SMS reported the refund too, so undoing the import keeps that row.
+        SmsLogRepository(db.smsLogDao()).log(SmsLogEntity(sender = "HDFCBK", receivedAt = t0 + 8 * day, outcome = "SAVED", reason = "Amazon",
+            amountPaise = 249_900, type = "CREDIT", transactionId = credit, smsHash = "sms-refund", runId = 1))
+        refunds.run()
+        assertEquals(Flow.REFUND, repo.getById(credit)!!.flow)
+
+        ledger.undoImport(batch)
+        assertEquals(listOf(credit), repo.getAll().map { it.id })
+        assertEquals(Flow.INCOME, repo.getById(credit)!!.flow)
     }
 
     @Test fun requestsDuringARunFoldIntoOneMoreRun() = runBlocking {
         gate = CompletableDeferred()
         ledger.followUp()                 // starts, and waits on the gate
         ledger.followUp()
-        ledger.followUp(useAi = true)
+        ledger.followUp()
         val last = ledger.followUp()
         assertEquals(listOf(false), followUps)
         gate!!.complete(Unit)
         last.join()
-        // One run for the first request, one for the three that came while it ran; it asks the AI judge because one did.
-        assertEquals(listOf(false, true), followUps)
+        // One run for the first request, one for the three that came while it ran.
+        assertEquals(listOf(false, false), followUps)
     }
 }

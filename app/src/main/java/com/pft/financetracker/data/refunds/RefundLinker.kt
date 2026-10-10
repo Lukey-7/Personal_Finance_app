@@ -74,6 +74,15 @@ class RefundLinker(private val txDao: TransactionDao, private val dao: RefundDao
         }
     }
 
+    /**
+     * Two stored rows were one payment and [fromId] is merged into [toId]: its pairings move across, keeping what each
+     * refund was before pairing, so deleting the survivor later still gives the refund back.
+     */
+    suspend fun moveLinks(fromId: Long, toId: Long) {
+        dao.moveDebit(fromId, toId)
+        dao.moveRefund(fromId, toId)
+    }
+
     companion object {
         const val APPLIED = "APPLIED"
         const val REJECTED = "REJECTED"

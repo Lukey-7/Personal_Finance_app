@@ -47,7 +47,7 @@ class AfterSmsWorker(context: Context, params: androidx.work.WorkerParameters) :
     override suspend fun doWork(): Result {
         val c = applicationContext.appContainerOrNull ?: return Result.success()
         // A friend's payback may complete a shared payment. Local rules only; the AI judge runs on the next scan.
-        c.ledger.catchUp(useAi = false)
+        c.ledger.catchUp()
         return Result.success()
     }
 

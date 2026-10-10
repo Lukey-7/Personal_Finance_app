@@ -1,5 +1,6 @@
 package com.pft.financetracker.domain.ledger
 
+import com.pft.financetracker.domain.importer.Dates
 import com.pft.financetracker.domain.importer.StatementRow
 import com.pft.financetracker.domain.insights.InsightsEngine
 import com.pft.financetracker.domain.model.Category
@@ -86,8 +87,8 @@ object SamePayment {
         for (existing in similar.sortedBy { it.type != incoming.type }) {
             // Two references that both exist and disagree mean two genuinely different payments.
             if (refsDiffer(existing.refNumber, incoming.refNumber)) continue
-            val sameMerchant = InsightsEngine.normalizeMerchant(existing.merchant) == InsightsEngine.normalizeMerchant(incoming.merchant)
-            val genericMerchant = isGeneric(existing.merchant) || isGeneric(incoming.merchant)
+            val sameMerchant = sameMerchant(existing, incoming)
+            val genericMerchant = eitherGeneric(existing, incoming)
             val why = when {
                 // A row imported from a statement only knows its day (and the statement may book it a day late). Same
                 // direction, and the names must agree: ten Rs 1,000 paybacks on one day are ten different people.
@@ -98,7 +99,7 @@ object SamePayment {
                 // A v1.0.0 row: exactly midnight on this day, possibly with the direction the old parser guessed. Each
                 // stands for one SMS, so once one has matched it (its own debit, scanned first), a same-day refund of
                 // the same amount is a second payment and must not merge into it and flip it.
-                existing.timestamp == startOfDay(existing.timestamp) && existing.timestamp in dayStart until dayEnd ->
+                isMidnight(existing) && existing.timestamp in dayStart until dayEnd ->
                     Why.LEGACY.takeIf { !isClaimed(existing.id) && (sameMerchant || genericMerchant) }
                 // Minutes apart, same direction: a second sender reporting the same payment, or a generic alert.
                 existing.type == incoming.type && abs(existing.timestamp - incoming.timestamp) <= windowMillis ->
@@ -155,9 +156,9 @@ object SamePayment {
                     if (gap > refWindow) break
                     if (b.id in consumed) continue
                     if (refsDiffer(a.refNumber, b.refNumber)) continue
-                    val sameMerchant = InsightsEngine.normalizeMerchant(a.merchant) == InsightsEngine.normalizeMerchant(b.merchant)
+                    val sameMerchant = sameMerchant(a, b)
                     val differentReporter = a.bankName != b.bankName
-                    val generic = isGeneric(a.merchant) || isGeneric(b.merchant)
+                    val generic = eitherGeneric(a, b)
                     val sameRef = refsAgree(a.refNumber, b.refNumber)
                     val legacy = (isMidnight(a) || isMidnight(b)) && startOfDay(a.timestamp) == startOfDay(b.timestamp)
                     val paired = when {
@@ -193,7 +194,7 @@ object SamePayment {
         val sameDirection = existing.type == incoming.type
         // A v1.0.0 row (midnight, flow guessed from its category) or a statement row (flow guessed from the narration)
         // knew less than the SMS we hold now: this parse decides.
-        val weakExisting = existing.source == Transaction.Source.STATEMENT || existing.timestamp == startOfDay(existing.timestamp)
+        val weakExisting = existing.source == Transaction.Source.STATEMENT || isMidnight(existing)
         val incomingFellBack = incoming.flow == Flow.EXPENSE || incoming.flow == Flow.INCOME
         val flowFitsDirection = sameDirection || existing.flow == Flow.TRANSFER || existing.flow == Flow.INVESTMENT
         val flow = when {
@@ -208,7 +209,7 @@ object SamePayment {
             existing.category == Category.OTHER -> incoming.category
             else -> existing.category
         }
-        val merchant = if (isGeneric(base.merchant) && !isGeneric(other.merchant)) other.merchant else base.merchant
+        val merchant = nameOf(base, other)
         return base.copy(
             id = existing.id, smsHash = existing.smsHash, type = incoming.type, flow = flow, category = category, merchant = merchant,
             amountPaise = existing.amountPaise, originalAmountPaise = existing.originalAmountPaise, note = existing.note,
@@ -232,7 +233,7 @@ object SamePayment {
     suspend fun combine(twins: Twins, isLinked: suspend (Long) -> Boolean = { false }): Twins {
         val p = if (isLinked(twins.drop.id) && !isLinked(twins.keep.id)) Twins(keep = twins.drop, drop = twins.keep) else twins
         val merged = p.keep.copy(
-            merchant = if (isGeneric(p.keep.merchant) && !isGeneric(p.drop.merchant)) p.drop.merchant else p.keep.merchant,
+            merchant = nameOf(p.keep, p.drop),
             accountRef = p.keep.accountRef ?: p.drop.accountRef,
             refNumber = p.keep.refNumber ?: p.drop.refNumber,
             bankName = p.keep.bankName ?: p.drop.bankName,
@@ -251,13 +252,17 @@ object SamePayment {
     /** "Payment (HDFC Bank)", "Credit (SBI)": the placeholder the parser uses when an SMS names no merchant. */
     fun isGeneric(merchant: String) = merchant.startsWith("Payment") || merchant.startsWith("Credit") || merchant.length < 3
 
-    fun startOfDay(t: Long): Long = java.util.Calendar.getInstance().apply {
-        timeInMillis = t
-        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
-        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
-    }.timeInMillis
+    fun startOfDay(t: Long): Long = Dates.startOfDay(t)
 
-    private fun isMidnight(t: Transaction) = t.timestamp == startOfDay(t.timestamp)
+    /** A v1.0.0 row: its parser dropped the time of day, so it sits at exactly midnight. */
+    private fun isMidnight(t: Transaction) = !Dates.hasTime(t.timestamp)
+
+    private fun sameMerchant(a: Transaction, b: Transaction) = InsightsEngine.normalizeMerchant(a.merchant) == InsightsEngine.normalizeMerchant(b.merchant)
+
+    private fun eitherGeneric(a: Transaction, b: Transaction) = isGeneric(a.merchant) || isGeneric(b.merchant)
+
+    /** The name a merged payment keeps: [base]'s, unless it is a placeholder and [other] has a real one. */
+    private fun nameOf(base: Transaction, other: Transaction) = if (isGeneric(base.merchant) && !isGeneric(other.merchant)) other.merchant else base.merchant
 
     /** Same amount, or the bank amount a split shrank this row from; a few paise of rounding allowed. */
     private fun sameAmount(t: Transaction, paise: Long) = abs(t.amountPaise - paise) <= 5 || t.originalAmountPaise == paise

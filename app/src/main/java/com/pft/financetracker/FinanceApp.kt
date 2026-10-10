@@ -2,6 +2,7 @@ package com.pft.financetracker
 
 import android.app.Application
 import android.content.Context
+import androidx.room.withTransaction
 import kotlinx.coroutines.launch
 import com.pft.financetracker.data.local.AppDatabase
 import com.pft.financetracker.data.prefs.SettingsRepository
@@ -58,6 +59,9 @@ class AppContainer(context: Context) {
     /** Every change a person makes to payments goes through here; it also runs the follow-up below, one at a time. */
     val ledger: com.pft.financetracker.data.ledger.Ledger = com.pft.financetracker.data.ledger.Ledger(
         transactions, smsLog, refunds, importer, statementImporter,
+        transactor = object : com.pft.financetracker.data.ledger.Ledger.Transactor {
+            override suspend fun <T> run(block: suspend () -> T): T = db.withTransaction { block() }
+        },
         afterChange = { useAi -> afterChange(useAi) },
         scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO),
     )

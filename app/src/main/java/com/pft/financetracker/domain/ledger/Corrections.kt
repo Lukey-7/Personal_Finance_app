@@ -28,5 +28,19 @@ object FlowRules {
  * The rows to write when the chosen ones are moved to [category]: only those that change, marked as corrected by a
  * person so automatic rewrites leave them alone. Amount, flow and everything else stay as they are.
  */
+/**
+ * A person's edit applied to the payment as it is stored now. [opened] is the payment as the editor first showed it,
+ * [edited] the form as saved: a field the person changed takes their value; a field they left alone keeps what is
+ * stored, so a refund pairing, a split or a rescan that changed the payment while the editor was open is not undone.
+ */
+fun applyEdit(stored: Transaction, opened: Transaction, edited: Transaction): Transaction {
+    fun <T> pick(field: (Transaction) -> T): T = if (field(edited) != field(opened)) field(edited) else field(stored)
+    return stored.copy(
+        amountPaise = pick { it.amountPaise }, type = pick { it.type }, merchant = pick { it.merchant },
+        category = pick { it.category }, timestamp = pick { it.timestamp }, bankName = pick { it.bankName },
+        accountRef = pick { it.accountRef }, flow = pick { it.flow }, note = pick { it.note },
+    )
+}
+
 fun recategorise(txns: List<Transaction>, ids: Set<Long>, category: Category): List<Transaction> =
     txns.filter { it.id in ids && it.category != category }.map { it.copy(category = category, userEdited = true) }

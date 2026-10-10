@@ -1,9 +1,6 @@
 package com.pft.financetracker.ui.model
 
-import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Rupees
-import com.pft.financetracker.domain.model.Transaction
-import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.domain.parser.BankExtractor
 import java.time.Instant
 import java.time.ZoneId
@@ -12,8 +9,8 @@ import java.time.ZonedDateTime
 import java.util.Locale
 
 /*
- * The editor's rules, kept apart from the screen so they can be tested: which "counts as" choices fit money in or out,
- * the date picker's UTC days, what the amount field accepts, how quick-add shows a half-typed figure, and which bank a
+ * The editor's rules, kept apart from the screen so they can be tested (which "counts as" choices fit money in or out
+ * is a ledger rule: domain/ledger/Corrections.kt): the date picker's UTC days, what the amount field accepts, how quick-add shows a half-typed figure, and which bank a
  * message from Review came from.
  */
 
