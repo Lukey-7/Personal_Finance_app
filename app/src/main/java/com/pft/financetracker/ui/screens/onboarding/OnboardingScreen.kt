@@ -203,7 +203,7 @@ private fun StepPage(page: Int, active: Boolean) {
                 Point(Icons.Outlined.Lock, "Encrypted, in a database on this phone")
                 Point(Icons.Outlined.PersonOff, "No account to create")
                 Point(Icons.Outlined.CloudOff, "No cloud sync, no analytics, no tracking")
-                Point(Icons.Outlined.AutoAwesome, "Ask answers with ChatGPT, using the built-in key or your own; turn it off in Settings")
+                Point(Icons.Outlined.AutoAwesome, "Ask can answer with ChatGPT or another AI you pick, using the built-in key or your own; turn it off in Settings")
             }
         }
     }

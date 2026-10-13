@@ -94,20 +94,33 @@ class TransactionRepository(
     suspend fun findExistingDuplicates(windowMillis: Long = SamePayment.WINDOW_MILLIS): List<DuplicatePair> =
         SamePayment.twinsIn(dao.getAll().map { it.toDomain() }, windowMillis).map { DuplicatePair(it.keep, it.drop) }
 
-    /** Delete the redundant row of each pair, keeping any detail it had that the survivor lacked. */
+    /** How a merge went: pairs merged, and pairs left alone because a row changed or went since the scan. */
+    data class MergeOutcome(val merged: Int, val skipped: Int)
+
+    /**
+     * Delete the redundant row of each pair, keeping any detail it had that the survivor lacked. The pairs come from a
+     * scan that may be minutes old, so each row is read again first: a pair where either row is gone, or the two no
+     * longer look like one payment, is skipped rather than merged from the old copies.
+     */
     suspend fun mergeDuplicates(
         pairs: List<DuplicatePair>,
         /** Runs before a dropped row goes, with the id of the row that survives it. */
         beforeDrop: suspend (dropId: Long, keepId: Long) -> Unit = { _, _ -> },
         isLinked: suspend (Long) -> Boolean = { false },
-    ) {
+    ): MergeOutcome {
+        var merged = 0
         for (pair in pairs) {
-            val (merged, drop) = SamePayment.combine(SamePayment.Twins(pair.keep, pair.drop), isLinked)
-            val before = if (merged.id == pair.keep.id) pair.keep else pair.drop
-            if (merged != before) dao.update(merged.toEntity())
-            beforeDrop(drop.id, merged.id)
+            val keepNow = getById(pair.keep.id)
+            val dropNow = getById(pair.drop.id)
+            if (keepNow == null || dropNow == null || SamePayment.twinsIn(listOf(keepNow, dropNow)).isEmpty()) continue
+            val (survivor, drop) = SamePayment.combine(SamePayment.Twins(keepNow, dropNow), isLinked)
+            val before = if (survivor.id == keepNow.id) keepNow else dropNow
+            if (survivor != before) dao.update(survivor.toEntity())
+            beforeDrop(drop.id, survivor.id)
             dao.delete(drop.toEntity())
+            merged++
         }
+        return MergeOutcome(merged, pairs.size - merged)
     }
 
     suspend fun enqueueReview(item: ReviewItemEntity): Boolean = reviewDao.insert(item) != -1L

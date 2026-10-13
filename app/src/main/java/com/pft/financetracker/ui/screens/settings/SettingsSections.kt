@@ -183,7 +183,10 @@ internal fun SmsSection(vm: AppViewModel, snackbar: SnackbarHostState, onOpenSms
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalAlignment = Alignment.CenterVertically) {
                 PrimaryButton("Remove ${dupes.size}", {
-                    vm.mergeDuplicates { n -> scope.launch { snackbar.showSnackbar("Removed ${countLabel(n, "duplicate")}") } }
+                    vm.mergeDuplicates { n, skipped ->
+                        val left = if (skipped == 0) "" else ". ${countLabel(skipped, "pair")} changed since the scan, so scan again to check"
+                        scope.launch { snackbar.showSnackbar("Removed ${countLabel(n, "duplicate")}$left") }
+                    }
                 }, fill = false)
                 TextAction("Cancel", { vm.clearDuplicates() })
             }
@@ -234,15 +237,15 @@ internal fun SplitsSection(vm: AppViewModel) {
             "When you pay for a group and friends pay you back, only your share counts as your spending. FinTrack spots " +
                 "this by itself: clear cases are applied (tap Undo on any of them), unclear ones wait for your yes in the " +
                 "Split tab.\n\nWith AI on, uneven shares and one transfer covering two bills are worked out too. Sent to " +
-                "OpenAI: amounts, days and payment types only; people appear as \"Person A\", never by name. Without an " +
-                "OpenAI key, the rules on this phone still handle the clear cases.",
+                "the AI provider in Settings › AI: amounts, days and payment types only; people appear as \"Person A\", " +
+                "never by name. Without a provider, the rules on this phone still handle the clear cases.",
         )
         SwitchRow(
             "Use AI for unclear cases",
             checked = splitAi && hasKey,
             onChange = { vm.setSplitAi(it) },
             subtitle = if (hasKey) "Sends amounts, days and payment types only, never names"
-            else "Needs an OpenAI key (Settings › AI). The rules on this phone still handle the clear cases.",
+            else "Needs an AI provider (Settings › AI). The rules on this phone still handle the clear cases.",
             enabled = hasKey,
         )
         ActionRow("Check again now", Icons.Outlined.Sync, { vm.refreshSplits() })
@@ -386,19 +389,17 @@ internal fun WidgetSection(vm: AppViewModel, snackbar: SnackbarHostState) {
     }
 }
 
-/** AI: Gemini Nano on this phone, and the optional OpenAI key, monthly summary and its exact payload. */
+/** AI: Gemini Nano on this phone, the optional AI provider (see AiProviderGroup), Ask, the monthly summary and its exact payload. */
 @Composable
 internal fun AiSection(vm: AppViewModel) {
     val hasKey by vm.hasApiKey.collectAsState()
-    val keyBuiltIn by vm.apiKeyBuiltIn.collectAsState()
     val aiState by vm.aiState.collectAsState()
     val useNano by vm.useNano.collectAsState()
     val askOpenAi by vm.askUseOpenAi.collectAsState()
     val nanoStatus by vm.nanoStatus.collectAsState()
-    var keyInput by remember { mutableStateOf("") }
-    var changingKey by remember { mutableStateOf(false) }
+    val config by vm.aiConfig.collectAsState()
+    val aiName by vm.aiName.collectAsState()
     var showPayload by remember { mutableStateOf(false) }
-    val haptics = rememberHaptics()
     LaunchedEffect(Unit) { vm.refreshNano() }
 
     SettingsGroup("On this phone") {
@@ -418,12 +419,14 @@ internal fun AiSection(vm: AppViewModel) {
         if (nanoStatus == NanoAi.Status.READY) SwitchRow("Use it in Ask", useNano, { vm.setUseNano(it) })
     }
 
-    SettingsGroup("OpenAI (optional)") {
-        CardTitle("Ask with ChatGPT", Icons.Outlined.AutoAwesome)
-        SwitchRow("Answer Ask with ChatGPT", askOpenAi && hasKey, { vm.setAskUseOpenAi(it) }, enabled = hasKey)
+    AiProviderGroup(vm)
+
+    SettingsGroup("Ask and the summary") {
+        CardTitle("Ask with $aiName", Icons.Outlined.AutoAwesome)
+        SwitchRow("Answer Ask with $aiName", askOpenAi && hasKey, { vm.setAskUseOpenAi(it) }, enabled = hasKey)
         LearnMore(
-            if (hasKey) "Each question goes to OpenAI with a summary of your payments, so answers can use all your numbers."
-            else "Needs an OpenAI key, below.",
+            if (hasKey) "Each question goes to ${config.kind.label} with a summary of your payments, so answers can use all your numbers."
+            else "Needs an AI provider, above.",
             "What Ask sends",
             "Your question, the last few questions and answers, a year of monthly totals, categories, your main payees " +
                 "and your latest 120 payments (date, payee name, category and amount). Phone numbers and UPI IDs are " +
@@ -432,46 +435,15 @@ internal fun AiSection(vm: AppViewModel) {
         Hairline()
         CardTitle("AI monthly summary", Icons.Outlined.AutoAwesome)
         LearnMore(
-            "Uses your own OpenAI key. Nothing is sent until you tap Generate.",
+            "Written by ${config.kind.label}. Nothing is sent until you tap Generate.",
             "What the summary sends",
-            "Uses your own OpenAI API key. Only category totals for this month and last are sent, never SMS text, merchant " +
-                "names or account numbers. Nothing is sent until you tap Generate.",
+            "Only category totals for this month and last go to ${config.kind.label}, never SMS text, merchant names or " +
+                "account numbers. Nothing is sent until you tap Generate.",
         )
-        if (hasKey) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(Space.sm))
-                Note(
-                    if (keyBuiltIn) "Using the key built into this app, encrypted with Android Keystore"
-                    else "Using your own key, encrypted with Android Keystore",
-                )
-            }
-            // Side by side where they fit, stacked at a large font.
-            AdaptiveRow(count = 2, minItemWidth = 140.dp) { m ->
-                PrimaryButton("Generate", { vm.generateAiSummary() }, m, enabled = aiState !is AiUiState.Loading)
-                SecondaryButton("What is sent?", { showPayload = true }, m)
-            }
-            // Change replaces the key in place; either action makes the key yours, so the built-in one is not restored
-            // on the next launch.
-            Column {
-                if (changingKey) {
-                    KeyField(keyInput) { keyInput = it }
-                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), modifier = Modifier.padding(top = Space.sm)) {
-                        PrimaryButton("Save new key", {
-                            haptics.confirm()
-                            vm.setApiKey(keyInput); keyInput = ""; changingKey = false; vm.clearAi()
-                        }, enabled = keyInput.trim().length > 20, fill = false)
-                        TextAction("Cancel", { keyInput = ""; changingKey = false })
-                    }
-                } else {
-                    ActionRow("Change key", Icons.Outlined.Key, { changingKey = true })
-                }
-                ActionRow("Remove key", Icons.Outlined.KeyOff, { vm.setApiKey(null); vm.clearAi(); changingKey = false })
-            }
-        } else {
-            SecondaryButton("What would be sent?", { showPayload = true })
-            KeyField(keyInput) { keyInput = it }
-            PrimaryButton("Save key", { haptics.confirm(); vm.setApiKey(keyInput); keyInput = "" }, enabled = keyInput.trim().length > 20, fill = false)
+        // Side by side where they fit, stacked at a large font.
+        AdaptiveRow(count = 2, minItemWidth = 140.dp) { m ->
+            PrimaryButton("Generate", { vm.generateAiSummary() }, m, enabled = hasKey && aiState !is AiUiState.Loading)
+            SecondaryButton(if (hasKey) "What is sent?" else "What would be sent?", { showPayload = true }, m)
         }
         when (val s = aiState) {
             is AiUiState.Loading -> BusyLine("Writing your summary…")
@@ -481,7 +453,7 @@ internal fun AiSection(vm: AppViewModel) {
         }
     }
 
-    if (showPayload) FinSheet({ showPayload = false }, title = "Exact payload sent to OpenAI") {
+    if (showPayload) FinSheet({ showPayload = false }, title = "Exact payload sent to ${config.kind.label}") {
         // Built from your payments once they have loaded, never from the empty lists the app starts with.
         val ready by vm.loaded.collectAsState()
         SoftPanel {
@@ -490,17 +462,6 @@ internal fun AiSection(vm: AppViewModel) {
         }
         PrimaryButton("Close", { showPayload = false })
     }
-}
-
-@Composable
-private fun KeyField(value: String, onChange: (String) -> Unit) {
-    OutlinedTextField(
-        value, onChange,
-        label = { Text("OpenAI API key (sk-...)") }, singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        modifier = Modifier.fillMaxWidth(),
-    )
 }
 
 /** Your data: where it lives, CSV exports, and clearing everything (last, red, typed confirmation). */
@@ -526,7 +487,7 @@ internal fun DataSection(vm: AppViewModel, snackbar: SnackbarHostState) {
             TintedSquare(Icons.Outlined.Lock)
             Spacer(Modifier.width(Space.md))
             Text(
-                "All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting. Ask and the AI features send summaries to OpenAI only while they are on.",
+                "All data lives in an app-private database on this device. No cloud sync, no analytics, no crash reporting. Ask and the AI features send summaries to the AI provider you picked, only while they are on.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),

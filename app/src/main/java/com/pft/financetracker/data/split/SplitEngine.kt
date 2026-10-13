@@ -27,8 +27,13 @@ import com.pft.financetracker.domain.split.SplitSolver
 import com.pft.financetracker.domain.split.SplitSource
 import com.pft.financetracker.domain.split.SplitStatus
 import com.pft.financetracker.domain.split.SplitTx
+import com.pft.financetracker.data.ledger.Ledger
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
 
 /** Remembers AI answers by request, so an unchanged week is never paid for twice. */
 interface AiAnswerCache {
@@ -51,10 +56,31 @@ class SplitEngine(
     private val myName: () -> String,
     private val cache: AiAnswerCache? = null,
     private val windowDays: Int = SplitSolver.DEFAULT_WINDOW_DAYS,
+    /** Makes each action below one database transaction; null (tests) runs the writes as they come. */
+    private val transactor: Ledger.Transactor? = null,
 ) {
     data class RunResult(val applied: Int, val suggested: Int, val undone: Int, val askedAi: Boolean)
 
     private val lock = Mutex()
+
+    /** Marks a coroutine that holds this engine's [lock], so a call made inside [holding] doesn't wait on itself. */
+    private class Held(val owner: SplitEngine) : AbstractCoroutineContextElement(Key) {
+        companion object Key : CoroutineContext.Key<Held>
+    }
+
+    /**
+     * Runs [block] holding the engine's lock. A change that also needs a database transaction takes the lock first
+     * (see AppViewModel.saveSplit): a [run] writes while it holds the lock, so waiting for the lock inside an open
+     * transaction could leave the two waiting on each other.
+     */
+    suspend fun <T> holding(block: suspend () -> T): T =
+        if (coroutineContext[Held]?.owner === this) block() else lock.withLock { withContext(Held(this)) { block() } }
+
+    /** [holding], with the writes in one transaction: a failure part way leaves nothing half changed. */
+    private suspend fun <T> guarded(block: suspend () -> T): T = holding {
+        val tx = transactor
+        if (tx != null) tx.run(block) else block()
+    }
 
     private object Role { const val PAYMENT = "PAYMENT"; const val PAYBACK = "PAYBACK"; const val ADVANCE = "ADVANCE" }
     /**
@@ -63,7 +89,7 @@ class SplitEngine(
      */
     private object Decision { const val REJECTED = "REJECTED"; const val ACCEPTED = "ACCEPTED"; const val REJECTED_TRANSFER = "REJECTED_TRANSFER" }
 
-    suspend fun run(useAi: Boolean = true): RunResult = lock.withLock { runLocked(useAi) }
+    suspend fun run(useAi: Boolean = true): RunResult = holding { runLocked(useAi) }
 
     private suspend fun runLocked(useAi: Boolean): RunResult {
         val txnsAtStart = txDao.getAll().map { it.toDomain() }
@@ -144,12 +170,12 @@ class SplitEngine(
             for (req in aiRequests(view, local)) {
                 // A cached answer is reused only while it still reads as an answer. Only answers that parse are cached,
                 // so a cut-off reply (timeout mid-stream) is asked again next time instead of blocking that week for good.
-                var answer = cache?.get(req.json)
+                var answer = cache?.get(ai.cacheScope + req.json)
                 var parsed = answer?.let { req.parse(it) }
                 if (parsed == null) {
                     answer = ai.judge(req)
                     parsed = answer?.let { req.parse(it) }
-                    if (parsed != null) cache?.put(req.json, answer!!)
+                    if (parsed != null) cache?.put(ai.cacheScope + req.json, answer!!)
                 }
                 // Debug builds only: the anonymised request and the model's answer, to turn real cases into tests.
                 if (com.pft.financetracker.BuildConfig.DEBUG) runCatching { android.util.Log.d("FinTrackSplitAI", "request=${req.json} answer=$answer") }
@@ -380,8 +406,8 @@ class SplitEngine(
      * that share a friend's transfer with it (Rs 1,200 = Rs 1,000 for the dinner + Rs 200 for the cab) are accepted
      * with it, so the transfer is accounted for in full; when any of them can't be applied, none is.
      */
-    suspend fun accept(splitId: Long): Boolean = lock.withLock {
-        val first = splitDao.getSplit(splitId) ?: return@withLock false
+    suspend fun accept(splitId: Long): Boolean = guarded {
+        val first = splitDao.getSplit(splitId) ?: return@guarded false
         val group = sharedGroup(first)
         val groupIds = group.map { it.id }.toSet()
         val splitsById = splitDao.allSplits().associateBy { it.id }
@@ -399,19 +425,19 @@ class SplitEngine(
             val links = allLinks.filter { it.splitId == s.id }
             val friends = links.filter { it.role != Role.PAYMENT }
             for (l in friends) {
-                val t = txDao.getById(l.transactionId)?.toDomain() ?: return@withLock false
+                val t = txDao.getById(l.transactionId)?.toDomain() ?: return@guarded false
                 val claimed = elsewhere.filter { it.transactionId == t.id }.sumOf { it.allocatedPaise } + groupFriends.filter { it.transactionId == t.id }.sumOf { it.allocatedPaise }
-                if (claimed > t.amountPaise) return@withLock false
-                if (t.flow != Flow.SETTLEMENT && t.flow != (Flow.fromName(l.prevFlow) ?: Flow.INCOME)) return@withLock false
+                if (claimed > t.amountPaise) return@guarded false
+                if (t.flow != Flow.SETTLEMENT && t.flow != (Flow.fromName(l.prevFlow) ?: Flow.INCOME)) return@guarded false
             }
             // The person corrected the bill since it was suggested: split the corrected amount (my share is what the
             // friends didn't pay of it). A corrected bill smaller than the friends' shares can't be this split.
             val pay = links.firstOrNull { it.role == Role.PAYMENT }
             val payTx = pay?.let { txDao.getById(it.transactionId)?.toDomain() }
-            if (pay != null && payTx == null) return@withLock false
+            if (pay != null && payTx == null) return@guarded false
             if (pay != null && payTx != null && payTx.amountPaise != (pay.prevAmountPaise ?: payTx.amountPaise)) {
                 val friendsPaise = friends.sumOf { it.allocatedPaise }
-                if (payTx.amountPaise <= friendsPaise) return@withLock false
+                if (payTx.amountPaise <= friendsPaise) return@guarded false
                 plans += AcceptPlan(s, pay, payTx.amountPaise, payTx.amountPaise - friendsPaise)
             } else {
                 plans += AcceptPlan(s, pay, null, null)
@@ -434,7 +460,7 @@ class SplitEngine(
                 ok = false
             }
         }
-        if (!ok) return@withLock false
+        if (!ok) return@guarded false
         group.forEach { s -> s.linkedTransactionId?.let { splitDao.insertDecision(SplitDecisionEntity(paymentTransactionId = it, decision = Decision.ACCEPTED)) } }
         true
     }
@@ -454,8 +480,8 @@ class SplitEngine(
     }
 
     /** "Not a split" / undo: everything goes back exactly as it was, and this payment is never split automatically again. */
-    suspend fun reject(splitId: Long) = lock.withLock {
-        val s = splitDao.getSplit(splitId) ?: return@withLock
+    suspend fun reject(splitId: Long) = guarded {
+        val s = splitDao.getSplit(splitId) ?: return@guarded
         val byTx = txDao.getAll().map { it.toDomain() }.associateBy { it.id }
         val ls = splitDao.linksFor(splitId)
         val splitsById = splitDao.allSplits().associateBy { it.id }
@@ -475,7 +501,7 @@ class SplitEngine(
      * Before a manual split takes payment [paymentId]: an automatic split or suggestion on it is undone first (the
      * payment back to its bank amount), so the two never both change it.
      */
-    suspend fun releaseForManual(paymentId: Long) = lock.withLock {
+    suspend fun releaseForManual(paymentId: Long) = guarded {
         val autos = splitDao.allSplits().filter { it.source != SplitSource.MANUAL.name && it.linkedTransactionId == paymentId }
         for (s in autos) {
             val byTx = txDao.getAll().map { it.toDomain() }.associateBy { it.id }
@@ -487,9 +513,9 @@ class SplitEngine(
      * A transfer settles (part of) a share in a manual split: a friend's transfer to me, or my own payment to whoever
      * paid. It stops counting as income or spend and the share is marked paid. Undone by [deleteManual].
      */
-    suspend fun linkSettlement(splitId: Long, shareId: Long, newSettledPaise: Long, credit: Transaction, amountPaise: Long) = lock.withLock {
+    suspend fun linkSettlement(splitId: Long, shareId: Long, newSettledPaise: Long, credit: Transaction, amountPaise: Long) = guarded {
         // Read the row again: the settle sheet may have been open while an SMS, an import or an edit changed it.
-        val current = txDao.getById(credit.id)?.toDomain() ?: return@withLock
+        val current = txDao.getById(credit.id)?.toDomain() ?: return@guarded
         splitDao.insertLinks(listOf(SplitLinkEntity(0, splitId, current.id, Role.PAYBACK, amountPaise, current.flow.name, null, shareId = shareId)))
         txDao.update(current.copy(flow = Flow.SETTLEMENT).toEntity())
         val settled = splitDao.share(shareId)?.let { minOf(it.amountPaise, it.settledPaise + amountPaise) } ?: newSettledPaise
@@ -501,8 +527,8 @@ class SplitEngine(
      * amount again (without the "Split:" note), a "my share" row it added goes, and transfers linked to it count as
      * what they were again.
      */
-    suspend fun deleteManual(splitId: Long) = lock.withLock {
-        val s = splitDao.getSplit(splitId) ?: return@withLock
+    suspend fun deleteManual(splitId: Long) = guarded {
+        val s = splitDao.getSplit(splitId) ?: return@guarded
         for (l in splitDao.linksFor(splitId)) {
             if (l.role == Role.PAYMENT) continue
             val t = txDao.getById(l.transactionId)?.toDomain() ?: continue

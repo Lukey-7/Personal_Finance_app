@@ -4,8 +4,9 @@ FinTrack is the owner's private, on-device personal finance tracker for Android.
 turns them into transactions, and keeps everything in an encrypted database on the phone: no cloud, no account, no
 analytics. It is a personal project, not a production app. Read `README.md` first, then `CHANGELOG.md`.
 
-**State (7 Oct 2026):** v1.4.0 released (the "Quiet ledger" redesign), `main` @ 2e9cd2b, tag `v1.4.0`. Room database
-**version 7** (v1.2.1 owns 5→6, v1.3 owns 6→7; never reuse a released version number). 572 unit tests, all green.
+**State (13 Oct 2026):** v1.5.1 released (any AI provider by key, plus fixes from the v1.5.0 health check), tag
+`v1.5.1`. Room database **version 7** (v1.2.1 owns 5→6, v1.3 owns 6→7; never reuse a released version number). 780 unit
+tests, all green.
 
 ## Projects, in the order the owner works on them
 
@@ -27,8 +28,11 @@ analytics. It is a personal project, not a production app. Read `README.md` firs
 ## Hard rules
 
 - **Privacy is the product.** No new network endpoint, analytics, crash reporting or third-party SDK without asking. The
-  only endpoint in FinTrack's own code is `api.openai.com` (optional AI mode with the owner's key). Run
-  `python scripts/audit_apk.py <apk>` before calling a build done; its baselines must not grow without asking.
+  only endpoints in FinTrack's own code are the AI providers in `domain/ai/Llm.kt` (`ProviderKind`, approved by the
+  owner on 13 Oct 2026; OpenAI by default with the owner's key), each contacted only once picked in Settings › AI.
+  All AI calls go through `LlmProvider`; never call a vendor directly from a feature. Run
+  `py -3 scripts/audit_apk.py <apk>` (plain `python` isn't on this PC's PATH) before calling a build done; its
+  baselines and allowed endpoints must not grow without asking.
 - **Money** always through `Rupees.format` / `money()` (Indian grouping ₹1,05,000, paise only when present, sign before
   ₹); estimates via `approxMoney`.
 - Screens reading `vm.transactions`, `vm.splits`, `vm.budgets` (and bills, cards, goals) start from the `notLoaded()`

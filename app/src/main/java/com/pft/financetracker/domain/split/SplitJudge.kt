@@ -262,8 +262,11 @@ Answer ONLY with JSON: {"groups":[{"payment":"P1","kind":"payback","allocations"
     }
 }
 
-/** Anything that can judge a split request: OpenAI today, other providers or an on-device model later. */
+/** Anything that can judge a split request: whichever AI provider is set up (see LlmSplitProvider). */
 interface SplitAiProvider {
     /** The model's raw JSON answer for [request], or null when it could not be asked (no key, offline, error). */
     suspend fun judge(request: SplitAiRequest): String?
+
+    /** Keeps cached answers apart per provider and model; "" for the OpenAI default (the cache before v1.5.1). */
+    val cacheScope: String get() = ""
 }

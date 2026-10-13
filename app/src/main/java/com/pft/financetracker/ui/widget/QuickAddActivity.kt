@@ -3,6 +3,7 @@ package com.pft.financetracker.ui.widget
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -17,7 +18,9 @@ import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.ui.model.QuickAddDraft
 import com.pft.financetracker.ui.screens.quickadd.QuickAddSheet
 import com.pft.financetracker.ui.theme.FinTrackTheme
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -48,7 +51,7 @@ class QuickAddActivity : ComponentActivity() {
         }
     }
 
-    /** Set by the first Save or "More details", so neither can run twice. */
+    /** Set by a Save under way or "More details", so neither can run twice. A failed save clears it to try again. */
     private var done = false
 
     private fun save(t: Transaction) {
@@ -58,10 +61,23 @@ class QuickAddActivity : ComponentActivity() {
     }
 
     private suspend fun insert(t: Transaction) {
-        withContext(Dispatchers.IO) {
-            // The ledger's follow-up refreshes refunds and splits; the widget is refreshed here so it is current before the
-            // sheet closes (the process may be frozen once nothing is on screen).
-            appContainer.ledger.add(t)
+        val saved = try {
+            // NonCancellable: the sheet closing (or being swiped away) mid-write never drops the payment.
+            withContext(Dispatchers.IO + NonCancellable) {
+                // The ledger's follow-up refreshes refunds and splits; the widget is refreshed here so it is current
+                // before the sheet closes (the process may be frozen once nothing is on screen).
+                appContainer.ledger.add(t)
+            }
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+        if (!saved) {
+            done = false
+            Toast.makeText(this, "Couldn't save the payment. Try again.", Toast.LENGTH_SHORT).show()
+            return
         }
         FinTrackWidget.refresh(applicationContext)
         finish()

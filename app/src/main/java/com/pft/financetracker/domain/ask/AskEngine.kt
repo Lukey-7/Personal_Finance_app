@@ -50,8 +50,11 @@ data class AskAnswer(
     val transactionIds: List<Long> = emptyList(),
     val understood: Boolean = true,
     val byAi: Boolean = false,
-    /** Written by ChatGPT (OpenAI), from the summary in [AskAiPrompt]; otherwise by the rules or Gemini Nano on the phone. */
-    val byOpenAi: Boolean = false,
+    /**
+     * Who wrote it when the AI provider in Settings › AI did ("ChatGPT", "Claude"…), from the summary in [AskAiPrompt];
+     * null when the rules or Gemini Nano answered on the phone.
+     */
+    val onlineBy: String? = null,
 )
 
 /**

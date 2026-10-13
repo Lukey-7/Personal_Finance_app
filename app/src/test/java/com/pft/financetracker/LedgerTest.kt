@@ -23,6 +23,7 @@ import com.pft.financetracker.domain.parser.SmsParser
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -197,6 +198,74 @@ class LedgerTest {
         ledger.remove(repo.getById(survivor)!!)
         assertEquals(Flow.INCOME, repo.getById(credit)!!.flow)
         assertEquals(Category.OTHER, repo.getById(credit)!!.category)
+    }
+
+    @Test fun mergingNeverDeletesTheOnlyCopyWhenTheKeptRowWentAfterTheScan() = runBlocking {
+        val keep = repo.insert(tx(49_900, "Swiggy"))
+        val twin = repo.insert(tx(49_900, "Payment (Paytm)", at = t0 + 60_000).copy(bankName = "Paytm", accountRef = null))
+        val pairs = repo.findExistingDuplicates()
+        assertEquals(1, pairs.size)
+        // The person deletes the row the scan meant to keep, then taps Merge.
+        repo.delete(repo.getById(pairs.single().keep.id)!!)
+        val outcome = ledger.mergeTwins(pairs) { false }
+        assertEquals(0, outcome.merged)
+        assertEquals(1, outcome.skipped)
+        assertEquals(1, repo.getAll().size)
+        assertTrue(repo.getAll().single().id in setOf(keep, twin))
+    }
+
+    @Test fun mergingKeepsAnEditMadeAfterTheScan() = runBlocking {
+        repo.insert(tx(49_900, "Swiggy"))
+        repo.insert(tx(49_900, "Payment (Paytm)", at = t0 + 60_000).copy(bankName = "Paytm", accountRef = null))
+        val pairs = repo.findExistingDuplicates()
+        val keepId = pairs.single().keep.id
+        repo.update(repo.getById(keepId)!!.copy(note = "team lunch", category = Category.FOOD, userEdited = true))
+        val outcome = ledger.mergeTwins(pairs) { false }
+        assertEquals(1, outcome.merged)
+        val row = repo.getAll().single()
+        assertEquals("team lunch", row.note)
+        assertEquals(Category.FOOD, row.category)
+    }
+
+    @Test fun mergingKeepsACategoryThePersonFixedOnTheDroppedRow() = runBlocking {
+        repo.insert(tx(49_900, "Swiggy"))
+        repo.insert(tx(49_900, "Payment (Paytm)", at = t0 + 60_000).copy(bankName = "Paytm", accountRef = null))
+        val pairs = repo.findExistingDuplicates()
+        val dropId = pairs.single().drop.id
+        repo.update(repo.getById(dropId)!!.copy(category = Category.FOOD, userEdited = true))
+        ledger.mergeTwins(pairs) { false }
+        val row = repo.getAll().single()
+        assertEquals(Category.FOOD, row.category)
+        assertTrue(row.userEdited)
+    }
+
+    @Test fun aStatementThatFailsPartWayLeavesNothingBehind() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.app.Application>()
+        // The last write of an import (the batch's totals) fails, after the payments are in.
+        val failingDao = object : com.pft.financetracker.data.local.ImportDao by db.importDao() {
+            override suspend fun update(e: ImportBatchEntity) = throw java.io.IOException("disk full")
+        }
+        val smsLog = SmsLogRepository(db.smsLogDao())
+        val statements = StatementImporter(db.transactionDao(), repo, failingDao, smsLog)
+        val transactor = object : Ledger.Transactor {
+            override suspend fun <T> run(block: suspend () -> T): T = db.withTransaction { block() }
+        }
+        val failing = Ledger(repo, smsLog, refunds, SmsImporter(context, SmsParser(), repo, smsLog, SettingsRepository(context)), statements, transactor,
+            afterChange = {}, scope = CoroutineScope(Dispatchers.Unconfined))
+        val fmt = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.ENGLISH)
+        // Recent days, like the statement importer's own tests.
+        val now = System.currentTimeMillis()
+        val csv = "Date,Narration,Chq./Ref.No.,Withdrawal Amt.,Deposit Amt.,Closing Balance\n" +
+            "${fmt.format(now - 3 * day)},UPI-ZOMATO-zomato@hdfcbank,428700000001,500.00,,9000.00\n" +
+            "${fmt.format(now - 2 * day)},UPI-AMAZON-amazon@apl,428700000002,499.00,,8501.00"
+        val parsed = com.pft.financetracker.domain.importer.StatementInterpreter.interpret(
+            com.pft.financetracker.domain.importer.CsvReader.read(csv.toByteArray()), com.pft.financetracker.domain.importer.ImportFormat.CSV)
+        val preview = statements.preview(parsed, "oct.csv")
+        assertEquals(2, preview.newRows.size)
+        val failed = runCatching { failing.importStatement(preview) }
+        assertTrue(failed.isFailure)
+        assertEquals(0, repo.getAll().size)
+        assertEquals(0, db.importDao().observeBatches().first().size)
     }
 
     @Test fun undoingAnImportDoesNotOverwriteARefundItGaveBack() = runBlocking {

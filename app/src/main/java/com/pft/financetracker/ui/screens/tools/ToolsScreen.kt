@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.bills.BillState
 import com.pft.financetracker.domain.bills.BillTracker
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.model.askSource
 import com.pft.financetracker.ui.components.CardRadius
 import com.pft.financetracker.ui.components.CardShape
 import com.pft.financetracker.ui.components.Gutter
@@ -103,6 +104,9 @@ fun ToolsScreen(vm: AppViewModel, onOpen: (route: String) -> Unit, onBack: () ->
     val goals by vm.goalProgress.collectAsState()
     val tax by vm.taxSummary.collectAsState()
     val fy by vm.taxYear.collectAsState()
+    val hasKey by vm.hasApiKey.collectAsState()
+    val askOnline by vm.askUseOpenAi.collectAsState()
+    val aiName by vm.aiName.collectAsState()
     val columns = if (LocalDensity.current.fontScale > 1.3f) 1 else 2
     // The tool figures are worked out from flows that start empty when this page opens; give them a moment before
     // showing "None found yet" in place of a number that is about to arrive.
@@ -111,7 +115,7 @@ fun ToolsScreen(vm: AppViewModel, onOpen: (route: String) -> Unit, onBack: () ->
     LaunchedEffect(Unit) { delay(400); settled = true }
 
     val tiles = buildList {
-        add(ToolTile("Ask FinTrack", Icons.Outlined.QuestionAnswer, Routes.ASK, TileValue.Words("Ask about your money"), "Answered on this phone"))
+        add(ToolTile("Ask FinTrack", Icons.Outlined.QuestionAnswer, Routes.ASK, TileValue.Words("Ask about your money"), askSource(hasKey && askOnline, aiName)))
 
         val active = book.shown.count { it.counted }
         add(

@@ -4,12 +4,16 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.pft.financetracker.domain.ai.LlmProvider
+import com.pft.financetracker.domain.ai.ProviderConfig
+import com.pft.financetracker.domain.ai.ProviderKind
+import com.pft.financetracker.domain.ai.Providers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * All user settings. The OpenAI API key is stored in EncryptedSharedPreferences backed by an
- * AES-256-GCM key in the Android Keystore. It is never logged or exported. A key can be built into the app
+ * All user settings. AI provider keys (one per provider) are stored in EncryptedSharedPreferences backed by an
+ * AES-256-GCM key in the Android Keystore. They are never logged or exported. An OpenAI key can be built into the app
  * at build time (see app/build.gradle.kts); it is copied in here once and can then be changed or removed.
  */
 class SettingsRepository(context: Context) {
@@ -29,8 +33,17 @@ class SettingsRepository(context: Context) {
 
     private val plain: SharedPreferences = context.getSharedPreferences("fintrack_prefs", Context.MODE_PRIVATE)
 
+    /** The active AI provider is set up: it has a key (or needs none), a model and an allowed address. */
     private val _hasApiKey = MutableStateFlow(false)
     val hasApiKey: StateFlow<Boolean> = _hasApiKey
+
+    /** The AI provider every AI feature uses (Settings › AI). OpenAI unless the person picked another. */
+    private val _aiProvider = MutableStateFlow(ProviderKind.fromId(plain.getString(KEY_AI_PROVIDER, null)))
+    val aiProvider: StateFlow<ProviderKind> = _aiProvider
+
+    /** The active provider's settings, with the key blanked (screens only need to know whether one is saved). */
+    private val _aiConfig = MutableStateFlow(ProviderConfig(ProviderKind.OPENAI))
+    val aiConfig: StateFlow<ProviderConfig> = _aiConfig
 
     private val _onboarded = MutableStateFlow(plain.getBoolean(KEY_ONBOARDED, false))
     val onboarded: StateFlow<Boolean> = _onboarded
@@ -93,10 +106,45 @@ class SettingsRepository(context: Context) {
     val aiAnswerCache = PrefsAiAnswerCache(context)
 
     init {
-        _hasApiKey.value = runCatching { !secure.getString(KEY_API, null).isNullOrBlank() }.getOrDefault(false)
+        refreshAi()
     }
 
-    fun getApiKey(): String? = runCatching { secure.getString(KEY_API, null)?.takeIf { it.isNotBlank() } }.getOrNull()
+    /** The saved key for [kind]; OpenAI's stays where it was before v1.5.1, so nothing is lost on upgrade. */
+    fun getApiKey(kind: ProviderKind = ProviderKind.OPENAI): String? =
+        runCatching { secure.getString(keyFor(kind), null)?.takeIf { it.isNotBlank() } }.getOrNull()
+
+    /** Everything needed to ask [kind], key included. */
+    fun providerConfig(kind: ProviderKind = aiProvider.value) = ProviderConfig(
+        kind = kind,
+        model = plain.getString(KEY_AI_MODEL + kind.id, null) ?: kind.defaultModel,
+        baseUrl = plain.getString(KEY_AI_URL + kind.id, null) ?: kind.defaultBaseUrl,
+        region = plain.getString(KEY_AI_REGION, null) ?: "us-east-1",
+        apiKey = getApiKey(kind),
+    )
+
+    /** The provider the AI features use right now, or null when it isn't set up. */
+    fun activeLlm(): LlmProvider? = Providers.build(providerConfig())
+
+    fun setAiProvider(kind: ProviderKind) { plain.edit().putString(KEY_AI_PROVIDER, kind.id).apply(); _aiProvider.value = kind; refreshAi() }
+    fun setAiModel(kind: ProviderKind, model: String) { plain.edit().putString(KEY_AI_MODEL + kind.id, model.trim()).apply(); refreshAi() }
+    fun setAiBaseUrl(kind: ProviderKind, url: String) { plain.edit().putString(KEY_AI_URL + kind.id, url.trim()).apply(); refreshAi() }
+    fun setAiRegion(region: String) { plain.edit().putString(KEY_AI_REGION, region.trim()).apply(); refreshAi() }
+
+    /** A key for any provider. OpenAI's goes through [setApiKey], which keeps the built-in key's rules. */
+    fun setProviderKey(kind: ProviderKind, key: String?) {
+        if (kind == ProviderKind.OPENAI) return setApiKey(key)
+        val trimmed = key?.trim()
+        if (trimmed.isNullOrEmpty()) secure.edit().remove(keyFor(kind)).apply() else secure.edit().putString(keyFor(kind), trimmed).apply()
+        refreshAi()
+    }
+
+    private fun keyFor(kind: ProviderKind) = if (kind == ProviderKind.OPENAI) KEY_API else KEY_API_PREFIX + kind.id
+
+    private fun refreshAi() {
+        val config = runCatching { providerConfig() }.getOrDefault(ProviderConfig(aiProvider.value))
+        _hasApiKey.value = config.ready
+        _aiConfig.value = config.copy(apiKey = config.apiKey?.let { "" })
+    }
 
     /** True while the saved key is the one built into the app, false once you have set or removed it yourself. */
     private val _apiKeyBuiltIn = MutableStateFlow(plain.getBoolean(KEY_API_SEEDED, false))
@@ -110,7 +158,7 @@ class SettingsRepository(context: Context) {
         // next launch, not even after a removal. Clear all data resets this along with everything else.
         plain.edit().putBoolean(KEY_API_SEEDED, false).putBoolean(KEY_API_USER_MANAGED, true).apply()
         _apiKeyBuiltIn.value = false
-        _hasApiKey.value = !trimmed.isNullOrEmpty()
+        refreshAi()
     }
 
     /**
@@ -127,7 +175,7 @@ class SettingsRepository(context: Context) {
         secure.edit().putString(KEY_API, key).apply()
         plain.edit().putBoolean(KEY_API_SEEDED, true).apply()
         _apiKeyBuiltIn.value = true
-        _hasApiKey.value = true
+        refreshAi()
     }
 
     fun setOnboarded(v: Boolean) { plain.edit().putBoolean(KEY_ONBOARDED, v).apply(); _onboarded.value = v }
@@ -142,7 +190,8 @@ class SettingsRepository(context: Context) {
     fun clearAll() {
         runCatching { secure.edit().clear().apply() }
         plain.edit().clear().apply()
-        _hasApiKey.value = false
+        _aiProvider.value = ProviderKind.OPENAI
+        refreshAi()
         _apiKeyBuiltIn.value = false
         _onboarded.value = false
         _lastImportAt.value = 0L
@@ -174,6 +223,12 @@ class SettingsRepository(context: Context) {
         const val KEY_ASK_OPENAI = "ask_use_openai"
         const val KEY_API_SEEDED = "api_key_seeded"
         const val KEY_API_USER_MANAGED = "api_key_user_managed"
+        /** Keys for providers other than OpenAI: "api_key_anthropic", "api_key_bedrock"… (encrypted prefs). */
+        const val KEY_API_PREFIX = "api_key_"
+        const val KEY_AI_PROVIDER = "ai_provider"
+        const val KEY_AI_MODEL = "ai_model_"
+        const val KEY_AI_URL = "ai_url_"
+        const val KEY_AI_REGION = "ai_region"
     }
 }
 
