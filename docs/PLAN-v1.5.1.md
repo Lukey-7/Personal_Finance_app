@@ -65,15 +65,10 @@ overwritten. `SamePayment.combine` also drops a category the user corrected on t
       `undoImport` already does.
 - [x] Fix: the view model catches the failure and sets `StatementUiState.Error("Couldn't save this statement. Nothing
       was added.")`, so the screen leaves "Reading".
-- [ ] ~~Test: view model state goes `Reading → Error`…~~ Deviation: not written. `AppViewModel` is an
-      `AndroidViewModel` over the whole app container and has no test harness; the all-or-nothing rule is tested in
-      `LedgerTest.aStatementThatFailsPartWayLeavesNothingBehind`, and the catch is three lines.
-
-### C. The Ask tile says where answers come from (medium, privacy copy)
-
-The Tools tile says "Answered on this phone" (ToolsScreen.kt:114), but Ask sends a summary of payments, payees
-included, to ChatGPT by default (`askUseOpenAi` defaults to true). The Ask screen itself already says this.
-
+- [x] View model's save step tested (13 Oct, after release): the save-and-report step moved to
+      `ui/model/StatementSave.kt` (`saveStatement`), which `AppViewModel.confirmImport` calls. `StatementSaveTest` covers
+      saved, failed and leaving the screen; `LedgerTest` runs the real failing import through it (message shown,
+      nothing saved).
 - [x] Fix: the tile reads `askUseOpenAi` and a saved key. It says "Answered by ChatGPT" when both are on, otherwise
       "Answered on this phone".
 - [x] Fix: the stale header comment in `OpenAiClient.kt:16-19` ("only aggregates, no merchant names") says what
@@ -162,7 +157,9 @@ OpenAiCompatible   Anthropic   Bedrock          ← adapters translate the reque
 ## 4. Verify and release
 
 - [x] `bash build.sh testDebugUnitTest`: all green (762 + the new ones). Stop Gradle afterwards.
-- [x] `bash build.sh assembleDebug -PappIdSuffix=.v151`, install beside the others on `fintest`. Deviation: on it, the provider picker, Bedrock form, Ask tile copy and
+- [x] `bash build.sh assembleDebug -PappIdSuffix=.v151`, install beside the others on `fintest`. Done on the emulator (13 Oct, after release): a merge from a stale scan after deleting the kept payment
+      left the other copy and said "1 pair changed since the scan"; a normal merge removed 1; a CSV import added 3 with
+      the right totals and Undo removed them. Earlier: Deviation: on it, the provider picker, Bedrock form, Ask tile copy and
       Test connection (OpenAI replied) were checked; the merge, import and split cases are covered by unit tests only.
       A focus-loss ANR seen twice on the slow debug build led to closing the picker with its hide animation; six
       switches afterwards, no ANR. Original: merge a

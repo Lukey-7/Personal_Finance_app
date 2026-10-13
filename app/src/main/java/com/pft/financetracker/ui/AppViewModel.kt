@@ -41,12 +41,9 @@ import kotlinx.coroutines.flow.map
 import com.pft.financetracker.data.importer.StatementFiles
 import com.pft.financetracker.data.importer.StatementImporter
 import com.pft.financetracker.data.local.ImportBatchEntity
-import kotlinx.coroutines.CancellationException
+import com.pft.financetracker.ui.model.saveStatement
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-/** Shown when saving a statement fails; the import is one change, so nothing was saved. */
-internal const val IMPORT_FAILED = "Couldn't save this statement. Nothing was added."
 
 sealed class ImportUiState {
     data object Idle : ImportUiState()
@@ -691,16 +688,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val s = _statementState.value as? StatementUiState.Preview ?: return
         _statementState.value = StatementUiState.Reading
         viewModelScope.launch {
-            try {
-                val batch = withContext(Dispatchers.IO) { c.ledger.importStatement(s.preview) }
-                _statementState.value = StatementUiState.Saved(batch)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (_: Exception) {
-                _statementState.value = StatementUiState.Error(IMPORT_FAILED)
-                return@launch
-            }
-            refreshSplits(useAi = true)
+            val result = saveStatement { withContext(Dispatchers.IO) { c.ledger.importStatement(s.preview) } }
+            _statementState.value = result
+            if (result is StatementUiState.Saved) refreshSplits(useAi = true)
         }
     }
 

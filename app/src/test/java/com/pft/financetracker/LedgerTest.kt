@@ -262,8 +262,9 @@ class LedgerTest {
             com.pft.financetracker.domain.importer.CsvReader.read(csv.toByteArray()), com.pft.financetracker.domain.importer.ImportFormat.CSV)
         val preview = statements.preview(parsed, "oct.csv")
         assertEquals(2, preview.newRows.size)
-        val failed = runCatching { failing.importStatement(preview) }
-        assertTrue(failed.isFailure)
+        // Through the same step the import screen runs: it shows the message, and nothing was saved.
+        val shown = com.pft.financetracker.ui.model.saveStatement { failing.importStatement(preview) }
+        assertEquals(com.pft.financetracker.ui.StatementUiState.Error(com.pft.financetracker.ui.model.IMPORT_FAILED), shown)
         assertEquals(0, repo.getAll().size)
         assertEquals(0, db.importDao().observeBatches().first().size)
     }
