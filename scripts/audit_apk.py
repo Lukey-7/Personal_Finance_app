@@ -4,8 +4,9 @@ Privacy audit of a built FinTrack APK (README: "Does the OCR phone home?").
 
 1. Telemetry: no class from Google's logging/telemetry transports may be in the dex
    (clearcut, phenotype, datatransport, firelog, Firebase, Crashlytics).
-2. Endpoints: lists every http(s) URL in the dex and native libraries. Only api.openai.com may be a real endpoint;
-   anything else must be a documentation string and is printed for a human to judge.
+2. Endpoints: lists every http(s) URL in the dex and native libraries. Only the AI providers in Settings > AI
+   (domain/ai/Llm.kt, ProviderKind) may be real endpoints, each contacted only once the person picks it; anything
+   else must be a documentation string and is printed for a human to judge.
 
 A debug APK is the strict check: R8 has not removed unused classes yet, so it holds everything a library could
 bring in. v1.2 already carries Google's datatransport/firebase-encoders classes through ML Kit text recognition;
@@ -29,7 +30,18 @@ TELEMETRY = [
     b"Lcom/crashlytics/",
 ]
 URL = re.compile(rb"https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]{4,}")
-ALLOWED_ENDPOINT = b"https://api.openai.com/"
+# The AI providers FinTrack can be pointed at (v1.5.1). Adding one here needs the owner's go-ahead.
+ALLOWED_ENDPOINTS = (
+    b"https://api.openai.com/",
+    b"https://api.anthropic.com/",
+    b"https://generativelanguage.googleapis.com/",
+    b"https://bedrock-runtime.",
+    b"https://api.groq.com/",
+    b"https://openrouter.ai/",
+    b"https://api.mistral.ai/",
+    b"https://api.deepseek.com/",
+    b"http://localhost:",
+)
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -60,7 +72,7 @@ def main(apk: str, write_baseline: bool = False) -> int:
         print(f"  {'NEW ' if k in risen else 'known'} {k} x{v} (baseline {base.get(k, 0)})")
     print(f"URLs ({len(urls)}):")
     for u in sorted(urls):
-        tag = "ENDPOINT" if u.startswith(ALLOWED_ENDPOINT) else "string"
+        tag = "ENDPOINT" if u.startswith(ALLOWED_ENDPOINTS) else "string"
         print(f"  [{tag}] {u.decode(errors='replace')}")
     return 1 if risen else 0
 

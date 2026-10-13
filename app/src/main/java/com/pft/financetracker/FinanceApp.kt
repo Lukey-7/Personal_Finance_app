@@ -14,7 +14,7 @@ import com.pft.financetracker.data.importer.StatementFiles
 import com.pft.financetracker.data.importer.StatementImporter
 import com.pft.financetracker.data.sms.SmsImporter
 import com.pft.financetracker.data.split.SplitEngine
-import com.pft.financetracker.domain.ai.OpenAiSplitProvider
+import com.pft.financetracker.domain.ai.LlmSplitProvider
 import com.pft.financetracker.domain.parser.SmsParser
 import com.pft.financetracker.data.reminders.ReminderSource
 import com.pft.financetracker.data.refunds.RefundLinker
@@ -44,10 +44,13 @@ class AppContainer(context: Context) {
     )
     val splitEngine: SplitEngine = SplitEngine(
         db.transactionDao(), db.splitDao(),
-        ai = OpenAiSplitProvider({ settings.getApiKey() }),
+        ai = LlmSplitProvider { settings.activeLlm() },
         aiEnabled = { settings.splitAi.value && settings.hasApiKey.value },
         myName = { settings.myName.value },
         cache = settings.aiAnswerCache,
+        transactor = object : com.pft.financetracker.data.ledger.Ledger.Transactor {
+            override suspend fun <T> run(block: suspend () -> T): T = db.withTransaction { block() }
+        },
     )
     val statementFiles: StatementFiles = StatementFiles(context)
     val statementImporter: StatementImporter = StatementImporter(db.transactionDao(), transactions, db.importDao(), smsLog)
@@ -72,9 +75,14 @@ class AppContainer(context: Context) {
      * failing never blocks the others. Asked for through [ledger], which never runs two at once.
      */
     private suspend fun afterChange(useAi: Boolean) {
-        runCatching { refunds.run() }
-        runCatching { splitEngine.run(useAi) }
+        isolated { refunds.run() }
+        isolated { splitEngine.run(useAi) }
         com.pft.financetracker.ui.widget.FinTrackWidget.refresh(appContext)
+    }
+
+    /** A failing step is skipped; cancellation (the screen that asked has gone) stops the whole follow-up. */
+    private suspend fun isolated(step: suspend () -> Unit) {
+        try { step() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
     }
 }
 

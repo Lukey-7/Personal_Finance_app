@@ -88,6 +88,10 @@ object SmsCorpus {
         CorpusCase("failed_no_money_debited", "VM-HDFCBK", "Payment of Rs 500 to SWIGGY failed. No money was debited from your account.", Expect.Ignored),
         // SBI's UPI shape: bare amount, compact date, "trf to".
         CorpusCase("sbi_upi_debited_by", "VM-SBIUPI", "Dear UPI user A/C X1234 debited by 20.0 on date 03Oct24 trf to SWIGGY Refno 427712345678. If not u? call 1800111109. -SBI", Expect.Saved(DEBIT, 2_000, merchantContains = "swiggy", ref = "427712345678")),
+        // The same alert from the sender shapes phones show: bare, and with the newer -S / -T suffix.
+        CorpusCase("sbi_upi_bare_sender", "SBIUPI", "Dear UPI user A/C X1234 debited by 250.0 on date 09Oct26 trf to SWIGGY Refno 428712345679. If not u? call 1800111109. -SBI", Expect.Saved(DEBIT, 25_000, merchantContains = "swiggy", ref = "428712345679")),
+        CorpusCase("sbi_upi_suffix_s", "VM-SBIUPI-S", "Dear UPI user A/C X1234 debited by 250.0 on date 09Oct26 trf to SWIGGY Refno 428712345679. If not u? call 1800111109. -SBI", Expect.Saved(DEBIT, 25_000, merchantContains = "swiggy", ref = "428712345679")),
+        CorpusCase("sbi_upi_suffix_t", "AD-SBIUPI-T", "Dear UPI user A/C X1234 debited by 250.0 on date 09Oct26 trf to SWIGGY Refno 428712345679. If not u? call 1800111109. -SBI", Expect.Saved(DEBIT, 25_000, merchantContains = "swiggy", ref = "428712345679")),
         // "Sent" is a completed movement: a payee called BIG SALE MART is not a promotion.
         CorpusCase("sent_to_sale_named_payee", "VM-HDFCBK", "Sent Rs.500.00 From HDFC Bank A/C *1234 To BIG SALE MART On 05/10/26 Ref 427712345678", Expect.Saved(DEBIT, 50_000, merchantContains = "big sale", ref = "427712345678")),
         // Money arriving, worded with "sent ... to you" or "transferred from X to your".

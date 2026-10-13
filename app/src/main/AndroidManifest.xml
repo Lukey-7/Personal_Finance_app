@@ -9,7 +9,7 @@
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <!-- Local reminders for bills, EMIs and renewals. Asked for only when reminders are switched on. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- INTERNET is used ONLY for the optional, user-triggered OpenAI request to api.openai.com. -->
+    <!-- INTERNET is used ONLY for the optional AI features, to the AI provider picked in Settings › AI (OpenAI by default). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Lets the system camera app be used for bill photos without the CAMERA permission. -->
     <queries>

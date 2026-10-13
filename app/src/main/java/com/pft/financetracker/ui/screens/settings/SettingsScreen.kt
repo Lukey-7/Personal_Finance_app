@@ -100,6 +100,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSection: (String) -> Unit) {
     val myName by vm.myName.collectAsState()
     val splitAi by vm.splitAi.collectAsState()
     val hasKey by vm.hasApiKey.collectAsState()
+    val aiProviderLabel = vm.aiProvider.collectAsState().value.label
     val remindersOn by vm.remindersEnabled.collectAsState()
     val lastBackup by vm.lastBackupAt.collectAsState()
     val widgetHide by vm.widgetHideAmounts.collectAsState()
@@ -124,7 +125,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSection: (String) -> Unit) {
         "backup" to if (lastBackup == 0L) "No backup yet" else "Last backup ${dayMonth.format(Date(lastBackup))}",
         "widget" to if (widgetHide) "Amounts hidden" else "Amounts shown",
         "ai" to listOfNotNull(
-            if (hasKey) "OpenAI key saved" else null,
+            if (hasKey) "${aiProviderLabel} set up" else null,
             if (nanoStatus == NanoAi.Status.READY && useNano) "On-device AI on" else null,
         ).joinToString(" · ").ifEmpty { "Off" },
         "data" to "Export as CSV or clear everything",

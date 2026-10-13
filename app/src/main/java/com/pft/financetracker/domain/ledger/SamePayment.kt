@@ -228,12 +228,17 @@ object SamePayment {
     /**
      * The survivor of two stored twins: [keep], with any detail only [drop] had. [isLinked] says a split points at a row
      * (a settled transfer, a shrunk payment); that copy survives so the split's numbers and links stay whole.
+     * What the person corrected wins: when only [drop] was edited by hand, its name, category and flow survive.
      * Returns the row to write and the row to delete.
      */
     suspend fun combine(twins: Twins, isLinked: suspend (Long) -> Boolean = { false }): Twins {
         val p = if (isLinked(twins.drop.id) && !isLinked(twins.keep.id)) Twins(keep = twins.drop, drop = twins.keep) else twins
+        val corrected = p.drop.userEdited && !p.keep.userEdited
         val merged = p.keep.copy(
-            merchant = nameOf(p.keep, p.drop),
+            merchant = if (corrected) p.drop.merchant else nameOf(p.keep, p.drop),
+            category = if (corrected) p.drop.category else p.keep.category,
+            flow = if (corrected) p.drop.flow else p.keep.flow,
+            userEdited = p.keep.userEdited || p.drop.userEdited,
             accountRef = p.keep.accountRef ?: p.drop.accountRef,
             refNumber = p.keep.refNumber ?: p.drop.refNumber,
             bankName = p.keep.bankName ?: p.drop.bankName,

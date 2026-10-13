@@ -11,7 +11,11 @@ import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.data.local.SmsLogEntity
 import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.data.sms.ImportStats
-import com.pft.financetracker.domain.ai.OpenAiClient
+import com.pft.financetracker.domain.ai.LlmRequest
+import com.pft.financetracker.domain.ai.LlmResult
+import com.pft.financetracker.domain.ai.MonthlySummary
+import com.pft.financetracker.domain.ai.ProviderConfig
+import com.pft.financetracker.domain.ai.ProviderKind
 import com.pft.financetracker.domain.export.CsvExporter
 import com.pft.financetracker.domain.books.Books
 import com.pft.financetracker.domain.insights.Period
@@ -37,8 +41,12 @@ import kotlinx.coroutines.flow.map
 import com.pft.financetracker.data.importer.StatementFiles
 import com.pft.financetracker.data.importer.StatementImporter
 import com.pft.financetracker.data.local.ImportBatchEntity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Shown when saving a statement fails; the import is one change, so nothing was saved. */
+internal const val IMPORT_FAILED = "Couldn't save this statement. Nothing was added."
 
 sealed class ImportUiState {
     data object Idle : ImportUiState()
@@ -53,6 +61,14 @@ sealed class AiUiState {
     data object Loading : AiUiState()
     data class Result(val text: String) : AiUiState()
     data class Error(val message: String) : AiUiState()
+}
+
+/** Settings › AI's "Test connection". */
+sealed class AiTestState {
+    data object Idle : AiTestState()
+    data object Running : AiTestState()
+    data class Ok(val reply: String) : AiTestState()
+    data class Failed(val message: String) : AiTestState()
 }
 
 sealed class OcrUiState {
@@ -285,11 +301,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun mergeDuplicates(onDone: (Int) -> Unit = {}) = viewModelScope.launch {
+    /** Merges the pairs the scan found; [onDone] gets how many merged and how many changed since the scan. */
+    fun mergeDuplicates(onDone: (merged: Int, skipped: Int) -> Unit = { _, _ -> }) = viewModelScope.launch {
         val pairs = _duplicates.value
-        c.ledger.mergeTwins(pairs) { id -> c.db.splitDao().linksForTransaction(id).isNotEmpty() }
+        val outcome = runCatching { c.ledger.mergeTwins(pairs) { id -> c.db.splitDao().linksForTransaction(id).isNotEmpty() } }
+            .getOrElse { TransactionRepository.MergeOutcome(merged = 0, skipped = pairs.size) }
         _duplicates.value = emptyList()
-        onDone(pairs.size)
+        onDone(outcome.merged, outcome.skipped)
     }
 
     fun clearDuplicates() { _duplicates.value = emptyList(); _duplicatesScanned.value = false }
@@ -299,7 +317,45 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun flagLogEntry(logId: Long, onDone: (Boolean) -> Unit) = viewModelScope.launch { onDone(c.importer.sendToReview(logId)) }
 
     // ---- AI ----
-    fun setApiKey(key: String?) = c.settings.setApiKey(key)
+    /** The provider every AI feature uses, and its settings (key blanked). */
+    val aiProvider: StateFlow<ProviderKind> = c.settings.aiProvider
+    val aiConfig: StateFlow<ProviderConfig> = c.settings.aiConfig
+    /** Who answers, for the screens' copy: "ChatGPT", "Claude", "your local model". */
+    val aiName: StateFlow<String> = c.settings.aiProvider.map { it.assistantName }.stateIn(viewModelScope, SharingStarted.Eagerly, c.settings.aiProvider.value.assistantName)
+
+    fun setAiProvider(kind: ProviderKind) { c.settings.setAiProvider(kind); _aiTest.value = AiTestState.Idle }
+    fun setAiModel(model: String) { c.settings.setAiModel(aiProvider.value, model); _aiTest.value = AiTestState.Idle }
+    fun setAiBaseUrl(url: String) { c.settings.setAiBaseUrl(aiProvider.value, url); _aiTest.value = AiTestState.Idle }
+    fun setAiRegion(region: String) { c.settings.setAiRegion(region); _aiTest.value = AiTestState.Idle }
+    /** Saves the active provider's model, address and region, and its key when one was typed. */
+    fun saveAiSettings(model: String, url: String, region: String, key: String?) {
+        val kind = aiProvider.value
+        c.settings.setAiModel(kind, model)
+        if (kind.editableUrl) c.settings.setAiBaseUrl(kind, url)
+        if (kind == ProviderKind.BEDROCK) c.settings.setAiRegion(region)
+        if (key != null) c.settings.setProviderKey(kind, key)
+        _aiTest.value = AiTestState.Idle
+        clearAi()
+    }
+
+    /** Saves (or, with null, removes) the key for the active provider. */
+    fun setApiKey(key: String?) { c.settings.setProviderKey(aiProvider.value, key); _aiTest.value = AiTestState.Idle }
+
+    private val _aiTest = MutableStateFlow<AiTestState>(AiTestState.Idle)
+    val aiTest: StateFlow<AiTestState> = _aiTest
+
+    /** One tiny request to the active provider, so a wrong key, model or address shows up now and not in Ask. */
+    fun testAiConnection() {
+        if (_aiTest.value is AiTestState.Running) return
+        val llm = c.settings.activeLlm() ?: run { _aiTest.value = AiTestState.Failed("Add the key and model first."); return }
+        _aiTest.value = AiTestState.Running
+        viewModelScope.launch {
+            _aiTest.value = when (val r = llm.complete(LlmRequest.ask("Reply with the single word: ready", "Are you there?", maxTokens = 10, temperature = 0.0))) {
+                is LlmResult.Ok -> AiTestState.Ok(r.text.take(60))
+                is LlmResult.Error -> AiTestState.Failed(r.message)
+            }
+        }
+    }
 
     /** Aggregated payload preview so users can see exactly what would be sent. */
     fun aiPayloadPreview(): String {
@@ -309,21 +365,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val before = Periods.sameSpanBefore(Periods.month(0, now), Periods.month(-1, now), now)
         val cur = books.summary(Periods.month(0, now))
         val prev = books.summary(before)
-        return OpenAiClient().buildPayload(cur, prev, budgets.value)
+        return MonthlySummary.buildPayload(cur, prev, budgets.value)
     }
 
     fun generateAiSummary() {
-        val key = c.settings.getApiKey()
-        if (key.isNullOrBlank()) { _aiState.value = AiUiState.Error("No API key set."); return }
+        val llm = c.settings.activeLlm()
+        if (llm == null) { _aiState.value = AiUiState.Error("Set up an AI provider first."); return }
         if (_aiState.value is AiUiState.Loading) return
         _aiState.value = AiUiState.Loading
         viewModelScope.launch {
             // Never summarise the empty lists the screens start from.
             loaded.first { it }
             val payload = aiPayloadPreview()
-            when (val r = OpenAiClient().monthlySummary(key, payload)) {
-                is OpenAiClient.Result.Ok -> _aiState.value = AiUiState.Result(r.text)
-                is OpenAiClient.Result.Error -> _aiState.value = AiUiState.Error(r.message)
+            when (val r = llm.complete(MonthlySummary.request(payload))) {
+                is LlmResult.Ok -> _aiState.value = AiUiState.Result(r.text)
+                is LlmResult.Error -> _aiState.value = AiUiState.Error(r.message)
             }
         }
     }
@@ -358,7 +414,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun saveSplit(split: Split, items: List<BillItem>, category: Category, onDone: (Long) -> Unit = {}) = viewModelScope.launch {
         // One change: the follow-up runs once the split itself is saved, so it never sees a shrunk payment without it.
         // A suggestion that shared transfers with the one undone below is worked out again then.
-        val id = c.ledger.together { saveSplitRows(split, items, category) }
+        // When the split takes over a payment, the split engine's lock comes before the database: an engine run writes
+        // while holding that lock, so waiting for it inside an open transaction could leave each waiting on the other.
+        val takesPayment = split.iPaid && split.linkedTransactionId != null
+        val id = if (takesPayment) c.splitEngine.holding { c.ledger.together { saveSplitRows(split, items, category) } }
+        else c.ledger.together { saveSplitRows(split, items, category) }
         onDone(id)
     }
 
@@ -530,23 +590,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             rules = snapshot.rules, shared = snapshot,
         )
         val rules = com.pft.financetracker.domain.ask.AskEngine.answer(question, ctx)
-        // With a key and the switch on, ChatGPT answers every question from a summary of the payments; the rules'
+        // With a provider set up and the switch on, it answers every question from a summary of the payments; the rules'
         // payments (if any) stay attached so "Show payments" still works. Offline or on error, the phone answers.
-        val key = if (c.settings.askUseOpenAi.value) c.settings.getApiKey() else null
-        if (key != null) {
+        val llm = if (c.settings.askUseOpenAi.value) c.settings.activeLlm() else null
+        if (llm != null) {
             val facts = com.pft.financetracker.domain.ask.AskAiPrompt.facts(ctx)
-            val messages = buildList {
-                add("user" to "Here is my money data from FinTrack:\n$facts")
-                add("assistant" to "Got it. What would you like to know?")
-                history.takeLast(6).forEach { (q, a) -> add("user" to q); add("assistant" to a) }
-                add("user" to question)
+            val turns = buildList {
+                add(LlmRequest.Turn(LlmRequest.Role.USER, "Here is my money data from FinTrack:\n$facts"))
+                add(LlmRequest.Turn(LlmRequest.Role.ASSISTANT, "Got it. What would you like to know?"))
+                history.takeLast(6).forEach { (q, a) -> add(LlmRequest.Turn(LlmRequest.Role.USER, q)); add(LlmRequest.Turn(LlmRequest.Role.ASSISTANT, a)) }
+                add(LlmRequest.Turn(LlmRequest.Role.USER, question))
             }
-            when (val r = OpenAiClient().chat(key, com.pft.financetracker.domain.ask.AskAiPrompt.system, messages)) {
-                is OpenAiClient.Result.Ok -> return@withContext com.pft.financetracker.domain.ask.AskAnswer(
-                    r.text, transactionIds = if (rules.understood) rules.transactionIds else emptyList(), byAi = true, byOpenAi = true,
+            val who = llm.assistantName
+            when (val r = llm.complete(LlmRequest(com.pft.financetracker.domain.ask.AskAiPrompt.system, turns))) {
+                is LlmResult.Ok -> return@withContext com.pft.financetracker.domain.ask.AskAnswer(
+                    r.text, transactionIds = if (rules.understood) rules.transactionIds else emptyList(), byAi = true, onlineBy = who,
                 )
-                is OpenAiClient.Result.Error -> return@withContext if (rules.understood) rules.copy(text = rules.text + "\n\nChatGPT couldn't answer (${r.message}), so this is from the phone.")
-                else rules.copy(text = "ChatGPT couldn't answer: ${r.message}. Check the internet connection or the key in Settings › AI.\n\n" + rules.text)
+                is LlmResult.Error -> return@withContext if (rules.understood) rules.copy(text = rules.text + "\n\n${who.replaceFirstChar { it.uppercase() }} couldn't answer (${r.message}), so this is from the phone.")
+                else rules.copy(text = "${who.replaceFirstChar { it.uppercase() }} couldn't answer: ${r.message}. Check the internet connection or the provider in Settings › AI.\n\n" + rules.text)
             }
         }
         if (rules.understood || !c.settings.useNano.value) return@withContext rules
@@ -630,8 +691,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val s = _statementState.value as? StatementUiState.Preview ?: return
         _statementState.value = StatementUiState.Reading
         viewModelScope.launch {
-            val batch = withContext(Dispatchers.IO) { c.statementImporter.commit(s.preview) }
-            _statementState.value = StatementUiState.Saved(batch)
+            try {
+                val batch = withContext(Dispatchers.IO) { c.ledger.importStatement(s.preview) }
+                _statementState.value = StatementUiState.Saved(batch)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _statementState.value = StatementUiState.Error(IMPORT_FAILED)
+                return@launch
+            }
             refreshSplits(useAi = true)
         }
     }

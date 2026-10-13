@@ -76,7 +76,7 @@ import kotlinx.coroutines.launch
 private data class Turn(val question: String, val answer: AskAnswer, val markdown: Boolean = false)
 
 /**
- * Ask about your own numbers in plain words. With an OpenAI key and "Answer Ask with ChatGPT" on, ChatGPT answers from
+ * Ask about your own numbers in plain words. With an AI provider set up and "Answer Ask with AI" on, it answers from
  * a summary of the payments (and the conversation so far); otherwise the rules on this phone, and Gemini Nano where the
  * phone has it. A friendly heading, the conversation, suggestions, the pill input.
  */
@@ -90,6 +90,7 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
     val byId = remember(txns) { txns.associateBy { it.id } }
     val hasKey by vm.hasApiKey.collectAsState()
     val askOpenAi by vm.askUseOpenAi.collectAsState()
+    val aiName by vm.aiName.collectAsState()
     val online = hasKey && askOpenAi
     var thinking by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -137,7 +138,7 @@ fun AskScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () ->
                             Icon(Icons.Outlined.Lock, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.width(Space.sm))
                             Text(
-                                if (online) "ChatGPT answers from a summary of your payments. Turn this off in Settings › AI."
+                                if (online) "${aiName.replaceFirstChar { it.uppercase() }} answers from a summary of your payments. Turn this off in Settings › AI."
                                 else "Answers come from your transactions on this phone. Nothing is sent anywhere.",
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -217,7 +218,7 @@ private fun TurnCard(t: Turn, byId: Map<Long, Transaction>, onOpen: (Long) -> Un
                 Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(Space.xs))
                 Text(
-                    if (t.answer.byOpenAi) "ChatGPT, from your FinTrack data. AI can get things wrong: check figures in Activity."
+                    if (t.answer.onlineBy != null) "${t.answer.onlineBy.replaceFirstChar { it.uppercase() }}, from your FinTrack data. AI can get things wrong: check figures in Activity."
                     else "Gemini Nano, on this phone. AI can get things wrong: check figures in Activity.",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

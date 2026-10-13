@@ -3,6 +3,30 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [1.5.1] - 2026-10-13
+
+Focus: **pick your AI, and fixes from the v1.5.0 check**. No database change (still version 7).
+
+### Added
+- **Any AI provider, with your own key.** Settings › AI now offers OpenAI, Anthropic (Claude), Google Gemini, AWS
+  Bedrock, Groq, OpenRouter, Mistral, DeepSeek, a model on the phone (Ollama, LM Studio, llama.cpp) and any other
+  OpenAI-compatible server. Open models such as Llama, Qwen, Gemma and gpt-oss run through Groq, OpenRouter, Bedrock or
+  a local server. Each provider keeps its own encrypted key, the model can be changed, and **Test connection** checks
+  the setup before Ask needs it. Ask, split intelligence and the month summary all use the provider you pick; OpenAI
+  stays the default and the built-in key still works. A provider is only contacted once it is picked and set up.
+
+### Fixed
+- **Merging duplicates never loses a payment.** Merge reads both payments again first: a pair where one was deleted or
+  changed since the scan is left alone (and the message says to scan again), and a category you fixed on the copy
+  that goes is kept.
+- **A statement import is all or nothing.** If saving fails part way, nothing is added and the screen says so,
+  instead of leaving half an import behind and closing the app.
+- **The Ask tile says who answers.** It read "Answered on this phone" even when questions went to ChatGPT.
+- **Saving a split during an AI check can't freeze the app.** The split engine's lock is now taken before the
+  database, and each split action (accept, undo, settle, delete) saves as one change.
+- **Quick add never drops a payment** if the sheet closes mid-save, and says so if saving fails.
+- **Background checks stop** when the screen that asked for them closes.
+
 ## [1.5.0] - 2026-10-10
 
 Focus: **numbers you can trust**. Every figure now comes from one set of books, every change you make goes through one

@@ -62,7 +62,9 @@ pass it around; build your own (below) for a copy with no key.
 - **SMS log** of every scanned message and what happened to it; **rescan the last 12 months** with the current
   parser without bringing back anything you deleted or overwriting your edits; **duplicate clean-up**.
 - **Encrypted backup** to one passphrase-locked file; **CSV export**; **clear everything**.
-- **Optional AI summary** with your own OpenAI key, on demand only, showing exactly what is sent.
+- **Optional AI** for Ask, unclear splits and a month summary, with the provider you pick: OpenAI, Anthropic
+  (Claude), Google Gemini, AWS Bedrock, Groq, OpenRouter, Mistral, DeepSeek, a model on the phone (Ollama, LM Studio,
+  llama.cpp) or any OpenAI-compatible server. Your own key, one per provider, and Settings shows exactly what is sent.
 
 ## Using the app
 
@@ -74,26 +76,26 @@ pass it around; build your own (below) for a copy with no key.
    flow or category.
 4. Set monthly limits under **Budgets** (from Home or Insights); the money tools are behind the grid icon on Home.
 5. Use **Split** to photograph a bill, check the numbers, add people and save.
-6. Optionally add an OpenAI key in **Settings › AI**.
+6. Optionally pick an AI provider and add its key in **Settings › AI**, then tap **Test connection**.
 
 ## Security and privacy
 
 | Area | What the app does |
 |---|---|
 | Database | Encrypted with SQLCipher. A random 256-bit key is created per install and kept in EncryptedSharedPreferences backed by the Android Keystore. `secure_delete` is on, so cleared rows are overwritten. |
-| API key | Stored only in EncryptedSharedPreferences using AES-256-GCM with a Keystore master key. Never logged or exported, and never in the source. **The APK attached to GitHub releases is a personal build with the author's own OpenAI key built in** (file names end in `-personal`); anyone holding the file can extract that key. Build your own APK without `FINTRACK_EMBED_KEY` to get one with no key (see `docs/RUNNING.md`). A built-in key can be changed or removed in Settings. |
+| API keys | One per AI provider, stored only in EncryptedSharedPreferences using AES-256-GCM with a Keystore master key. Never logged or exported, and never in the source. **The APK attached to GitHub releases is a personal build with the author's own OpenAI key built in** (file names end in `-personal`); anyone holding the file can extract that key. Build your own APK without `FINTRACK_EMBED_KEY` to get one with no key (see `docs/RUNNING.md`). A built-in key can be changed or removed in Settings. |
 | SMS | Only messages from alphanumeric sender IDs such as `VM-HDFCBK` are read. Personal messages from phone numbers are skipped. Only parsed fields are stored. Raw text is kept only for messages waiting in the review queue, and is deleted when you resolve them. The SMS log stores sender, time, outcome, reason and amount, never the body. |
 | Bill photos | Read on the phone by ML Kit Text Recognition with the **bundled** Latin and Devanagari models (`com.google.mlkit:text-recognition`, `com.google.mlkit:text-recognition-devanagari`): no model download, works in airplane mode. The camera capture goes to a temp file in app-private cache and is deleted after recognition, whether or not it succeeded; gallery images are read through the system Photo Picker without a storage permission. No image is stored or sent. ML Kit's own anonymous usage logging to Google is on; see [What ML Kit sends](#what-ml-kit-sends). |
 | Statements and screenshots | Picked through the system file / photo picker (no storage permission), read on the phone and not kept. A PDF password is used in memory to open the file and never stored. Only the parsed fields of each transaction are saved, like SMS. |
-| Network | The only network calls in the codebase go to `https://api.openai.com`: when you tap **Generate summary**, and, if you have a key and "Use AI for unclear cases" is on, for split intelligence. Cleartext HTTP is disabled app-wide. Separately, Google ML Kit sends its own anonymous usage logs, and Android AICore downloads the Gemini Nano model on phones that use it ([What ML Kit sends](#what-ml-kit-sends)). |
-| Data sent to OpenAI | Summary: category totals, counts, budgets, and this and last month's totals. Settings has a **What is sent?** button that shows the exact payload. Split intelligence: for payments the on-phone rules cannot explain, the amounts, relative days and times, a payment type ("restaurant, food") and "Person A"-style labels for whoever sent money. Never merchant or people's names, SMS or statement text, bank names or account numbers. Answers are cached so the same week is never sent twice. |
+| Network | The only network calls in the codebase go to the AI provider picked in **Settings › AI** (OpenAI by default; the full list is in `domain/ai/Llm.kt` and `scripts/audit_apk.py`): for Ask while "Answer Ask with AI" is on, when you tap **Generate**, and, if "Use AI for unclear cases" is on, for split intelligence. No provider is contacted until it is picked and has its key. Cleartext HTTP is disabled app-wide except to `localhost`, for a model server running on the phone itself. Separately, Google ML Kit sends its own anonymous usage logs, and Android AICore downloads the Gemini Nano model on phones that use it ([What ML Kit sends](#what-ml-kit-sends)). |
+| Data sent to the AI provider | Ask: your question, the last few turns, a year of monthly totals, categories, main payees and the latest 120 payments (date, payee, category, amount), with phone numbers and UPI IDs blanked; never SMS text, account or reference numbers. Summary: category totals, counts, budgets, and this and last month's totals. Settings has a **What is sent?** button that shows the exact payload. Split intelligence: for payments the on-phone rules cannot explain, the amounts, relative days and times, a payment type ("restaurant, food") and "Person A"-style labels for whoever sent money. Never merchant or people's names, SMS or statement text, bank names or account numbers. Answers are cached so the same week is never sent twice. |
 | Backups | `allowBackup=false` and data-extraction rules exclude everything from cloud backup and device-to-device transfer. Your own backup (Settings → Backup) is one file sealed with AES-256-GCM under a key derived from your passphrase (PBKDF2-HMAC-SHA256, 600,000 rounds, random salt); FinTrack writes it only where you pick and never uploads it. Without the passphrase it cannot be opened. |
 | Reminders and widget | Worked out on the phone by WorkManager twice a day; notifications keep amounts off the lock screen. The widget shows "₹••••" unless you turn on amounts. |
 | Release build | R8 minification is on, and all `android.util.Log` calls are stripped. Screenshots and screen recording are allowed (no `FLAG_SECURE`), so the screen is as private as your phone. |
-| Third parties | Only AndroidX and Google libraries, plus SQLCipher. No Firebase SDK, analytics, crash reporting or ads. `scripts/audit_apk.py` checks each build: ML Kit's logging classes may not grow, and the only endpoint in FinTrack's own code is `api.openai.com`. |
+| Third parties | Only AndroidX and Google libraries, plus SQLCipher. No Firebase SDK, analytics, crash reporting or ads. `scripts/audit_apk.py` checks each build: ML Kit's logging classes may not grow, and the only endpoints in FinTrack's own code are the AI providers in `ProviderKind`. |
 | CSV export | Written to a location you pick through the system file picker. Cells are escaped against spreadsheet formula injection. |
 
-Two things are outside the app's control. An exported CSV is plain text, so treat it like a bank statement. If you use the AI feature, OpenAI's own data policy applies to the aggregated numbers you send.
+Two things are outside the app's control. An exported CSV is plain text, so treat it like a bank statement. If you use an AI feature, the data policy of the provider you picked applies to what is sent. A model running on the phone sends nothing anywhere.
 
 ## What ML Kit sends
 
@@ -193,7 +195,7 @@ app/src/main/java/com/pft/financetracker/
 │   ├── importer/     Statement table readers and parser
 │   ├── refunds/ recurring/ bills/ cards/ goals/ tax/ networth/ reminders/ widget/ backup/
 │   ├── ask/          Ask FinTrack rules and the month in words
-│   ├── ai/           OpenAI client and aggregated payload builder
+│   ├── ai/           AI provider contract, adapters (OpenAI-compatible, Anthropic, Bedrock), summary payload
 │   └── export/       CSV exporter
 └── ui/
     ├── theme/        Colours, surface tiers, type, motion and haptics

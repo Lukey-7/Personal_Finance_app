@@ -1,6 +1,7 @@
 package com.pft.financetracker.data.ledger
 
 import com.pft.financetracker.data.importer.StatementImporter
+import com.pft.financetracker.data.local.ImportBatchEntity
 import com.pft.financetracker.data.refunds.RefundLinker
 import com.pft.financetracker.data.repository.SmsLogRepository
 import com.pft.financetracker.data.repository.TransactionRepository
@@ -101,11 +102,15 @@ class Ledger(
 
     /**
      * Keeps one row of each pair the duplicate clean-up found; a row a split points at is the one kept. Refund pairings
-     * on the dropped row move to the survivor, so the refund still remembers what it was before pairing.
+     * on the dropped row move to the survivor, so the refund still remembers what it was before pairing. Both rows are
+     * read again inside the transaction; a pair that changed since the scan is skipped and counted as such.
      */
     suspend fun mergeTwins(pairs: List<TransactionRepository.DuplicatePair>, isLinked: suspend (Long) -> Boolean) = changed {
         repo.mergeDuplicates(pairs, beforeDrop = { dropId, keepId -> refunds.moveLinks(dropId, keepId) }, isLinked = isLinked)
     }
+
+    /** Saves a previewed statement as one change: a failure part way leaves no batch and no rows behind. */
+    suspend fun importStatement(preview: StatementImporter.Preview): ImportBatchEntity = changed { statements.commit(preview) }
 
     /** Undoes statement import [batchId]: each purchase it added gives back its paired refunds before it goes. */
     suspend fun undoImport(batchId: Long) = changed {
