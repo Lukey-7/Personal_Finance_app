@@ -3,7 +3,9 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
-## [Unreleased]
+## [1.5.2] - 2026-10-16
+
+A fix release. No database change (still version 7).
 
 ### Fixed
 - **Closing a sheet no longer leaves the app deaf to Back.** Every sheet's own buttons (Restore, Save, Cancel, Got it,
