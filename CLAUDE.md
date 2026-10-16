@@ -4,8 +4,8 @@ FinTrack is the owner's private, on-device personal finance tracker for Android.
 turns them into transactions, and keeps everything in an encrypted database on the phone: no cloud, no account, no
 analytics. It is a personal project, not a production app. Read `README.md` first, then `CHANGELOG.md`.
 
-**State (13 Oct 2026):** v1.5.1 released (any AI provider by key, plus fixes from the v1.5.0 health check), tag
-`v1.5.1`. Room database **version 7** (v1.2.1 owns 5→6, v1.3 owns 6→7; never reuse a released version number). 783 unit
+**State (16 Oct 2026):** v1.5.2 released (sheets close safely; v1.5.1 added any AI provider by key), tag
+`v1.5.2`. Room database **version 7** (v1.2.1 owns 5→6, v1.3 owns 6→7; never reuse a released version number). 786 unit
 tests, all green.
 
 ## Projects, in the order the owner works on them
