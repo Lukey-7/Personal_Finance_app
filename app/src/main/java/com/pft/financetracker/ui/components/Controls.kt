@@ -43,14 +43,20 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -67,6 +73,8 @@ import com.pft.financetracker.ui.theme.Motion
 import com.pft.financetracker.ui.theme.motion
 import com.pft.financetracker.ui.theme.rememberHaptics
 import com.pft.financetracker.ui.theme.surfaces
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * A one-of-several choice on a sunken track, the chosen segment raised on a thumb that springs across. Replaces pairs
@@ -183,27 +191,68 @@ fun AppliedTag(label: String, onRemove: () -> Unit) {
 }
 
 /**
+ * Closes a [FinSheet] the way Back does: lets go of the keyboard, slides the sheet away, and only then runs `after`
+ * (which removes the sheet). Made with [rememberFinSheet] next to the sheet, so a button or a confirm dialog can use it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Stable
+class FinSheetControl internal constructor(val state: SheetState, private val scope: CoroutineScope) {
+    /** True once [close] was called: a second tap on Save while the sheet slides away does nothing. */
+    var isClosing by mutableStateOf(false)
+        internal set
+
+    /** Set by the sheet while it is on screen: clears focus and hides the keyboard in the sheet's own window. */
+    internal var letGo: () -> Unit = {}
+
+    fun close(after: () -> Unit) {
+        if (isClosing) return
+        isClosing = true
+        letGo()
+        scope.launch { state.hide() }.invokeOnCompletion { after() }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun rememberFinSheet(): FinSheetControl {
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    return remember(state, scope) { FinSheetControl(state, scope) }
+}
+
+/**
  * The app's bottom sheet: raised surface, 28dp corners, a drag handle, a title, and a body that scrolls on its own
  * when it is taller than the screen. Springs up; snaps when animations are off.
+ *
+ * The sheet is its own window. A button that ends it calls [FinSheetControl.close] with what should happen next, so
+ * the keyboard and the sheet's window go first and focus returns to the screen underneath, instead of the window being
+ * pulled out while it still holds focus (which could leave the app with no focused window). Swipe, scrim and Back
+ * already slide it away before [onDismiss].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinSheet(
     onDismiss: () -> Unit,
     title: String? = null,
-    state: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    sheet: FinSheetControl = rememberFinSheet(),
     scroll: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = state,
+        sheetState = sheet.state,
         containerColor = surfaces.raised,
         scrimColor = MaterialTheme.colorScheme.scrim,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         tonalElevation = 0.dp,
         modifier = Modifier.statusBarsPadding(),
     ) {
+        // Read inside the sheet: its own window's focus and keyboard.
+        val focus = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        SideEffect { sheet.letGo = { focus.clearFocus(force = true); keyboard?.hide() } }
+        // A caller that still drops the sheet at once: let go of focus and the keyboard before the window goes.
+        DisposableEffect(sheet) { onDispose { sheet.letGo(); sheet.letGo = {}; sheet.isClosing = false } }
         Column(
             Modifier.fillMaxWidth()
                 .then(if (scroll) Modifier.verticalScroll(rememberScrollState()) else Modifier)
@@ -220,10 +269,11 @@ fun FinSheet(
 /** "Learn more": the long explanation, out of the way until asked for. */
 @Composable
 fun InfoSheet(title: String, body: String, onDismiss: () -> Unit, extra: (@Composable ColumnScope.() -> Unit)? = null) {
-    FinSheet(onDismiss, title) {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss, title, sheet) {
         Text(body, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         extra?.invoke(this)
-        PrimaryButton("Got it", onDismiss)
+        PrimaryButton("Got it", { sheet.close(onDismiss) })
     }
 }
 

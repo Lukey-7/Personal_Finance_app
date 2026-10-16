@@ -22,13 +22,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,6 +46,7 @@ import com.pft.financetracker.ui.components.AmountSize
 import com.pft.financetracker.ui.components.CapsLabel
 import com.pft.financetracker.ui.components.EmptyState
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
 import com.pft.financetracker.ui.components.LedgerRow
@@ -70,7 +69,6 @@ import com.pft.financetracker.ui.components.money
 import com.pft.financetracker.ui.components.shortDate
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.rememberHaptics
-import kotlinx.coroutines.launch
 
 /**
  * Subscriptions and other repeating charges found in the transactions: what they cost a month (the hero) and a year,
@@ -251,16 +249,14 @@ private fun RecurringSheet(
 ) {
     val i = v.item
     val haptics = rememberHaptics()
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    fun close(after: () -> Unit) { scope.launch { state.hide() }.invokeOnCompletion { after() } }
+    val sheet = rememberFinSheet()
     fun decide(status: RecurringStatus?) {
         haptics.confirm()
         onDecide(status)
-        close(onDismiss)
+        sheet.close(onDismiss)
     }
 
-    FinSheet(onDismiss = onDismiss, title = displayMerchant(i.merchant), state = state) {
+    FinSheet(onDismiss = onDismiss, title = displayMerchant(i.merchant), sheet = sheet) {
         Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             AmountDisplay(i.amountPaise, size = AmountSize.Medium, color = MaterialTheme.colorScheme.onSurface, spokenLabel = i.period.label)
             Text(
@@ -295,7 +291,7 @@ private fun RecurringSheet(
             Text("You marked this cancelled, but it charged again. Check with the service.", style = MaterialTheme.typography.bodyMedium, color = Expense)
         }
         decisionLine(v)?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        TextAction("Open the last charge", { close { onDismiss(); onOpenLast() } }, alignStart = true)
+        TextAction("Open the last charge", { sheet.close { onDismiss(); onOpenLast() } }, alignStart = true)
 
         if (v.status == null) {
             PrimaryButton("Keep", { decide(RecurringStatus.CONFIRMED) })

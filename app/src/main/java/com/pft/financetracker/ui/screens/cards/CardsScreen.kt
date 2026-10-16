@@ -35,14 +35,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +67,7 @@ import com.pft.financetracker.ui.components.EmptyState
 import com.pft.financetracker.ui.components.FabClearance
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
 import com.pft.financetracker.ui.components.LearnMore
@@ -88,7 +87,6 @@ import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.MoneyType
 import com.pft.financetracker.ui.theme.rememberHaptics
 import com.pft.financetracker.ui.theme.surfaces
-import kotlinx.coroutines.launch
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -368,11 +366,9 @@ private fun CardEditor(vm: AppViewModel, start: Card, existing: List<Card>, onDi
     val dayError = "Enter a day from 1 to 31"
 
     val haptics = rememberHaptics()
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    fun close(after: () -> Unit) { scope.launch { state.hide() }.invokeOnCompletion { after() } }
 
-    FinSheet(onDismiss = onDismiss, title = if (start.id == 0L) "Add a card" else "Edit card", state = state) {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDismiss, title = if (start.id == 0L) "Add a card" else "Edit card", sheet = sheet) {
         if (suggestions.isNotEmpty()) {
             Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 CapsLabel("Seen in your SMS")
@@ -405,7 +401,7 @@ private fun CardEditor(vm: AppViewModel, start: Card, existing: List<Card>, onDi
             onClick = {
                 haptics.confirm()
                 vm.saveCard(start.copy(last4 = last4, name = name.trim(), statementDay = s!!, dueDay = d!!, rewardBp = Math.round(r!! * 100).toInt()))
-                close(onDismiss)
+                sheet.close(onDismiss)
             },
             enabled = valid,
         )
@@ -422,7 +418,7 @@ private fun CardEditor(vm: AppViewModel, start: Card, existing: List<Card>, onDi
             title = { Text("Delete ${start.name}?") },
             text = { Text("Its cycle stops showing here. Your payments stay as they are.") },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; vm.deleteCard(start.id); close(onDismiss) }) {
+                TextButton(onClick = { confirmDelete = false; vm.deleteCard(start.id); sheet.close(onDismiss) }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },

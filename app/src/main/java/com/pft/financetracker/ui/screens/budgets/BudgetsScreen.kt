@@ -25,13 +25,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,6 +48,7 @@ import com.pft.financetracker.ui.components.CategoryIcon
 import com.pft.financetracker.ui.components.ControlShape
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
 import com.pft.financetracker.ui.components.PrimaryButton
@@ -68,7 +67,6 @@ import com.pft.financetracker.ui.model.BudgetLines
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.MoneyType
 import com.pft.financetracker.ui.theme.rememberHaptics
-import kotlinx.coroutines.launch
 
 /**
  * Monthly budgets: spend against the limits this month as the hero, then every spending category with its bar (striped
@@ -247,11 +245,9 @@ private fun BudgetSheet(
 ) {
     val haptics = rememberHaptics()
     var error by remember { mutableStateOf<String?>(null) }
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    fun close(after: () -> Unit) { scope.launch { state.hide() }.invokeOnCompletion { after() } }
 
-    FinSheet(onDismiss = onDismiss, title = "${cat.label} budget", state = state) {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDismiss, title = "${cat.label} budget", sheet = sheet) {
         SoftPanel(spacing = Space.xs) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CategoryIcon(cat, size = 32.dp)
@@ -273,13 +269,13 @@ private fun BudgetSheet(
         PrimaryButton("Save", {
             when (val r = BudgetLines.parse(input)) {
                 is BudgetLines.Input.Invalid -> { error = r.message }
-                is BudgetLines.Input.Limit -> { haptics.confirm(); onSave(r.paise); close(onDismiss) }
+                is BudgetLines.Input.Limit -> { haptics.confirm(); onSave(r.paise); sheet.close(onDismiss) }
                 // 0 takes the limit away; with no limit set there is nothing to remove, so the sheet just closes.
-                BudgetLines.Input.Remove -> { haptics.confirm(); if (limit != null) onRemove(); close(onDismiss) }
+                BudgetLines.Input.Remove -> { haptics.confirm(); if (limit != null) onRemove(); sheet.close(onDismiss) }
             }
         })
         if (limit != null) {
-            TextAction("Remove limit", { haptics.confirm(); onRemove(); close(onDismiss) }, Modifier.align(Alignment.CenterHorizontally), tone = Tone.Danger)
+            TextAction("Remove limit", { haptics.confirm(); onRemove(); sheet.close(onDismiss) }, Modifier.align(Alignment.CenterHorizontally), tone = Tone.Danger)
         }
     }
 }

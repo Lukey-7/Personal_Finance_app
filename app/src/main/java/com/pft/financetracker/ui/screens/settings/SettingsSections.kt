@@ -66,6 +66,7 @@ import com.pft.financetracker.ui.components.ActionRow
 import com.pft.financetracker.ui.components.AdaptiveRow
 import com.pft.financetracker.ui.components.CardTitle
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.Hairline
 import com.pft.financetracker.ui.components.LearnMore
 import com.pft.financetracker.ui.components.MarkdownText
@@ -453,14 +454,15 @@ internal fun AiSection(vm: AppViewModel) {
         }
     }
 
-    if (showPayload) FinSheet({ showPayload = false }, title = "Exact payload sent to ${config.kind.label}") {
+    val sheet = rememberFinSheet()
+    if (showPayload) FinSheet({ showPayload = false }, title = "Exact payload sent to ${config.kind.label}", sheet = sheet) {
         // Built from your payments once they have loaded, never from the empty lists the app starts with.
         val ready by vm.loaded.collectAsState()
         SoftPanel {
             if (ready) Text(vm.aiPayloadPreview(), style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
             else BusyLine("Loading your figures…")
         }
-        PrimaryButton("Close", { showPayload = false })
+        PrimaryButton("Close", { sheet.close { showPayload = false } })
     }
 }
 

@@ -82,6 +82,7 @@ import com.pft.financetracker.ui.components.EmptyState
 import com.pft.financetracker.ui.components.FabClearance
 import com.pft.financetracker.ui.components.FilterButton
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.FinSnackbarHost
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
@@ -275,7 +276,8 @@ fun TransactionsScreen(
 @Composable
 fun CategoryPickerSheet(title: String, selected: Category?, onPick: (Category) -> Unit, onDismiss: () -> Unit) {
     val s = surfaces
-    FinSheet(onDismiss, title) {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss, title, sheet = sheet) {
         Category.entries.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 row.forEach { c ->
@@ -284,7 +286,7 @@ fun CategoryPickerSheet(title: String, selected: Category?, onPick: (Category) -
                         Modifier.weight(1f).heightIn(min = 76.dp).clip(ControlShape)
                             .background(if (on) s.accentSoft else s.card)
                             .border(if (on) 1.5.dp else 1.dp, if (on) MaterialTheme.colorScheme.primary else s.hairline, ControlShape)
-                            .clickable(role = Role.RadioButton) { onPick(c) }
+                            .clickable(role = Role.RadioButton) { sheet.close { onPick(c) } }
                             .semantics { this.selected = on; contentDescription = c.label }
                             .padding(Space.sm),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -314,7 +316,8 @@ private fun FilterSheet(
 ) {
     var f by remember { mutableStateOf(start) }
     val accounts = remember(txns) { ActivityFilter.accountsIn(txns) }
-    FinSheet(onDismiss, "Filter") {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss, "Filter", sheet = sheet) {
         CapsLabel("Category")
         ChipFlow { Category.entries.forEach { c -> PillChip(c in f.categories, c.label, icon = categoryIcon(c)) { f = f.toggle(c) } } }
         if (accounts.isNotEmpty()) {
@@ -339,7 +342,7 @@ private fun FilterSheet(
         Row(horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalAlignment = Alignment.CenterVertically) {
             TextAction("Clear all", { f = ActivityFilter() }, enabled = f.isActive)
             val n = resultCount(f)
-            PrimaryButton(if (n == 0) "No payments match" else "Show ${countLabel(n, "payment")}", { onApply(f) }, Modifier.weight(1f))
+            PrimaryButton(if (n == 0) "No payments match" else "Show ${countLabel(n, "payment")}", { sheet.close { onApply(f) } }, Modifier.weight(1f))
         }
     }
 }

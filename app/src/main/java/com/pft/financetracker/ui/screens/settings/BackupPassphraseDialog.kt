@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.PrimaryButton
 import com.pft.financetracker.ui.components.TextAction
 import com.pft.financetracker.ui.theme.rememberHaptics
@@ -32,15 +33,17 @@ fun BackupPassphraseDialog(restoring: Boolean, onConfirm: (CharArray) -> Unit, o
     var word by remember { mutableStateOf("") }
     val ok = if (restoring) pw.isNotEmpty() && word.trim() == "RESTORE" else pw.length >= 8 && pw == again
     val haptics = rememberHaptics()
-    val submit = {
-        if (ok) {
-            haptics.confirm()
-            onConfirm(pw.toCharArray())
-        } else haptics.reject()
-    }
     val secret = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next)
 
-    FinSheet(onDismiss, title = if (restoring) "Restore a backup" else "Lock your backup") {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss, title = if (restoring) "Restore a backup" else "Lock your backup", sheet = sheet) {
+        val submit = {
+            if (ok) {
+                haptics.confirm()
+                val typed = pw.toCharArray()
+                sheet.close { onConfirm(typed) }
+            } else haptics.reject()
+        }
         if (restoring) {
             Text("Everything on this phone is replaced by the backup. This cannot be undone.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
         } else {
@@ -76,6 +79,6 @@ fun BackupPassphraseDialog(restoring: Boolean, onConfirm: (CharArray) -> Unit, o
         )
         if (restoring) DangerButton("Restore", submit, enabled = ok)
         else PrimaryButton("Save backup", submit, enabled = ok)
-        TextAction("Cancel", onDismiss, Modifier.fillMaxWidth())
+        TextAction("Cancel", { sheet.close(onDismiss) }, Modifier.fillMaxWidth())
     }
 }
