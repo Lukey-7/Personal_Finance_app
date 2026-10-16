@@ -47,6 +47,7 @@ import com.pft.financetracker.ui.components.ButtonHeight
 import com.pft.financetracker.ui.components.CapsLabel
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.Space
 import com.pft.financetracker.ui.components.TextAction
 import com.pft.financetracker.ui.theme.rememberHaptics
@@ -151,17 +152,18 @@ internal fun ClearAllSheet(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     var wrong by remember { mutableStateOf(false) }
     val haptics = rememberHaptics()
     val ok = typed.trim().equals("DELETE", ignoreCase = true)
-    val attempt = {
-        if (ok) {
-            haptics.confirm()
-            onConfirm()
-        } else {
-            wrong = true
-            haptics.reject()
-        }
-    }
 
-    FinSheet(onDismiss, title = "Delete everything?") {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss, title = "Delete everything?", sheet = sheet) {
+        val attempt = {
+            if (ok) {
+                haptics.confirm()
+                sheet.close(onConfirm)
+            } else {
+                wrong = true
+                haptics.reject()
+            }
+        }
         Text(
             "This permanently erases from this phone:",
             style = MaterialTheme.typography.bodyLarge,
@@ -192,6 +194,6 @@ internal fun ClearAllSheet(onConfirm: () -> Unit, onDismiss: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
         )
         DangerButton("Delete everything", attempt, enabled = ok)
-        TextAction("Cancel", onDismiss, Modifier.fillMaxWidth())
+        TextAction("Cancel", { sheet.close(onDismiss) }, Modifier.fillMaxWidth())
     }
 }

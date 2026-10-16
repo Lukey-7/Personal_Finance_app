@@ -78,6 +78,7 @@ import com.pft.financetracker.ui.components.CategoryIcon
 import com.pft.financetracker.ui.components.ExpandableCard
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
 import com.pft.financetracker.ui.components.LearnMore
@@ -172,7 +173,8 @@ fun ImportScreen(vm: AppViewModel, onBack: () -> Unit, onOpenSplits: () -> Unit)
 
     // Step 1½: a locked PDF. The sheet closes when the file opens (or the person cancels).
     (state as? StatementUiState.NeedsPassword)?.let { s ->
-        FinSheet(onDismiss = { password = ""; vm.resetStatementImport() }, title = "This statement is locked") {
+        val sheet = rememberFinSheet()
+        FinSheet(onDismiss = { password = ""; vm.resetStatementImport() }, title = "This statement is locked", sheet = sheet) {
             Text(
                 "${s.fileName} needs the password your bank gave for it. It is used only to open the file on this phone and is never stored.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -195,7 +197,7 @@ fun ImportScreen(vm: AppViewModel, onBack: () -> Unit, onOpenSplits: () -> Unit)
                 modifier = Modifier.fillMaxWidth(),
             )
             PrimaryButton("Open statement", { submit() }, enabled = password.isNotEmpty())
-            TextAction("Cancel", { password = ""; vm.resetStatementImport() }, Modifier.fillMaxWidth())
+            TextAction("Cancel", { sheet.close { password = ""; vm.resetStatementImport() } }, Modifier.fillMaxWidth())
         }
     }
 

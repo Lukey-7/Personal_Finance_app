@@ -32,13 +32,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +59,7 @@ import com.pft.financetracker.ui.components.EmptyState
 import com.pft.financetracker.ui.components.FabClearance
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.PillChip
 import com.pft.financetracker.ui.components.PrimaryButton
@@ -79,7 +78,6 @@ import com.pft.financetracker.ui.components.rememberAtTop
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.MoneyType
 import com.pft.financetracker.ui.theme.rememberHaptics
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -272,11 +270,9 @@ private fun AddMoneySheet(p: GoalProgress, lastMonthSavings: Long, takeOut: Bool
     val tooMuch = v != null && v < 0 && !GoalMath.canChange(v, p.savedPaise)
 
     val haptics = rememberHaptics()
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    fun close(after: () -> Unit) { scope.launch { state.hide() }.invokeOnCompletion { after() } }
 
-    FinSheet(onDismiss = onDismiss, title = if (takeOut) "Take from ${p.goal.name}" else "Add to ${p.goal.name}", state = state) {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDismiss, title = if (takeOut) "Take from ${p.goal.name}" else "Add to ${p.goal.name}", sheet = sheet) {
         Text(
             "${money(p.savedPaise)} saved · ${money(p.remainingPaise)} to go",
             style = MaterialTheme.typography.bodyMedium,
@@ -304,7 +300,7 @@ private fun AddMoneySheet(p: GoalProgress, lastMonthSavings: Long, takeOut: Bool
                 // One save per sheet, however fast the button is tapped while it closes.
                 if (saving || v == null) return@PrimaryButton
                 saving = true
-                haptics.confirm(); onSave(v); close(onDismiss)
+                haptics.confirm(); onSave(v); sheet.close(onDismiss)
             },
             enabled = v != null && v != 0L && !tooMuch && !saving,
         )
@@ -325,11 +321,9 @@ private fun GoalForm(g: Goal, onSave: (Goal) -> Unit, onDelete: () -> Unit, onDi
     val valid = name.isNotBlank() && t != null && (date.isBlank() || d != null)
 
     val haptics = rememberHaptics()
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    fun close(after: () -> Unit) { scope.launch { state.hide() }.invokeOnCompletion { after() } }
 
-    FinSheet(onDismiss = onDismiss, title = if (g.id == 0L) "New goal" else "Edit goal", state = state) {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDismiss, title = if (g.id == 0L) "New goal" else "Edit goal", sheet = sheet) {
         Field(name, { name = it }, "Goal name", placeholder = "e.g. Goa trip")
         Field(target, { target = it }, "Target (₹)", keyboard = KeyboardType.Decimal)
         DateField("Target date (optional)", d, { date = it.toString() }, onClear = { date = "" })
@@ -338,7 +332,7 @@ private fun GoalForm(g: Goal, onSave: (Goal) -> Unit, onDelete: () -> Unit, onDi
             onClick = {
                 if (saving || t == null) return@PrimaryButton
                 saving = true
-                haptics.confirm(); onSave(g.copy(name = name.trim(), targetPaise = t, targetDate = d)); close(onDismiss)
+                haptics.confirm(); onSave(g.copy(name = name.trim(), targetPaise = t, targetDate = d)); sheet.close(onDismiss)
             },
             enabled = valid && !saving,
         )
@@ -355,7 +349,7 @@ private fun GoalForm(g: Goal, onSave: (Goal) -> Unit, onDelete: () -> Unit, onDi
             title = { Text("Delete ${g.name}?") },
             text = { Text("It stops showing here. Your payments stay as they are.") },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDelete(); close(onDismiss) }) {
+                TextButton(onClick = { confirmDelete = false; onDelete(); sheet.close(onDismiss) }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },

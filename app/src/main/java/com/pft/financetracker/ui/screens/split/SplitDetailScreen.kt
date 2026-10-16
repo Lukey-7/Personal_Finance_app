@@ -74,6 +74,7 @@ import com.pft.financetracker.ui.components.ControlShape
 import com.pft.financetracker.ui.components.EmptyState
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
 import com.pft.financetracker.ui.components.LedgerAmount
@@ -340,7 +341,8 @@ private fun SettleSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone: 
     // A typed amount that one of their transfers matches: offer to use that transfer, so it stops counting as income.
     val typedMatch = amt?.takeIf { it > 0 }?.let { com.pft.financetracker.domain.split.SettleMatch.forTypedAmount(candidates, it) }
 
-    FinSheet(onDismiss = onDone, title = "Settle up with $name") {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDone, title = "Settle up with $name", sheet = sheet) {
         SoftPanel(spacing = Space.xs) {
             CapsLabel("Still owed")
             AmountDisplay(sh.remainingPaise, size = AmountSize.Title, color = MaterialTheme.colorScheme.onSurface, spokenLabel = "Still owed")
@@ -352,7 +354,7 @@ private fun SettleSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone: 
                     CandidateRow(t) {
                         haptics.confirm()
                         vm.settleWithTransaction(split.id, sh.id, (sh.settledPaise + t.amountPaise).coerceAtMost(sh.amountPaise), t)
-                        onDone()
+                        sheet.close(onDone)
                     }
                 }
             }
@@ -378,7 +380,7 @@ private fun SettleSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone: 
             TextAction("Use that payment", {
                 haptics.confirm()
                 vm.settleWithTransaction(split.id, sh.id, (sh.settledPaise + t.amountPaise).coerceAtMost(sh.amountPaise), t)
-                onDone()
+                sheet.close(onDone)
             }, alignStart = true)
         }
         PrimaryButton("Mark paid", {
@@ -386,7 +388,7 @@ private fun SettleSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone: 
             if (a == null || a <= 0) { haptics.reject(); return@PrimaryButton }
             haptics.confirm()
             vm.settleShare(sh.id, (sh.settledPaise + a).coerceAtMost(sh.amountPaise))
-            onDone()
+            sheet.close(onDone)
         }, enabled = amt != null && amt > 0)
     }
 }
@@ -403,7 +405,8 @@ private fun PayBackSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone:
     var input by remember(sh.id) { mutableStateOf(paiseToInput(sh.remainingPaise)) }
     val amt = Money.parsePaise(input)
 
-    FinSheet(onDismiss = onDone, title = "Pay back $payer") {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDone, title = "Pay back $payer", sheet = sheet) {
         SoftPanel(spacing = Space.xs) {
             CapsLabel("You owe")
             AmountDisplay(sh.remainingPaise, size = AmountSize.Title, color = MaterialTheme.colorScheme.onSurface, spokenLabel = "You owe")
@@ -415,7 +418,7 @@ private fun PayBackSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone:
                     CandidateRow(t, incoming = false) {
                         haptics.confirm()
                         vm.settleWithTransaction(split.id, sh.id, (sh.settledPaise + t.amountPaise).coerceAtMost(sh.amountPaise), t)
-                        onDone()
+                        sheet.close(onDone)
                     }
                 }
             }
@@ -438,7 +441,7 @@ private fun PayBackSheet(vm: AppViewModel, split: Split, sh: SplitShare, onDone:
             if (a == null || a <= 0) { haptics.reject(); return@PrimaryButton }
             haptics.confirm()
             vm.settleShare(sh.id, (sh.settledPaise + a).coerceAtMost(sh.amountPaise))
-            onDone()
+            sheet.close(onDone)
         }, enabled = amt != null && amt > 0)
     }
 }

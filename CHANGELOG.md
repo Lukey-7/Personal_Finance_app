@@ -3,6 +3,16 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [Unreleased]
+
+### Fixed
+- **Closing a sheet no longer leaves the app deaf to Back.** Every sheet's own buttons (Restore, Save, Cancel, Got it,
+  picking an AI provider, a category or a tax section, settling a split, deleting a bill, card or goal) now let go of
+  the keyboard and slide the sheet away before anything else happens, the same way Back and a swipe already did. Before,
+  some sheets vanished at once, and on a phone that was slow to finish its window animations (seen after restoring a
+  backup straight from the file picker) the app could be left with no window to receive Back, ending in "app isn't
+  responding".
+
 ## [1.5.1] - 2026-10-13
 
 Focus: **pick your AI, and fixes from the v1.5.0 check**. No database change (still version 7).

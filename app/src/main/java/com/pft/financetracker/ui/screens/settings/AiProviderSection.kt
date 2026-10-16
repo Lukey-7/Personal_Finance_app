@@ -17,13 +17,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -39,12 +37,12 @@ import com.pft.financetracker.ui.AppViewModel
 import com.pft.financetracker.ui.components.ActionRow
 import com.pft.financetracker.ui.components.AdaptiveRow
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.LearnMore
 import com.pft.financetracker.ui.components.PrimaryButton
 import com.pft.financetracker.ui.components.SecondaryButton
 import com.pft.financetracker.ui.components.Space
 import com.pft.financetracker.ui.theme.rememberHaptics
-import kotlinx.coroutines.launch
 
 /**
  * Settings › AI: which provider answers (OpenAI, Claude, Gemini, Bedrock, Groq, OpenRouter, Mistral, DeepSeek, a local
@@ -58,8 +56,6 @@ internal fun AiProviderGroup(vm: AppViewModel) {
     val test by vm.aiTest.collectAsState()
     val kind = config.kind
     var picking by remember { mutableStateOf(false) }
-    val pickerState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
     // Drafts of the fields; they start again from the saved values when the provider changes.
     var model by remember(kind) { mutableStateOf(config.model) }
     var url by remember(kind) { mutableStateOf(config.baseUrl) }
@@ -121,14 +117,14 @@ internal fun AiProviderGroup(vm: AppViewModel) {
         if (keySaved) ActionRow("Remove ${kind.label} key", Icons.Outlined.KeyOff, { vm.setApiKey(null); vm.clearAi() })
     }
 
-    if (picking) FinSheet({ picking = false }, title = "AI provider", state = pickerState) {
+    val sheet = rememberFinSheet()
+    if (picking) FinSheet({ picking = false }, title = "AI provider", sheet = sheet) {
         Column {
             ProviderKind.entries.forEach { k ->
                 Row(
                     Modifier.fillMaxWidth().selectable(selected = k == kind, role = Role.RadioButton, onClick = {
                         vm.setAiProvider(k)
-                        // Slide the sheet away before it leaves the screen, so its window closes the usual way.
-                        scope.launch { pickerState.hide() }.invokeOnCompletion { picking = false }
+                        sheet.close { picking = false }
                     })
                         .padding(vertical = Space.sm),
                     verticalAlignment = Alignment.CenterVertically,

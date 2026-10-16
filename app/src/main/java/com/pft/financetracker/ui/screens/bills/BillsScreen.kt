@@ -33,13 +33,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +66,7 @@ import com.pft.financetracker.ui.components.DateField
 import com.pft.financetracker.ui.components.EmptyState
 import com.pft.financetracker.ui.components.FabClearance
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
 import com.pft.financetracker.ui.components.LearnMore
@@ -96,7 +95,6 @@ import com.pft.financetracker.ui.components.rememberAtTop
 import com.pft.financetracker.ui.theme.Expense
 import com.pft.financetracker.ui.theme.MoneyType
 import com.pft.financetracker.ui.theme.rememberHaptics
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -325,14 +323,12 @@ private fun BillSheet(
     onDismiss: () -> Unit,
 ) {
     val haptics = rememberHaptics()
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    fun close(after: () -> Unit) { scope.launch { state.hide() }.invokeOnCompletion { after() } }
     var confirmDelete by remember { mutableStateOf(false) }
     val due = when (s) { is BillState.Upcoming -> s.due; is BillState.Overdue -> s.due; is BillState.Paid -> s.due; BillState.Done -> null }
     val amount = BillTracker.amountDue(b)
 
-    FinSheet(onDismiss = onDismiss, title = b.name, state = state) {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDismiss, title = b.name, sheet = sheet) {
         Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             if (amount != null) AmountDisplay(amount, size = AmountSize.Medium, color = MaterialTheme.colorScheme.onSurface, spokenLabel = b.name)
             else Text("Amount varies", style = MaterialTheme.typography.headlineSmall)
@@ -349,21 +345,21 @@ private fun BillSheet(
             }
         }
         if (s is BillState.Paid && s.transactionId != null) {
-            TextAction("Open the payment", { close { onDismiss(); onOpenTransaction(s.transactionId) } }, alignStart = true)
+            TextAction("Open the payment", { sheet.close { onDismiss(); onOpenTransaction(s.transactionId) } }, alignStart = true)
         }
         if (due != null && s !is BillState.Paid) {
-            PrimaryButton("Mark paid", { haptics.confirm(); onMarkPaid(due); close(onDismiss) })
+            PrimaryButton("Mark paid", { haptics.confirm(); onMarkPaid(due); sheet.close(onDismiss) })
         }
         if (s is BillState.Paid && s.transactionId == null) {
-            SecondaryButton("Not paid", { haptics.confirm(); onUnmark(s.due); close(onDismiss) }, fill = true)
+            SecondaryButton("Not paid", { haptics.confirm(); onUnmark(s.due); sheet.close(onDismiss) }, fill = true)
         }
         if (s is BillState.Paid && s.transactionId != null) {
             // The payment was matched by itself: let the person say it was for something else.
             val txId = s.transactionId
-            SecondaryButton("Not this payment", { haptics.confirm(); onUnmark(s.due); onUnlink(txId); close(onDismiss) }, fill = true)
+            SecondaryButton("Not this payment", { haptics.confirm(); onUnmark(s.due); onUnlink(txId); sheet.close(onDismiss) }, fill = true)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SecondaryButton("Edit", { close(onEdit) }, Modifier.weight(1f))
+            SecondaryButton("Edit", { sheet.close(onEdit) }, Modifier.weight(1f))
             Spacer(Modifier.width(Space.sm))
             TextAction("Delete", { confirmDelete = true }, tone = Tone.Danger)
         }
@@ -375,7 +371,7 @@ private fun BillSheet(
             title = { Text("Delete ${b.name}?") },
             text = { Text("It stops showing here and you won't be reminded about it. Your payments stay as they are.") },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDelete(); close(onDismiss) }) {
+                TextButton(onClick = { confirmDelete = false; onDelete(); sheet.close(onDismiss) }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
@@ -429,11 +425,9 @@ private fun BillEditor(start: Bill, onSave: (Bill) -> Unit, onDismiss: () -> Uni
     val valid = name.isNotBlank() && (dueDay != null || start.fixedDue != null) && (!isLoan || loan != null)
 
     val haptics = rememberHaptics()
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    fun close(after: () -> Unit) { scope.launch { state.hide() }.invokeOnCompletion { after() } }
 
-    FinSheet(onDismiss = onDismiss, title = if (start.id == 0L) "Add a bill" else "Edit bill", state = state) {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDismiss, title = if (start.id == 0L) "Add a bill" else "Edit bill", sheet = sheet) {
         Field(name, { name = it }, "Name, e.g. Rent or Airtel")
         Row(
             Modifier.fillMaxWidth().heightIn(min = 56.dp)
@@ -499,7 +493,7 @@ private fun BillEditor(start: Bill, onSave: (Bill) -> Unit, onDismiss: () -> Uni
                         category = if (isLoan) Category.BILLS else start.category,
                     )
                 )
-                close(onDismiss)
+                sheet.close(onDismiss)
             },
             enabled = valid && !saving,
         )

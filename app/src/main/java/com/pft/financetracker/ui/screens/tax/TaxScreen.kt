@@ -69,6 +69,7 @@ import com.pft.financetracker.ui.components.CardPadding
 import com.pft.financetracker.ui.components.EmptyState
 import com.pft.financetracker.ui.components.FinCard
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.FinSnackbarHost
 import com.pft.financetracker.ui.components.Gutter
 import com.pft.financetracker.ui.components.Hairline
@@ -401,17 +402,18 @@ private fun PaymentRow(tx: Transaction, onClick: () -> Unit) {
 @Composable
 fun TaxTagDialog(title: String, onPick: (TaxSection?) -> Unit, onRule: () -> Unit, onDismiss: () -> Unit) {
     val haptics = rememberHaptics()
-    FinSheet(onDismiss = onDismiss, title = title) {
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDismiss, title = title, sheet = sheet) {
         Text("Which section does this payment count toward?", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Column {
             TaxSection.entries.forEachIndexed { i, s ->
                 if (i > 0) Hairline()
-                SectionChoice(s.code, s.label) { haptics.confirm(); onPick(s) }
+                SectionChoice(s.code, s.label) { haptics.confirm(); sheet.close { onPick(s) } }
             }
             Hairline()
-            SectionChoice(null, "Not a deduction") { haptics.confirm(); onPick(null) }
+            SectionChoice(null, "Not a deduction") { haptics.confirm(); sheet.close { onPick(null) } }
         }
-        TextAction("Use the automatic rule", onRule, alignStart = true)
+        TextAction("Use the automatic rule", { sheet.close(onRule) }, alignStart = true)
     }
 }
 

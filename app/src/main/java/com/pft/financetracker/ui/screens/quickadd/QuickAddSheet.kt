@@ -23,12 +23,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +49,7 @@ import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.ui.components.ControlShape
 import com.pft.financetracker.ui.components.FinSheet
+import com.pft.financetracker.ui.components.rememberFinSheet
 import com.pft.financetracker.ui.components.NumberPad
 import com.pft.financetracker.ui.components.PrimaryButton
 import com.pft.financetracker.ui.components.Space
@@ -66,7 +65,6 @@ import com.pft.financetracker.ui.model.TypedAmount
 import com.pft.financetracker.ui.theme.MoneyType
 import com.pft.financetracker.ui.theme.rememberHaptics
 import com.pft.financetracker.ui.theme.surfaces
-import kotlinx.coroutines.launch
 
 /** Short names for the grid, where a tile is a quarter of the sheet wide. */
 private fun short(c: Category): String = when (c) {
@@ -95,21 +93,13 @@ fun QuickAddSheet(
     val haptics = rememberHaptics()
     val categories = remember(recent) { RecentCategories.order(recent).take(8) }
     var draft by remember { mutableStateOf(QuickAddDraft(category = categories.firstOrNull(), cash = startCash)) }
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    // Set on the first Save or "More details": a second tap while the sheet slides away does nothing, so a payment is
-    // never saved twice and the editor never opens twice.
-    var closing by remember { mutableStateOf(false) }
-    fun close(after: () -> Unit) {
-        if (closing) return
-        closing = true
-        scope.launch { state.hide() }.invokeOnCompletion { after() }
-    }
-
-    FinSheet(onDismiss = onDismiss, state = state) {
+    // FinSheet's close ignores a second Save or "More details" while the sheet slides away, so a payment is never
+    // saved twice and the editor never opens twice.
+    val sheet = rememberFinSheet()
+    FinSheet(onDismiss = onDismiss, sheet = sheet) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (draft.cash) "Paid in cash" else "Add an expense", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextAction("More details", { close { onMoreDetails(draft) } })
+            TextAction("More details", { sheet.close { onMoreDetails(draft) } })
         }
         // The figure being typed, centred and large, with a caret so it reads as an input. Shown as typed (a trailing
         // point or zero stays), grouped the Indian way, and a size smaller rather than cut when it gets long.
@@ -192,8 +182,8 @@ fun QuickAddSheet(
         }
         PrimaryButton(label, {
             val t = draft.toTransaction(System.currentTimeMillis(), cashCounted)
-            if (t == null) haptics.reject() else { haptics.confirm(); close { onSave(t) } }
-        }, enabled = draft.canSave && !closing)
+            if (t == null) haptics.reject() else { haptics.confirm(); sheet.close { onSave(t) } }
+        }, enabled = draft.canSave && !sheet.isClosing)
     }
 }
 
