@@ -43,6 +43,8 @@ class MainActivity : ComponentActivity() {
 
     private fun routeFrom(i: Intent?): String? {
         if (i?.getBooleanExtra(EXTRA_EDIT, false) != true) return null
+        // Only the quick-add sheet in this process knows the token, so another app can't open a pre-filled editor.
+        if (i.getStringExtra(EXTRA_TOKEN) != TOKEN) return null
         return Routes.edit(
             QuickAddDraft(
                 amount = i.getStringExtra(EXTRA_AMOUNT).orEmpty(),
@@ -59,6 +61,8 @@ class MainActivity : ComponentActivity() {
         private const val EXTRA_CATEGORY = "category"
         private const val EXTRA_NOTE = "note"
         private const val EXTRA_CASH = "cash"
+        private const val EXTRA_TOKEN = "token"
+        private val TOKEN = java.util.UUID.randomUUID().toString()
 
         /** Opens the full editor filled in from a quick-add draft. */
         fun editIntent(context: Context, d: QuickAddDraft) = Intent(context, MainActivity::class.java)
@@ -67,6 +71,7 @@ class MainActivity : ComponentActivity() {
             .putExtra(EXTRA_CATEGORY, d.category?.name)
             .putExtra(EXTRA_NOTE, d.note)
             .putExtra(EXTRA_CASH, d.cash)
+            .putExtra(EXTRA_TOKEN, TOKEN)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     }
 }

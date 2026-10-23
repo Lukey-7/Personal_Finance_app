@@ -210,7 +210,7 @@ object AmountExtractor {
 // ---------------------------------------------------------------------------------------------
 object AccountExtractor {
     val patterns: List<Regex> = listOf(
-        Regex("""(?:a/c|ac|acct|account|card|cc)\s*(?:no\.?|number|#)?\s*(?:ending(?: with| in)?|end(?:ing)?|xx+|x+|\*+|-)?\s*[xX*]*(\d{3,6})\b""", RegexOption.IGNORE_CASE),
+        Regex("""(?:a/c|ac|acct|account|card|cc)\s*(?:no\.?|number|#)?\s*(?:ending(?: with| in)?|end(?:ing)?|[xX*]++|-)?\s*[xX*]*+(\d{3,6})\b""", RegexOption.IGNORE_CASE),
         Regex("""\b[xX*]{2,}(\d{3,6})\b"""),
         Regex("""(?:ending|ending with|ending in)\s*(\d{3,6})\b""", RegexOption.IGNORE_CASE),
     )

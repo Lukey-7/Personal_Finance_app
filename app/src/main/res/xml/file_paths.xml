@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Only the app-private cache directory is shareable, and only for the bill photo handed to the camera app. -->
+<!-- Only the capture folder in the app-private cache is shareable, and only for the bill photo handed to the camera app. -->
 <paths>
-    <cache-path name="capture" path="." />
+    <cache-path name="capture" path="capture/" />
 </paths>

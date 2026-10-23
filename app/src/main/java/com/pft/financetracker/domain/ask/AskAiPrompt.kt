@@ -83,8 +83,8 @@ object AskAiPrompt {
         c.bills.mapNotNull { (b, s) ->
             val amount = (b.amountPaise ?: BillTracker.amountDue(b))?.let { " ${r(it)}" } ?: ""
             when (s) {
-                is BillState.Upcoming -> "${b.name}$amount due ${s.due.format(shortDay)}"
-                is BillState.Overdue -> "${b.name}$amount overdue since ${s.due.format(shortDay)}"
+                is BillState.Upcoming -> "${payee(b.name)}$amount due ${s.due.format(shortDay)}"
+                is BillState.Overdue -> "${payee(b.name)}$amount overdue since ${s.due.format(shortDay)}"
                 else -> null
             }
         }.takeIf { it.isNotEmpty() }?.let { out.append("\nBills: ").append(it.joinToString(", ")).append(".\n") }

@@ -3,6 +3,28 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [1.5.3] - 2026-10-23
+
+A security release from a six-part review (AI and network, keys and database, backups and imports, SMS, Android
+components, build). Nothing serious was found; these close the smaller gaps. No database change (still version 7).
+
+### Security
+- **Other apps can't open the editor pre-filled.** Only the quick-add sheet inside FinTrack can now open the full
+  editor with an amount and note filled in.
+- **The bill photo is shared with the camera app more narrowly.** Only a dedicated capture folder is shareable, and the
+  camera app loses access as soon as the photo is taken.
+- **A huge or hostile AI reply can't run the phone out of memory.** Replies over 2 MB are refused, and error messages
+  shown on screen are cut to 300 characters.
+- **A mistyped Bedrock region can't send your key to another address.** Only real AWS region names are used.
+- **Bill names sent to the AI are cleaned** the same way payee names already were (no long numbers or UPI IDs).
+- **Very long text messages are skipped** ("Too long to be a bank alert") instead of keeping the parser busy, and the
+  account-number pattern no longer slows down on long runs of x's.
+- **A learned SMS layout can't save an absurd amount** (over ₹1 crore) or an overlong payee name.
+- **A crafted backup can't keep the phone busy for minutes** before the passphrase check: the key-stretching rounds a
+  file may ask for are capped. Every real backup still opens.
+- **Picked files are read only up to their limit** (40 MB for statements, 256 MB for backups) instead of loaded whole.
+- **"Start fresh" after a key problem no longer leaves the AI key store broken**, which could crash the app at launch.
+
 ## [1.5.2] - 2026-10-16
 
 A fix release. No database change (still version 7).

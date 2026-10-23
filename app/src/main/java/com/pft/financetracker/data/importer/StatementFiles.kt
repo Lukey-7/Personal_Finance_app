@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.pft.financetracker.data.readAtMost
 import com.pft.financetracker.domain.importer.AppHistoryParser
 import com.pft.financetracker.domain.importer.CsvReader
 import com.pft.financetracker.domain.importer.FormatSniffer
@@ -34,6 +35,10 @@ import kotlinx.coroutines.withContext
  * password is used in memory only.
  */
 class StatementFiles(private val context: Context) {
+    private companion object {
+        const val MAX_FILE_BYTES = 40 * 1024 * 1024
+    }
+
     sealed class Read {
         data class Ok(val statement: ParsedStatement, val fileName: String) : Read()
         /** The PDF is locked. [wrong] is true after a password that did not open it. */
@@ -47,9 +52,10 @@ class StatementFiles(private val context: Context) {
 
     suspend fun read(uri: Uri, password: String? = null): Read = withContext(Dispatchers.IO) {
         val name = displayName(uri)
-        val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+        val stream = runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
             ?: return@withContext Read.Error("Could not open the file.")
-        if (bytes.size > 40 * 1024 * 1024) return@withContext Read.Error("The file is too large (over 40 MB).")
+        val bytes = runCatching { stream.use { it.readAtMost(MAX_FILE_BYTES) } }.getOrElse { return@withContext Read.Error("Could not open the file.") }
+            ?: return@withContext Read.Error("The file is too large (over 40 MB).")
         try {
             when (FormatSniffer.sniff(bytes, name)) {
                 FormatSniffer.Kind.CSV -> Read.Ok(StatementInterpreter.interpret(CsvReader.read(bytes), ImportFormat.CSV), name)
@@ -86,9 +92,10 @@ class StatementFiles(private val context: Context) {
      * used in memory to open the file and never stored. Nothing is kept.
      */
     suspend fun readPdfText(uri: Uri, password: String? = null): TextRead = withContext(Dispatchers.IO) {
-        val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
+        val stream = runCatching { context.contentResolver.openInputStream(uri) }.getOrNull()
             ?: return@withContext TextRead.Error("Could not open the file.")
-        if (bytes.size > 40 * 1024 * 1024) return@withContext TextRead.Error("The file is too large (over 40 MB).")
+        val bytes = runCatching { stream.use { it.readAtMost(MAX_FILE_BYTES) } }.getOrElse { return@withContext TextRead.Error("Could not open the file.") }
+            ?: return@withContext TextRead.Error("The file is too large (over 40 MB).")
         PDFBoxResourceLoader.init(context.applicationContext)
         try {
             val doc = try {

@@ -371,6 +371,9 @@ internal object DbKey {
     /** Throws away the key store and its master key. Only for when there is no database, or the person chose to start fresh. */
     fun reset(context: Context) {
         context.deleteSharedPreferences(FILE)
+        // The AI keys (SettingsRepository) are wrapped by the same master key: once it goes they can't be read, and a
+        // file left behind would make every later read or save of a key throw.
+        context.deleteSharedPreferences("fintrack_secure")
         runCatching {
             val ks = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
             if (ks.containsAlias(MasterKey.DEFAULT_MASTER_KEY_ALIAS)) ks.deleteEntry(MasterKey.DEFAULT_MASTER_KEY_ALIAS)
@@ -389,6 +392,6 @@ internal object DbKey {
         val bytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
         // commit() (not apply) so the key is on disk before the database is created with it.
         prefs.edit().putString(KEY, Base64.encodeToString(bytes, Base64.NO_WRAP)).commit()
-        return bytes.copyOf()
+        return bytes.copyOf().also { bytes.fill(0) }
     }
 }

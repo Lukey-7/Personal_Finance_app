@@ -1,5 +1,6 @@
 package com.pft.financetracker.ui.screens.split
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -205,11 +206,14 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> if (uri != null) { ocrApplied = false; vm.runOcr(uri) } }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         val u = cameraUri
+        // The camera app only needed the photo URI while taking the picture.
+        if (u != null) runCatching { ctx.revokeUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
         if (ok && u != null) { ocrApplied = false; vm.runOcr(u) }
     }
     fun launchCamera() {
-        // Temporary file in app-private cache, shared with the camera app through FileProvider. Deleted after OCR.
-        val f = File(ctx.cacheDir, "bill_capture.jpg").apply { if (exists()) delete() }
+        // Temporary file in its own app-private cache folder (the only one FileProvider shares), handed to the camera
+        // app. Deleted after OCR.
+        val f = File(File(ctx.cacheDir, "capture").apply { mkdirs() }, "bill_capture.jpg").apply { if (exists()) delete() }
         val uri = FileProvider.getUriForFile(ctx, ctx.packageName + ".files", f)
         cameraUri = uri
         camera.launch(uri)
@@ -218,7 +222,10 @@ fun NewSplitScreen(vm: AppViewModel, onBack: () -> Unit, onSaved: (Long) -> Unit
     // The capture file must never outlive recognition, on any path: a bill photo left in the cache
     // would contradict the promise that photos are not stored. Cleared when OCR finishes either way,
     // and again when this screen goes away (cancelled capture, back button, process kill).
-    fun discardCapture() { runCatching { File(ctx.cacheDir, "bill_capture.jpg").delete() } }
+    fun discardCapture() {
+        runCatching { File(File(ctx.cacheDir, "capture"), "bill_capture.jpg").delete() }
+        runCatching { File(ctx.cacheDir, "bill_capture.jpg").delete() } // where versions before 1.5.3 kept it
+    }
 
     // A bill read for this split must not fill in the next one: forget it whenever the screen goes (back, save, a
     // tab), but not when it is only rebuilt for a rotation, where the result fills in the fresh form again.

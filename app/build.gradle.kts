@@ -10,8 +10,8 @@ plugins {
 // Single source of truth for the version. Bump both for every release:
 //   versionCode: integer, +1 each release (Android uses it to decide what is an upgrade)
 //   versionName: semantic version MAJOR.MINOR.PATCH, matches the git tag vX.Y.Z
-val appVersionCode = 12
-val appVersionName = "1.5.2"
+val appVersionCode = 13
+val appVersionName = "1.5.3"
 
 // Release signing is read from keystore.properties (git-ignored). Without it, release falls back to the debug key.
 val keystoreProps = Properties().apply {
@@ -19,6 +19,7 @@ val keystoreProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 val hasReleaseKey = keystoreProps.getProperty("storeFile")?.let { file(it).exists() } == true
+if (!hasReleaseKey) logger.warn("keystore.properties missing: a release build would be signed with the DEBUG key and can't update an installed release.")
 
 // Built-in OpenAI key. OPENAI_API_KEY in the shell is baked into every debug build, and into a release
 // build only when FINTRACK_EMBED_KEY=1 is also set: a *personal* build for your own phone. Anyone holding
