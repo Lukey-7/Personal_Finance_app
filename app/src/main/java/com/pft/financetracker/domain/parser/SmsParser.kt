@@ -17,6 +17,8 @@ import com.pft.financetracker.domain.model.TransactionType
 class SmsParser(private val threshold: Int = 60, private val templates: () -> List<LearnedTemplate> = { emptyList() }) {
 
     fun parse(sms: SmsMessage): ParseResult {
+        // Bank alerts are a few hundred characters; a far longer text is not one, and is not worth the parser's time.
+        if (sms.body.length > MAX_BODY) return ParseResult.Ignored(TOO_LONG)
         val body = SmsText.normalize(sms.body)
         if (body.isBlank()) return ParseResult.Ignored("empty")
         // TRAI marks promotional headers with -P; money alerts are always service or transactional.
@@ -84,6 +86,12 @@ class SmsParser(private val threshold: Int = 60, private val templates: () -> Li
 
     private fun defaultMerchant(type: TransactionType, bank: String?): String =
         if (type == TransactionType.CREDIT) "Credit" + (bank?.let { " ($it)" } ?: "") else "Payment" + (bank?.let { " ($it)" } ?: "")
+
+    companion object {
+        /** Ten SMS parts and then some. Real bank alerts are far shorter. */
+        const val MAX_BODY = 2_000
+        const val TOO_LONG = "too_long"
+    }
 }
 
 /** One clean form of an SMS body for every layer: plain spaces, one line, one spelling of the rupee sign. */

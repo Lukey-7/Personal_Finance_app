@@ -38,7 +38,8 @@ class BackupCodec(private val iterations: Int = 600_000, private val random: Sec
         if (bytes.size <= headerSize || !bytes.copyOfRange(0, magic.size).contentEquals(magic)) throw BackupException.NotABackup()
         val buf = ByteBuffer.wrap(bytes, magic.size, 4 + 16 + 12)
         val rounds = buf.int
-        if (rounds !in 1_000..10_000_000) throw BackupException.CannotOpen()
+        // A crafted file must not make the phone spin for minutes before the passphrase check can fail.
+        if (rounds !in 1_000..2_000_000) throw BackupException.CannotOpen()
         val salt = ByteArray(16).also { buf.get(it) }
         val iv = ByteArray(12).also { buf.get(it) }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")

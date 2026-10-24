@@ -47,11 +47,28 @@ object HttpJson {
             conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
             val code = conn.responseCode
             val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-            Response(code, stream?.bufferedReader()?.use { it.readText() } ?: "")
+            Response(code, stream?.bufferedReader()?.use { readBounded(it) } ?: "")
         } finally {
             conn.disconnect()
         }
     }
+
+    /** Far more than any real answer; a server that sends more is broken or hostile and must not run the phone out of memory. */
+    private const val MAX_REPLY_CHARS = 2_000_000
+
+    internal fun readBounded(reader: java.io.Reader, max: Int = MAX_REPLY_CHARS): String {
+        val out = StringBuilder()
+        val buf = CharArray(8192)
+        while (true) {
+            val n = reader.read(buf)
+            if (n < 0) return out.toString()
+            if (out.length + n > max) throw java.io.IOException("The reply from the AI was too large.")
+            out.appendRange(buf, 0, n)
+        }
+    }
+
+    /** Errors are shown on screen and fed back into later questions, so keep them short. */
+    private const val MAX_ERROR_CHARS = 300
 
     /** The provider's own error message from a failed response, else "HTTP 401". */
     fun errorMessage(r: Response): String {
@@ -61,7 +78,7 @@ object HttpJson {
                 ?: o.optString("message").takeIf { it.isNotBlank() }
                 ?: o.optString("error").takeIf { it.isNotBlank() && !it.startsWith("{") }
         }
-        return msg ?: "HTTP ${r.code}"
+        return msg?.take(MAX_ERROR_CHARS) ?: "HTTP ${r.code}"
     }
 
     /** [s] with [key] and anything shaped like an API key replaced, so an error can never show a key on screen. */
@@ -74,7 +91,7 @@ object HttpJson {
     }
 
     /** An exception as a short message for the screen. */
-    fun failure(e: Exception, key: String?): LlmResult.Error = LlmResult.Error(scrub(e.message ?: "Network error", key))
+    fun failure(e: Exception, key: String?): LlmResult.Error = LlmResult.Error(scrub(e.message ?: "Network error", key).take(MAX_ERROR_CHARS))
 }
 
 /** Pulling JSON out of a reply from a model without a JSON mode (it may wrap the object in prose or ``` fences). */

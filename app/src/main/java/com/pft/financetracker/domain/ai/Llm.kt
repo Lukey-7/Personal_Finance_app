@@ -85,7 +85,13 @@ data class ProviderConfig(
     /** Everything needed to ask: a key when the provider needs one, a model, an address that is allowed. */
     val ready: Boolean get() = model.isNotBlank() && (!kind.needsKey || !apiKey.isNullOrBlank()) && HttpJson.allowed(resolvedBaseUrl)
 
-    val resolvedBaseUrl: String get() = baseUrl.trim().trimEnd('/').replace("{region}", region.trim().ifBlank { "us-east-1" })
+    /** Only a real AWS region name (us-east-1, ap-south-1) goes into the address, so a typo can't send the key to another host. */
+    val resolvedBaseUrl: String get() = baseUrl.trim().trimEnd('/')
+        .replace("{region}", region.trim().lowercase().takeIf { REGION.matches(it) } ?: "us-east-1")
+
+    private companion object {
+        val REGION = Regex("^[a-z]{2}(-[a-z]+)+-\\d{1,2}$")
+    }
 }
 
 /** The strategy: the one adapter that speaks [ProviderConfig.kind]'s protocol, or null when it isn't set up yet. */

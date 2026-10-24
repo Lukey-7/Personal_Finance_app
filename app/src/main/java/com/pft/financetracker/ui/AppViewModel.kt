@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.pft.financetracker.appContainer
 import com.pft.financetracker.data.bills.toDomain
+import com.pft.financetracker.data.readAtMost
 import com.pft.financetracker.data.cards.toDomain
 import com.pft.financetracker.data.local.ReviewItemEntity
 import com.pft.financetracker.data.local.SmsLogEntity
@@ -564,7 +565,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun restoreBackup(uri: Uri, passphrase: CharArray): String? = withContext(Dispatchers.IO) {
         _backupBusy.value = "Opening the backup…"
         runCatching {
-            val bytes = getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("Could not open the file.")
+            val stream = getApplication<Application>().contentResolver.openInputStream(uri) ?: error("Could not open the file.")
+            // Far bigger than any real backup; a larger file is refused before it is loaded whole.
+            val bytes = stream.use { it.readAtMost(256 * 1024 * 1024) } ?: error("This file is too large to be a FinTrack backup.")
             val madeAt = c.backup.restore(bytes, passphrase)
             // The next scan re-reads SMS from when the backup was made (all of them if unknown); duplicates are skipped by hash.
             c.settings.setLastImportAt(if (madeAt > 0L) minOf(madeAt, c.settings.lastImportAt.value) else 0L)

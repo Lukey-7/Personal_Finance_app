@@ -56,8 +56,9 @@ object TemplateLearner {
         val m = toRegex(t.skeleton).matchEntire(normalize(body)) ?: return null
         val names = placeholder.findAll(t.skeleton).map { it.groupValues[1] }.filter { it == "AMT" || it == "MER" }.toList()
         val amt = names.indexOf("AMT").takeIf { it >= 0 }?.let { m.groupValues[it + 1] } ?: return null
-        val paise = Money.parsePaise(amt)?.takeIf { it > 0 } ?: return null
-        val merchant = names.indexOf("MER").takeIf { it >= 0 }?.let { m.groupValues[it + 1].trim() }?.takeIf { it.isNotEmpty() }
+        // The same bounds as the generic parser: at most ₹1 crore, a payee name of at most 40 characters.
+        val paise = Money.parsePaise(amt)?.takeIf { it in 1..1_000_000_000L } ?: return null
+        val merchant = names.indexOf("MER").takeIf { it >= 0 }?.let { m.groupValues[it + 1].trim().take(40).trim() }?.takeIf { it.isNotEmpty() }
         return TemplateHit(paise, t.type, merchant)
     }
 

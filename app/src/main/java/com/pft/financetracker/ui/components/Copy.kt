@@ -28,6 +28,7 @@ private val reasons = mapOf(
     "statement" to "A statement summary",
     "login" to "A login or security alert",
     "empty" to "An empty message",
+    "too_long" to "Too long to be a bank alert",
     "no_amount_no_type" to "Not a transaction",
     "no_transaction_hint" to "Not a transaction",
     // Duplicates and your own choices

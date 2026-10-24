@@ -249,6 +249,10 @@ class SmsImporter(
                 if (ok) Outcome.REVIEW else Outcome.DUPLICATE
             }
             is ParseResult.Ignored -> {
+                if (r.reason == SmsParser.TOO_LONG) {
+                    log.log(entry(Outcomes.IGNORED, r.reason))
+                    return Outcome.IGNORED
+                }
                 com.pft.financetracker.domain.bills.CardStatementReader.read(sms.body)?.let { s ->
                     runCatching { onCardStatement(s, com.pft.financetracker.domain.parser.BankExtractor.extract(sms.sender, sms.body)) }
                 }
