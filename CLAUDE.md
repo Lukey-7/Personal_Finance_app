@@ -4,8 +4,9 @@ FinTrack is the owner's private, on-device personal finance tracker for Android.
 turns them into transactions, and keeps everything in an encrypted database on the phone: no cloud, no account, no
 analytics. It is a personal project, not a production app. Read `README.md` first, then `CHANGELOG.md`.
 
-**State (5 Nov 2026):** v1.6.0 released (payee rules, your own categories, weekly automatic backups, cashback, "No
-income yet"), tag `v1.6.0`. Room database **version 8** (v1.2.1 owns 5→6, v1.3 owns 6→7, v1.6 owns 7→8; never reuse a
+**State (5 Nov 2026):** v1.6.0 merged and tagged (payee rules, your own categories, weekly automatic backups,
+cashback, "No income yet"); its GitHub release is a **draft** until the release-build checks in
+`docs/HANDOFF-v1.6.md` pass. Room database **version 8** (v1.2.1 owns 5→6, v1.3 owns 6→7, v1.6 owns 7→8; never reuse a
 released version number). 819 unit tests, all green. The personal build also carries a backup Anthropic key
 (`ANTHROPIC_API_KEY` in `secrets.properties`), saved under Anthropic in Settings › AI and used only once picked there.
 
