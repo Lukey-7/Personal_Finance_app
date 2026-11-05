@@ -122,8 +122,8 @@ object Routes {
     fun edit(d: QuickAddDraft) = "edit?id=-1&reviewId=-1&amount=${Uri.encode(d.amount)}&category=${d.category?.name ?: ""}&note=${Uri.encode(d.note)}&cash=${d.cash}"
     const val DRILL = "drill/{bucket}?category={category}&from={from}&to={to}"
     /** Without [period] the list follows Home's period; with it, the list covers exactly that period. */
-    fun drill(bucket: InsightsEngine.Bucket, category: Category? = null, period: Period? = null) =
-        "drill/${bucket.name}?category=${category?.name ?: ""}&from=${period?.start ?: -1}&to=${period?.end ?: -1}"
+    fun drill(bucket: InsightsEngine.Bucket, category: Category? = null, period: Period? = null, customId: Long? = null) =
+        "drill/${bucket.name}?category=${category?.let { com.pft.financetracker.domain.model.CategoryChoice(it, customId).key } ?: ""}&from=${period?.start ?: -1}&to=${period?.end ?: -1}"
     const val NEW_SPLIT = "split/new"
     const val IMPORT = "import"
     const val SPLIT_DETAIL = "split/{id}"
@@ -195,6 +195,10 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
     val nav = rememberNavController()
     val onboarded by vm.onboarded.collectAsState()
     val reviewCount by vm.reviewCount.collectAsState()
+    val customs by vm.customCategories.collectAsState()
+    // One for the whole app, reading the payments vm already holds.
+    val app = androidx.compose.ui.platform.LocalContext.current.applicationContext as android.app.Application
+    val tools: com.pft.financetracker.ui.MoneyToolsViewModel = viewModel(factory = com.pft.financetracker.ui.MoneyToolsViewModel.factory(app, vm.transactions))
     val backStack by nav.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val showBar = currentRoute in tabRoutes
@@ -218,6 +222,7 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
             CompositionLocalProvider(
                 LocalBottomBarPadding provides padding.calculateBottomPadding(),
                 LocalSharedTransitionScope provides this,
+                com.pft.financetracker.ui.components.LocalCustomCategories provides customs,
             ) {
                 NavHost(
                     navController = nav,
@@ -243,6 +248,7 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                             onOpenSmsLog = { nav.navigate(Routes.smsLog(it)) },
                             onDrill = { bucket, cat -> nav.navigate(Routes.drill(bucket, cat)) },
                             onDrillIn = { bucket, cat, period -> nav.navigate(Routes.drill(bucket, cat, period)) },
+                            onDrillCustom = { bucket, cat, id, period -> nav.navigate(Routes.drill(bucket, cat, period, customId = id)) },
                             onOpenSplit = { nav.navigate(Routes.splitDetail(it)) },
                             onOpenTools = { nav.navigate(Routes.TOOLS) },
                             onOpenRoute = { nav.navigate(it) },
@@ -261,7 +267,7 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                     }
                     screen(Routes.TXN, listOf(navArgument("id") { type = NavType.LongType })) { entry ->
                         TransactionDetailScreen(
-                            vm, entry.arguments?.getLong("id") ?: -1L,
+                            vm, tools, entry.arguments?.getLong("id") ?: -1L,
                             onEdit = { nav.navigate(Routes.edit(id = it)) },
                             onOpenSplit = { nav.navigate(Routes.splitDetail(it)) },
                             onOpenTransaction = openTxn,
@@ -279,15 +285,16 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                     }
                     screen(Routes.INSIGHTS) {
                         InsightsScreen(vm, onOpenBudgets = { nav.navigate(Routes.BUDGETS) }, onOpenTools = { nav.navigate(Routes.TOOLS) },
-                            onDrill = { bucket, cat, period -> nav.navigate(Routes.drill(bucket, cat, period)) })
+                            onDrill = { bucket, cat, period -> nav.navigate(Routes.drill(bucket, cat, period)) },
+                            onDrillCustom = { bucket, cat, id, period -> nav.navigate(Routes.drill(bucket, cat, period, customId = id)) })
                     }
-                    screen(Routes.TOOLS) { ToolsScreen(vm, onOpen = { nav.navigate(it) }, onBack = { nav.popBackStack() }) }
+                    screen(Routes.TOOLS) { ToolsScreen(vm, tools, onOpen = { nav.navigate(it) }, onBack = { nav.popBackStack() }) }
                     screen(Routes.ASK) { com.pft.financetracker.ui.screens.ask.AskScreen(vm, onOpenTransaction = openTxn) { nav.popBackStack() } }
-                    screen(Routes.TAX) { com.pft.financetracker.ui.screens.tax.TaxScreen(vm) { nav.popBackStack() } }
-                    screen(Routes.GOALS) { com.pft.financetracker.ui.screens.goals.GoalsScreen(vm) { nav.popBackStack() } }
-                    screen(Routes.CARDS) { com.pft.financetracker.ui.screens.cards.CardsScreen(vm) { nav.popBackStack() } }
-                    screen(Routes.BILLS) { com.pft.financetracker.ui.screens.bills.BillsScreen(vm, onOpenTransaction = openTxn) { nav.popBackStack() } }
-                    screen(Routes.RECURRING) { com.pft.financetracker.ui.screens.recurring.RecurringScreen(vm, onOpenTransaction = openTxn) { nav.popBackStack() } }
+                    screen(Routes.TAX) { com.pft.financetracker.ui.screens.tax.TaxScreen(vm, tools) { nav.popBackStack() } }
+                    screen(Routes.GOALS) { com.pft.financetracker.ui.screens.goals.GoalsScreen(vm, tools) { nav.popBackStack() } }
+                    screen(Routes.CARDS) { com.pft.financetracker.ui.screens.cards.CardsScreen(vm, tools) { nav.popBackStack() } }
+                    screen(Routes.BILLS) { com.pft.financetracker.ui.screens.bills.BillsScreen(vm, tools, onOpenTransaction = openTxn) { nav.popBackStack() } }
+                    screen(Routes.RECURRING) { com.pft.financetracker.ui.screens.recurring.RecurringScreen(vm, tools, onOpenTransaction = openTxn) { nav.popBackStack() } }
                     screen(Routes.BUDGETS) { BudgetsScreen(vm, onBack = { nav.popBackStack() }) }
                     screen(Routes.SETTINGS) { SettingsScreen(vm, onOpenSection = { nav.navigate(Routes.settingsSection(it)) }) }
                     screen(Routes.SETTINGS_SECTION, listOf(navArgument("section") { type = NavType.StringType })) { entry ->
@@ -317,9 +324,10 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                         ),
                     ) { entry ->
                         val bucket = runCatching { InsightsEngine.Bucket.valueOf(entry.arguments?.getString("bucket") ?: "") }.getOrDefault(InsightsEngine.Bucket.ALL)
-                        val cat = entry.arguments?.getString("category")?.takeIf { it.isNotEmpty() }?.let { Category.fromName(it) }
+                        val picked = entry.arguments?.getString("category")?.takeIf { it.isNotEmpty() }
+                            ?.let { com.pft.financetracker.domain.model.CategoryChoice.fromKey(it, vm.customCategories.value) }
                         val range = DrillPeriod.of(entry.arguments?.getLong("from") ?: -1L, entry.arguments?.getLong("to") ?: -1L)
-                        DrillDownScreen(vm, bucket, cat, onBack = { nav.popBackStack() }, onEdit = openTxn, range = range)
+                        DrillDownScreen(vm, bucket, picked?.category, onBack = { nav.popBackStack() }, onEdit = openTxn, range = range, customId = picked?.customId)
                     }
                     screen(
                         Routes.EDIT,
@@ -341,7 +349,7 @@ fun AppNav(vm: AppViewModel = viewModel(), pendingRoute: String? = null, onRoute
                             note = a?.getString("note").orEmpty(),
                             cash = a?.getBoolean("cash") ?: false,
                         ).takeIf { it.amount.isNotEmpty() || it.category != null || it.note.isNotEmpty() || it.cash }
-                        EditTransactionScreen(vm, id, reviewId, prefill, onOpenSplit = { nav.navigate(Routes.splitDetail(it)) }, onOpenTransaction = openTxn,
+                        EditTransactionScreen(vm, tools, id, reviewId, prefill, onOpenSplit = { nav.navigate(Routes.splitDetail(it)) }, onOpenTransaction = openTxn,
                             onDeleted = { if (!nav.popBackStack(Routes.TXN, inclusive = true)) nav.popBackStack() }) { nav.popBackStack() }
                     }
                 }

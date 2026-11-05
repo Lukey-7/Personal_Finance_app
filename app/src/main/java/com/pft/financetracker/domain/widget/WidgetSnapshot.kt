@@ -32,7 +32,7 @@ object WidgetSnapshot {
         fun rupees(p: Long) = if (hideAmounts) "₹••••" else com.pft.financetracker.domain.model.Rupees.format(p, com.pft.financetracker.domain.model.Paise.NEVER)
 
         val budgetLine = budgets.takeIf { it.isNotEmpty() }?.let { bs ->
-            val spentInBudgeted = bs.sumOf { b -> summary.byCategory.firstOrNull { it.category == b.category }?.amountPaise ?: 0L }
+            val spentInBudgeted = bs.sumOf { b -> summary.byCategory.firstOrNull { it.choice == b.choice }?.amountPaise ?: 0L }
             val left = bs.sumOf { it.monthlyLimitPaise } - spentInBudgeted
             when {
                 hideAmounts -> when {

@@ -117,7 +117,8 @@ object AskEngine {
             } ?: AskAnswer("No spending ${period.label}.")
             category != null -> {
                 val list = spends(c, period).filter { it.category == category }
-                val net = s.byCategory.firstOrNull { it.category == category }?.amountPaise ?: 0L
+                // The whole family: the person's own categories under it are part of "food".
+                val net = s.byCategory.filter { it.category == category }.sumOf { it.amountPaise }
                 AskAnswer("You spent ${rupees(net)} on ${category.label} ${period.label} (${count(list.size)}).", list.map { it.id })
             }
             merchantKey != null -> {
@@ -159,7 +160,7 @@ object AskEngine {
         if (c.budgets.isEmpty()) return AskAnswer("No budgets set. Set them in Insights > Budgets.")
         val month = if (isWholeMonth(asked, c)) asked else period("", c)
         val s = c.books.summary(month)
-        val spent = c.budgets.sumOf { b -> s.byCategory.firstOrNull { it.category == b.category }?.amountPaise?.coerceAtLeast(0) ?: 0L }
+        val spent = c.budgets.sumOf { b -> s.byCategory.firstOrNull { it.choice == b.choice }?.amountPaise?.coerceAtLeast(0) ?: 0L }
         val left = c.budgets.sumOf { it.monthlyLimitPaise } - spent
         val running = c.now in month
         return AskAnswer(

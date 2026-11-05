@@ -57,6 +57,7 @@ import com.pft.financetracker.domain.cards.CardCycles
 import com.pft.financetracker.domain.cards.CardDue
 import com.pft.financetracker.domain.cards.CardSummary
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.MoneyToolsViewModel
 import com.pft.financetracker.ui.components.AdaptiveRow
 import com.pft.financetracker.ui.components.AddButton
 import com.pft.financetracker.ui.components.AmountDisplay
@@ -125,9 +126,9 @@ private fun PrivacyNote(modifier: Modifier = Modifier) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CardsScreen(vm: AppViewModel, onBack: () -> Unit) {
-    val summaries by vm.cardSummaries.collectAsState()
-    val bills by vm.billStates.collectAsState()
+fun CardsScreen(vm: AppViewModel, tools: MoneyToolsViewModel, onBack: () -> Unit) {
+    val summaries by tools.cardSummaries.collectAsState()
+    val bills by tools.billStates.collectAsState()
     val dbLoaded by vm.loaded.collectAsState()
     // These lists start as "not loaded", so a first open shows the skeleton rather than flashing the empty state.
     val loaded = dbLoaded && com.pft.financetracker.ui.isLoaded(summaries) && com.pft.financetracker.ui.isLoaded(bills)
@@ -189,7 +190,7 @@ fun CardsScreen(vm: AppViewModel, onBack: () -> Unit) {
         }
     }
 
-    editing?.let { c -> CardEditor(vm, c, summaries.map { it.card }, onDismiss = { editing = null }) }
+    editing?.let { c -> CardEditor(vm, tools, c, summaries.map { it.card }, onDismiss = { editing = null }) }
 }
 
 /** Spend this cycle across every card, and which bill is due first. */
@@ -347,7 +348,7 @@ private fun dayOf(text: String): Int? = text.toIntOrNull()?.takeIf { it in 1..31
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CardEditor(vm: AppViewModel, start: Card, existing: List<Card>, onDismiss: () -> Unit) {
+private fun CardEditor(vm: AppViewModel, tools: MoneyToolsViewModel, start: Card, existing: List<Card>, onDismiss: () -> Unit) {
     var last4 by remember { mutableStateOf(start.last4) }
     var trimmed by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf(start.name) }
@@ -356,7 +357,7 @@ private fun CardEditor(vm: AppViewModel, start: Card, existing: List<Card>, onDi
     var reward by remember { mutableStateOf(if (start.rewardBp > 0) "%.2f".format(Locale.ENGLISH, start.rewardBp / 100.0) else "") }
     var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmDelete by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { if (start.id == 0L) suggestions = vm.cardSuggestions() }
+    LaunchedEffect(Unit) { if (start.id == 0L) suggestions = tools.cardSuggestions() }
 
     val s = dayOf(stmt)
     val d = dayOf(due)
@@ -400,7 +401,7 @@ private fun CardEditor(vm: AppViewModel, start: Card, existing: List<Card>, onDi
             "Save card",
             onClick = {
                 haptics.confirm()
-                vm.saveCard(start.copy(last4 = last4, name = name.trim(), statementDay = s!!, dueDay = d!!, rewardBp = Math.round(r!! * 100).toInt()))
+                tools.saveCard(start.copy(last4 = last4, name = name.trim(), statementDay = s!!, dueDay = d!!, rewardBp = Math.round(r!! * 100).toInt()))
                 sheet.close(onDismiss)
             },
             enabled = valid,
@@ -418,7 +419,7 @@ private fun CardEditor(vm: AppViewModel, start: Card, existing: List<Card>, onDi
             title = { Text("Delete ${start.name}?") },
             text = { Text("Its cycle stops showing here. Your payments stay as they are.") },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; vm.deleteCard(start.id); sheet.close(onDismiss) }) {
+                TextButton(onClick = { confirmDelete = false; tools.deleteCard(start.id); sheet.close(onDismiss) }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },

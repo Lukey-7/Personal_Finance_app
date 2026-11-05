@@ -7,6 +7,7 @@ import com.pft.financetracker.data.repository.SmsLogRepository
 import com.pft.financetracker.data.repository.TransactionRepository
 import com.pft.financetracker.data.sms.SmsImporter
 import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.CategoryChoice
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.ledger.FlowRules
 import com.pft.financetracker.domain.ledger.applyEdit
@@ -54,6 +55,8 @@ class Ledger(
     /** Refund pairing, split detection and the widget; [useAi] lets split detection ask the AI judge. */
     private val afterChange: suspend (useAi: Boolean) -> Unit,
     private val scope: CoroutineScope,
+    /** Remembers the category a person gave a payee, for that payee's next payments ([CategoryStore.learn]). */
+    private val learnPayee: suspend (merchant: String, choice: CategoryChoice) -> Unit = { _, _ -> },
 ) {
     /** Runs a block as one database transaction (Room's `withTransaction` in the app, the same in tests). */
     interface Transactor {
@@ -71,6 +74,8 @@ class Ledger(
         val stored = repo.getById(edited.id)
         val row = if (stored != null && opened != null) applyEdit(stored, opened, edited) else edited
         repo.update(FlowRules.normalise(row).copy(userEdited = true))
+        // A category the person chose, not one carried along: the payee's next payments are filed the same way.
+        if (opened != null && edited.choice != opened.choice) tolerate { learnPayee(row.merchant, row.choice) }
     }
 
     /** The app itself reshaped a stored payment (a split shrinking it to my share): not marked as a person's correction. */
@@ -85,8 +90,16 @@ class Ledger(
     }
 
     /** Moves [ids] to [category] (Activity's multi-select), as a person's correction. Only rows that change are written. */
-    suspend fun recategorise(ids: Set<Long>, category: Category) = changed {
-        repo.updateAll(recategorise(repo.getByIds(ids), ids, category))
+    suspend fun recategorise(ids: Set<Long>, category: Category) = recategorise(ids, CategoryChoice(category))
+
+    /**
+     * Moves [ids] to [choice] as a person's correction; only rows that change are written. With [learn], each payee
+     * moved also keeps [choice] for its next payments (not for "also move the earlier ones", which follows a rule).
+     */
+    suspend fun recategorise(ids: Set<Long>, choice: CategoryChoice, learn: Boolean = true) = changed {
+        val moved = recategorise(repo.getByIds(ids), ids, choice)
+        repo.updateAll(moved)
+        if (learn) moved.map { it.merchant }.distinct().forEach { m -> tolerate { learnPayee(m, choice) } }
     }
 
     /**

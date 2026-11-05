@@ -151,12 +151,15 @@ fun DashboardScreen(
     onDrill: (Bucket, Category?) -> Unit,
     /** The same, for a period other than the one Home shows (a budget row in Week mode opens its month). */
     onDrillIn: (Bucket, Category?, Period) -> Unit = { bucket, cat, _ -> onDrill(bucket, cat) },
+    /** One of the person's own categories ([customId] under [Category]), in Home's period or the one given. */
+    onDrillCustom: (Bucket, Category, Long, Period?) -> Unit = { bucket, cat, _, _ -> onDrill(bucket, cat) },
     onOpenSplit: (Long) -> Unit = {},
     onOpenTools: () -> Unit = {},
     onOpenRoute: (String) -> Unit = {},
 ) {
     val books by vm.books.collectAsState()
     val budgets by vm.budgets.collectAsState()
+    val customs by vm.customCategories.collectAsState()
     val reviewCount by vm.reviewCount.collectAsState()
     val importState by vm.importState.collectAsState()
     val choice by vm.period.collectAsState()
@@ -359,7 +362,7 @@ fun DashboardScreen(
                 ExpandableCard(
                     // Budgets are monthly: a week or a range shows the month it ends in, and says which.
                     title = if (budgetPeriod.start == Periods.month(0, now).start) "Budgets" else "Budgets · ${budgetPeriod.label}",
-                    summary = HomeLines.budgets(budgetStatus),
+                    summary = HomeLines.budgets(budgetStatus, customs),
                     icon = Icons.Outlined.Savings,
                     tint = if (over) Expense else MaterialTheme.colorScheme.primary,
                     summaryColor = if (over) Expense else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -367,16 +370,17 @@ fun DashboardScreen(
                     raised = over, initiallyExpanded = over, stateKey = "home-budgets-${budgetPeriod.start}-$over",
                 ) {
                     if (budgetStatus.isEmpty()) Text("Set a monthly limit for a category and FinTrack shows how close you are.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    budgetStatus.sortedByDescending { it.fraction }.take(5).forEach { b -> key(b.budget.category) {
+                    budgetStatus.sortedByDescending { it.fraction }.take(5).forEach { b -> key(b.budget.choice.key) {
                         Column(
                             Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.Button, onClickLabel = "See payments") {
                                 // A budget is a month: open that month's payments, not just the chosen week, and leave Home's period alone.
-                                onDrillIn(Bucket.SPEND, b.budget.category, budgetPeriod)
+                                val id = b.budget.customId
+                                if (id != null) onDrillCustom(Bucket.SPEND, b.budget.category, id, budgetPeriod) else onDrillIn(Bucket.SPEND, b.budget.category, budgetPeriod)
                             },
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Text(b.budget.category.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                                Text(b.budget.choice.label(customs), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                                 Spacer(Modifier.width(Space.md))
                                 Text("${money(b.spentPaise)} of ${money(b.budget.monthlyLimitPaise)}", style = MoneyType.label, color = MaterialTheme.colorScheme.onSurfaceVariant, softWrap = false)
                             }
@@ -394,7 +398,7 @@ fun DashboardScreen(
                 val restColor = MaterialTheme.colorScheme.outline
                 val slices = parts.map { part ->
                     val rupees = com.pft.financetracker.domain.model.Money.toRupees(part.paise)
-                    part.category?.let { Slice(it.label, rupees, categoryColor(it), it) } ?: Slice("Everything else", rupees, restColor, null)
+                    part.category?.let { Slice(part.label ?: it.label, rupees, categoryColor(it), it, part.customId) } ?: Slice("Everything else", rupees, restColor, null)
                 }
                 ExpandableCard(
                     title = "Where it went",
@@ -404,7 +408,11 @@ fun DashboardScreen(
                     stateKey = "home-where",
                 ) {
                     if (slices.isEmpty()) Text("No spending recorded in this period.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    else CategoryRing(slices, money(summary.netSpendPaise), countLabel(summary.expenseCount, "payment"), totalValue = com.pft.financetracker.domain.model.Money.toRupees(parts.sumOf { it.paise })) { cat -> onDrill(Bucket.SPEND, cat) }
+                    else CategoryRing(slices, money(summary.netSpendPaise), countLabel(summary.expenseCount, "payment"), totalValue = com.pft.financetracker.domain.model.Money.toRupees(parts.sumOf { it.paise })) { s ->
+                        val cat = s.category ?: return@CategoryRing
+                        val id = s.customId
+                        if (id != null) onDrillCustom(Bucket.SPEND, cat, id, null) else onDrill(Bucket.SPEND, cat)
+                    }
                 }
             }
 
@@ -534,7 +542,7 @@ fun DashboardScreen(
 
 /** Income, spend and savings side by side; stacked as rows at a large font so no figure is squeezed. */
 @Composable
-private fun Tiles(summary: PeriodSummary, onDrill: (Bucket, Category?) -> Unit) {
+internal fun Tiles(summary: PeriodSummary, onDrill: (Bucket, Category?) -> Unit) {
     val big = LocalDensity.current.fontScale > 1.3f
     val items = listOf(
         Triple("Income", summary.incomePaise, Bucket.INCOME),
@@ -546,7 +554,11 @@ private fun Tiles(summary: PeriodSummary, onDrill: (Bucket, Category?) -> Unit) 
         if (big) {
             FinCard(padding = PaddingValues(horizontal = Space.lg, vertical = Space.xs), spacing = 0.dp) {
                 items.forEach { (label, paise, bucket) ->
-                    AmountRow(label, paise, tileColor(label, paise), labelColor = MaterialTheme.colorScheme.onSurface, sign = if (label == "Income" && paise > 0) "+" else "",
+                    val instead = if (label == "Savings") HomeLines.savingsInstead(summary.incomePaise) else null
+                    if (instead != null) Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                        Text(instead, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else AmountRow(label, paise, tileColor(label, paise), labelColor = MaterialTheme.colorScheme.onSurface, sign = if (label == "Income" && paise > 0) "+" else "",
                         onClick = bucket?.let { b -> { onDrill(b, null) } })
                 }
             }
@@ -559,7 +571,10 @@ private fun Tiles(summary: PeriodSummary, onDrill: (Bucket, Category?) -> Unit) 
                     spacing = 4.dp,
                 ) {
                     Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    AmountDisplay(paise, size = com.pft.financetracker.ui.components.AmountSize.Title, color = tileColor(label, paise),
+                    val instead = if (label == "Savings") HomeLines.savingsInstead(summary.incomePaise) else null
+                    if (instead != null) Text(instead, Modifier.heightIn(min = 32.dp).semantics { contentDescription = "$label: $instead" },
+                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                    else AmountDisplay(paise, size = com.pft.financetracker.ui.components.AmountSize.Title, color = tileColor(label, paise),
                         prefix = if (label == "Income" && paise > 0) "+" else "", spokenLabel = label)
                 }
             }

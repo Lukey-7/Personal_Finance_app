@@ -95,6 +95,47 @@ class SettingsRepository(context: Context) {
     val lastBackupAt: StateFlow<Long> = _lastBackupAt
     fun setLastBackupAt(t: Long) { plain.edit().putLong(KEY_LAST_BACKUP, t).apply(); _lastBackupAt.value = t }
 
+    /**
+     * Automatic backup: the folder the person picked (a document-tree address, not a secret) while it is on, else null.
+     * Its passphrase is kept with the AI keys in the encrypted store, so the weekly job can seal the file unattended.
+     */
+    private val _autoBackupFolder = MutableStateFlow(plain.getString(KEY_AUTO_BACKUP_FOLDER, null))
+    val autoBackupFolder: StateFlow<String?> = _autoBackupFolder
+    private val _lastAutoBackupAt = MutableStateFlow(plain.getLong(KEY_LAST_AUTO_BACKUP, 0L))
+    val lastAutoBackupAt: StateFlow<Long> = _lastAutoBackupAt
+    /** Why the last automatic run did not save, in words for Settings; null when it worked (or never ran). */
+    private val _autoBackupProblem = MutableStateFlow(plain.getString(KEY_AUTO_BACKUP_PROBLEM, null))
+    val autoBackupProblem: StateFlow<String?> = _autoBackupProblem
+
+    fun autoBackupPassphrase(): CharArray? =
+        runCatching { secure.getString(KEY_AUTO_BACKUP_PASS, null)?.takeIf { it.isNotEmpty() }?.toCharArray() }.getOrNull()
+
+    /** Turns automatic backup on for [folder]. False when the encrypted store could not keep the passphrase. */
+    fun setAutoBackup(folder: String, passphrase: CharArray): Boolean {
+        val stored = runCatching { secure.edit().putString(KEY_AUTO_BACKUP_PASS, String(passphrase)).commit() }.getOrDefault(false)
+        if (!stored) return false
+        plain.edit().putString(KEY_AUTO_BACKUP_FOLDER, folder).remove(KEY_AUTO_BACKUP_PROBLEM).apply()
+        _autoBackupFolder.value = folder; _autoBackupProblem.value = null
+        return true
+    }
+
+    fun turnOffAutoBackup() {
+        runCatching { secure.edit().remove(KEY_AUTO_BACKUP_PASS).apply() }
+        plain.edit().remove(KEY_AUTO_BACKUP_FOLDER).remove(KEY_AUTO_BACKUP_PROBLEM).apply()
+        _autoBackupFolder.value = null; _autoBackupProblem.value = null
+    }
+
+    fun recordAutoBackup(at: Long) {
+        plain.edit().putLong(KEY_LAST_AUTO_BACKUP, at).remove(KEY_AUTO_BACKUP_PROBLEM).apply()
+        _lastAutoBackupAt.value = at; _autoBackupProblem.value = null
+        setLastBackupAt(at)
+    }
+
+    fun recordAutoBackupProblem(words: String) {
+        plain.edit().putString(KEY_AUTO_BACKUP_PROBLEM, words).apply()
+        _autoBackupProblem.value = words
+    }
+
     /** Reminders already posted, as "thing@dueDay#lead" keys (no amounts or names), so none is sent twice. */
     fun sentReminders(): Set<String> = plain.getStringSet(KEY_REMINDERS_SENT, emptySet())?.toSet() ?: emptySet()
     fun setSentReminders(keys: Set<String>) { plain.edit().putStringSet(KEY_REMINDERS_SENT, keys).apply() }
@@ -202,6 +243,9 @@ class SettingsRepository(context: Context) {
         _remindersEnabled.value = false
         _widgetHideAmounts.value = true
         _lastBackupAt.value = 0L
+        _autoBackupFolder.value = null
+        _lastAutoBackupAt.value = 0L
+        _autoBackupProblem.value = null
         _useNano.value = true
         _askUseOpenAi.value = true
         aiAnswerCache.clear()
@@ -219,6 +263,10 @@ class SettingsRepository(context: Context) {
         const val KEY_REMINDERS_SENT = "reminders_sent"
         const val KEY_WIDGET_HIDE = "widget_hide_amounts"
         const val KEY_LAST_BACKUP = "last_backup_at"
+        const val KEY_AUTO_BACKUP_FOLDER = "auto_backup_folder"
+        const val KEY_LAST_AUTO_BACKUP = "last_auto_backup_at"
+        const val KEY_AUTO_BACKUP_PROBLEM = "auto_backup_problem"
+        const val KEY_AUTO_BACKUP_PASS = "auto_backup_passphrase"
         const val KEY_USE_NANO = "use_nano"
         const val KEY_ASK_OPENAI = "ask_use_openai"
         const val KEY_API_SEEDED = "api_key_seeded"

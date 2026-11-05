@@ -3,6 +3,33 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
+## [Unreleased: 1.6.0]
+
+Focus: **the app remembers you**. Database version 8 (adds payee rules and your own categories, drops the unused
+net-worth tables; every payment, budget, bill, card and goal is kept).
+
+### Added
+- **Payees keep the category you give them.** Move a payment from Autowala to Transport and Autowala's next payments,
+  by SMS or statement, go to Transport too. FinTrack offers to move the earlier ones as well, leaving any you sorted
+  one by one alone. Placeholder names such as "Payment (HDFC Bank)" never become a rule. Settings › Categories lists
+  the rules, and each can be removed.
+- **Your own categories.** Add Pets, Parents or anything else in Settings › Categories. Each one counts as a built-in
+  category for splits, tax and how money is counted, and gets its own line on Home, in Insights, in Budgets, in the CSV
+  export and on every payment. Deleting one moves its payments back to the built-in, removes its budget and keeps every
+  payment.
+- **Weekly automatic backups** into a folder you pick (a USB drive, a synced folder). FinTrack keeps the newest four
+  of its own files there and never touches anything else. The passphrase is kept in the phone's encrypted key store so
+  the backup can run unattended; Settings says so before you turn it on.
+- **Cashback is recorded.** "Rs 200 paid … cashback of Rs 20 credited" now saves the ₹20 as money back on that
+  payment, so Shopping shows ₹180. A cashback that is only promised ("will be credited") is not counted, and the bank's
+  own cashback SMS a few days later is not counted a second time.
+
+### Changed
+- **Savings with no income recorded** reads "No income yet" instead of a red minus figure.
+
+### Removed
+- The net-worth tables, unused since v1.5.0 removed the screen. Older backups that still have them restore normally.
+
 ## [1.5.3] - 2026-10-23
 
 A security release from a six-part review (AI and network, keys and database, backups and imports, SMS, Android

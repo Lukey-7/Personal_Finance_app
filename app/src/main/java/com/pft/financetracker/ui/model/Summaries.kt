@@ -38,27 +38,34 @@ fun shortLabel(c: Category): String = when (c) {
 
 /** The one line each collapsed card on Home shows. */
 object HomeLines {
-    fun budgets(status: List<BudgetStatus>): String {
+    /**
+     * What the Savings tile says instead of a figure: with no income recorded in the period, "income minus spend" is
+     * only the spend with a minus sign, which reads as an alarm it isn't. Null shows the figure as usual.
+     */
+    fun savingsInstead(incomePaise: Long): String? = if (incomePaise <= 0L) "No income yet" else null
+
+    fun budgets(status: List<BudgetStatus>, customs: Map<Long, com.pft.financetracker.domain.model.CustomCategory> = emptyMap()): String {
+        fun shortLabel(b: com.pft.financetracker.domain.model.Budget) = if (b.customId != null) b.choice.label(customs) else shortLabel(b.category)
         if (status.isEmpty()) return "No budgets set"
         val over = status.filter { it.over }.sortedByDescending { it.spentPaise - it.budget.monthlyLimitPaise }
         if (over.isNotEmpty()) {
             val top = over.first()
-            return "${over.size} over · ${shortLabel(top.budget.category)} ${money(top.spentPaise - top.budget.monthlyLimitPaise)} over"
+            return "${over.size} over · ${shortLabel(top.budget)} ${money(top.spentPaise - top.budget.monthlyLimitPaise)} over"
         }
         val near = status.filter { it.fraction >= 0.8f }.maxByOrNull { it.fraction }
         val set = "${status.size} set"
-        return if (near != null) "${shortLabel(near.budget.category)} at ${(near.fraction * 100).roundToInt()}% · $set" else "All within budget · $set"
+        return if (near != null) "${shortLabel(near.budget)} at ${(near.fraction * 100).roundToInt()}% · $set" else "All within budget · $set"
     }
 
     fun whereItWent(byCategory: List<CategorySpend>): String {
         val spend = byCategory.filter { it.amountPaise > 0 }
         val total = spend.sumOf { it.amountPaise }
         if (total <= 0) return "No spending yet"
-        return spend.take(3).joinToString(" · ") { "${shortLabel(it.category)} ${(it.amountPaise * 100.0 / total).roundToInt()}%" }
+        return spend.take(3).joinToString(" · ") { "${if (it.customId != null) it.label else shortLabel(it.category)} ${(it.amountPaise * 100.0 / total).roundToInt()}%" }
     }
 
     /** One slice of the "Where it went" ring: a category, or the rest together when [category] is null. */
-    data class RingPart(val category: Category?, val paise: Long)
+    data class RingPart(val category: Category?, val paise: Long, val customId: Long? = null, val label: String? = null)
 
     /**
      * The ring's slices: the [top] biggest categories with positive spend, and everything after them as one slice, so
@@ -67,7 +74,7 @@ object HomeLines {
     fun ringParts(byCategory: List<CategorySpend>, top: Int = 7): List<RingPart> {
         val spend = byCategory.filter { it.amountPaise > 0 }.sortedByDescending { it.amountPaise }
         val rest = spend.drop(top).sumOf { it.amountPaise }
-        return spend.take(top).map { RingPart(it.category, it.amountPaise) } + (if (rest > 0) listOf(RingPart(null, rest)) else emptyList())
+        return spend.take(top).map { RingPart(it.category, it.amountPaise, it.customId, it.label.takeIf { _ -> it.customId != null }) } + (if (rest > 0) listOf(RingPart(null, rest)) else emptyList())
     }
 
     /** Whole-number share of [paise] in [totalPaise], the way the ring and the summary line both round it. */

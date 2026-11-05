@@ -63,6 +63,7 @@ import com.pft.financetracker.domain.tax.TaxReport
 import com.pft.financetracker.domain.tax.TaxSection
 import com.pft.financetracker.domain.tax.TaxTagger
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.MoneyToolsViewModel
 import com.pft.financetracker.ui.components.AmountDisplay
 import com.pft.financetracker.ui.components.CapsLabel
 import com.pft.financetracker.ui.components.CardPadding
@@ -103,16 +104,16 @@ import java.time.LocalDate
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaxScreen(vm: AppViewModel, onBack: () -> Unit) {
-    val fy by vm.taxYear.collectAsState()
+fun TaxScreen(vm: AppViewModel, tools: MoneyToolsViewModel, onBack: () -> Unit) {
+    val fy by tools.taxYear.collectAsState()
     val txns by vm.transactions.collectAsState()
-    val tags by vm.taxTags.collectAsState()
+    val tags by tools.taxTags.collectAsState()
     val loaded by vm.loaded.collectAsState()
     // The date ticks over at midnight, so the year choices move on 1 April even if the app stays open.
     val today by remember { DayClock.today() }.collectAsState(LocalDate.now())
     val thisFy = FinancialYear.of(today)
     val lastFy = FinancialYear(thisFy.startYear - 1)
-    LaunchedEffect(thisFy) { if (vm.taxYear.value != thisFy && vm.taxYear.value != lastFy) vm.setTaxYear(thisFy) }
+    LaunchedEffect(thisFy) { if (tools.taxYear.value != thisFy && tools.taxYear.value != lastFy) tools.setTaxYear(thisFy) }
 
     // The year's report, worked out off the main thread. Null until the first answer, so the screen shows a skeleton
     // rather than "Nothing found" while the data arrives. It carries its own year, so a switch never mislabels figures.
@@ -134,7 +135,7 @@ fun TaxScreen(vm: AppViewModel, onBack: () -> Unit) {
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
-            val ok = withContext(Dispatchers.IO) { runCatching { ctx.contentResolver.openOutputStream(uri)?.use { it.write(vm.taxCsv(fy).toByteArray()) } }.isSuccess }
+            val ok = withContext(Dispatchers.IO) { runCatching { ctx.contentResolver.openOutputStream(uri)?.use { it.write(tools.taxCsv(fy).toByteArray()) } }.isSuccess }
             snackbar.showSnackbar(if (ok) "Exported ${fy.label}" else "Export failed")
         }
     }
@@ -143,14 +144,14 @@ fun TaxScreen(vm: AppViewModel, onBack: () -> Unit) {
     /** Tag every payment in a "possible" group at once, with an undo that puts them back to the rules. */
     fun decide(g: PossibleGroup, counts: Boolean) {
         haptics.confirm()
-        g.transactionIds.forEach { vm.tagTax(it, if (counts) g.section else null) }
+        g.transactionIds.forEach { tools.tagTax(it, if (counts) g.section else null) }
         scope.launch {
             val what = countLabel(g.transactionIds.size, "payment")
             val r = snackbar.showSnackbar(
                 if (counts) "$what added to ${g.section.code}" else "$what marked as not a deduction",
                 actionLabel = "Undo", duration = SnackbarDuration.Short,
             )
-            if (r == SnackbarResult.ActionPerformed) g.transactionIds.forEach { vm.clearTaxTag(it) }
+            if (r == SnackbarResult.ActionPerformed) g.transactionIds.forEach { tools.clearTaxTag(it) }
         }
     }
 
@@ -180,7 +181,7 @@ fun TaxScreen(vm: AppViewModel, onBack: () -> Unit) {
                 SegmentedControl(
                     options = listOf(thisFy.label, lastFy.label),
                     selected = when (fy) { thisFy -> 0; lastFy -> 1; else -> -1 },
-                    onSelect = { vm.setTaxYear(if (it == 0) thisFy else lastFy) },
+                    onSelect = { tools.setTaxYear(if (it == 0) thisFy else lastFy) },
                 )
             }
 
@@ -225,7 +226,7 @@ fun TaxScreen(vm: AppViewModel, onBack: () -> Unit) {
                     Icons.AutoMirrored.Outlined.ReceiptLong,
                     "Nothing found for ${fy.label}",
                     "Insurance, PPF, ELSS, NPS, rent and donations show up here as they are paid.",
-                ) { if (fy == thisFy) SecondaryButton("See ${lastFy.label}", { vm.setTaxYear(lastFy) }) }
+                ) { if (fy == thisFy) SecondaryButton("See ${lastFy.label}", { tools.setTaxYear(lastFy) }) }
             }
 
             if (report.possible.isNotEmpty()) {
@@ -250,7 +251,7 @@ fun TaxScreen(vm: AppViewModel, onBack: () -> Unit) {
         }
     }
 
-    tagging?.let { tx -> TaxTagDialog(tx.merchant, onPick = { vm.tagTax(tx.id, it); tagging = null }, onRule = { vm.clearTaxTag(tx.id); tagging = null }, onDismiss = { tagging = null }) }
+    tagging?.let { tx -> TaxTagDialog(tx.merchant, onPick = { tools.tagTax(tx.id, it); tagging = null }, onRule = { tools.clearTaxTag(tx.id); tagging = null }, onDismiss = { tagging = null }) }
 }
 
 /** One plain line on what a section covers and its limit. */

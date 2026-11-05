@@ -61,9 +61,9 @@ object AskAiPrompt {
 
         for ((name, m) in listOf("This month" to ym, "Last month" to ym.minusMonths(1))) {
             val s = c.books.summary(period(m))
-            if (s.byCategory.isEmpty()) continue
+            if (s.byBuiltIn.isEmpty()) continue
             out.append("\n").append(name).append(" by category: ")
-                .append(s.byCategory.joinToString(", ") { "${it.category.label} ${r(it.amountPaise)} (${it.count})" }).append(".\n")
+                .append(s.byBuiltIn.joinToString(", ") { "${it.category.label} ${r(it.amountPaise)} (${it.count})" }).append(".\n")
         }
 
         val threeMonths = Period(period(ym.minusMonths(2)).start, period(ym).end, "last three months")

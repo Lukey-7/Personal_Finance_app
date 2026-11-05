@@ -71,16 +71,19 @@ fun DrillDownScreen(
     onEdit: (Long) -> Unit,
     /** The period the tapping screen showed; null follows Home's period. */
     range: Period? = null,
+    /** One of the person's own categories under [category], when the figure tapped was its row. */
+    customId: Long? = null,
 ) {
+    val customs by vm.customCategories.collectAsState()
     val books by vm.books.collectAsState()
     val choice by vm.period.collectAsState()
     val loaded by vm.loaded.collectAsState()
     val period = range ?: choice.period()
     // Spend lists its refunds too, so the total is the same net figure the tapping screen showed.
-    val list = remember(books, choice, range, bucket, category) { books.payments(period, bucket, category) }
+    val list = remember(books, choice, range, bucket, category, customId) { books.payments(period, bucket, category, customId) }
     val total = Books.total(list, bucket)
     val refunds = if (bucket == InsightsEngine.Bucket.SPEND) list.count { it.flow == com.pft.financetracker.domain.model.Flow.REFUND } else 0
-    val name = category?.label ?: bucketLabel(bucket)
+    val name = category?.let { com.pft.financetracker.domain.model.CategoryChoice(it, customId).label(customs) } ?: bucketLabel(bucket)
     val days = list.groupBy { dayOf(it.timestamp) }
 
     Scaffold(

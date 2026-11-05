@@ -18,7 +18,7 @@ object CsvExporter {
 
     private fun rupees(paise: Long) = String.format(Locale.ENGLISH, "%.2f", paise / 100.0)
 
-    fun toCsv(list: List<Transaction>): String {
+    fun toCsv(list: List<Transaction>, customs: Map<Long, com.pft.financetracker.domain.model.CustomCategory> = emptyMap()): String {
         val sb = StringBuilder()
         sb.append("id,date,type,flow,amount,merchant,category,bank,account_last4,ref,source,note\n")
         for (t in list) {
@@ -28,7 +28,7 @@ object CsvExporter {
                 .append(t.flow.name).append(',')
                 .append(rupees(t.amountPaise)).append(',')
                 .append(esc(t.merchant)).append(',')
-                .append(esc(t.category.label)).append(',')
+                .append(esc(t.choice.label(customs))).append(',')
                 .append(esc(t.bankName ?: "")).append(',')
                 .append(esc(t.accountRef ?: "")).append(',')
                 .append(esc(t.refNumber ?: "")).append(',')

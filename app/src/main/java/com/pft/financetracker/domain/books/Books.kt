@@ -12,6 +12,8 @@ import com.pft.financetracker.domain.insights.PeriodSummary
 import com.pft.financetracker.domain.insights.Periods
 import com.pft.financetracker.domain.model.Budget
 import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.CategoryChoice
+import com.pft.financetracker.domain.model.CustomCategory
 import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
@@ -38,6 +40,8 @@ class Books private constructor(
     /** Every payment, newest first, as the ledger holds them. */
     val all: List<Transaction>,
     val rules: CountingRules,
+    /** The person's own categories by id, for their names; payments filed in one are grouped under it. */
+    val customs: Map<Long, CustomCategory> = emptyMap(),
 ) {
     // Most recent periods first out; bounded, because periods compared with "the same days last month" end at the
     // current millisecond and would otherwise add a new entry on every screen redraw.
@@ -64,14 +68,14 @@ class Books private constructor(
 
         // Refunds reduce the category they came from when the merchant matches a spend in this period,
         // otherwise they reduce the total only.
-        val refundByCat = mutableMapOf<Category, Long>()
+        val refundByCat = mutableMapOf<CategoryChoice, Long>()
         val spendCats = spendCategoryByMerchant(spend)
         for (r in refunds) {
             val cat = refundCategory(r, spendCats) ?: continue
             refundByCat[cat] = (refundByCat[cat] ?: 0L) + r.amountPaise
         }
-        val byCat = spend.groupBy { it.category }
-            .map { (c, list) -> CategorySpend(c, list.sumOf { it.amountPaise } - (refundByCat[c] ?: 0L), list.size) }
+        val byCat = spend.groupBy { it.choice }
+            .map { (c, list) -> CategorySpend(c.category, list.sumOf { it.amountPaise } - (refundByCat[c] ?: 0L), list.size, c.customId, c.label(customs)) }
             .filter { it.amountPaise != 0L }
             .sortedByDescending { it.amountPaise }
 
@@ -106,30 +110,32 @@ class Books private constructor(
     }
 
     /** First spend's category per merchant key, for matching refunds to what they refund. */
-    private fun spendCategoryByMerchant(spend: List<Transaction>): Map<String, Category> {
-        val m = HashMap<String, Category>()
-        for (t in spend) m.putIfAbsent(InsightsEngine.normalizeMerchant(t.merchant), t.category)
+    private fun spendCategoryByMerchant(spend: List<Transaction>): Map<String, CategoryChoice> {
+        val m = HashMap<String, CategoryChoice>()
+        for (t in spend) m.putIfAbsent(InsightsEngine.normalizeMerchant(t.merchant), t.choice)
         return m
     }
 
     /** The category a refund reduces: the one its merchant was spent in, else its own; null when it fits none. */
-    private fun refundCategory(r: Transaction, spendCats: Map<String, Category>): Category? =
-        spendCats[InsightsEngine.normalizeMerchant(r.merchant)] ?: r.category.takeIf { it != Category.INCOME && it != Category.OTHER }
+    private fun refundCategory(r: Transaction, spendCats: Map<String, CategoryChoice>): CategoryChoice? =
+        spendCats[InsightsEngine.normalizeMerchant(r.merchant)] ?: r.choice.takeIf { it.category != Category.INCOME && it.category != Category.OTHER }
 
     /**
      * The payments behind one figure. Spend includes the refunds that reduce it (all of them, or those matched to
-     * [category]), so [drillTotal] of the list is exactly the net figure Home shows.
+     * [category]), so [drillTotal] of the list is exactly the net figure Home shows. A built-in [category] means the
+     * payments filed under it directly, as its row on Home shows; [customId] picks the person's own category instead.
      */
-    fun payments(period: Period, bucket: Bucket, category: Category? = null): List<Transaction> {
+    fun payments(period: Period, bucket: Bucket, category: Category? = null, customId: Long? = null): List<Transaction> {
         val inPeriod = all.filter { it.timestamp in period && !it.needsReview }
+        val want = category?.let { CategoryChoice(it, customId) }
         if (bucket == Bucket.SPEND) {
             val spend = inPeriod.filter { isSpend(it) }
             val spendCats = spendCategoryByMerchant(spend)
-            return if (category == null) inPeriod.filter { isSpend(it) || counts(Bucket.REFUNDS, it) }
-            else inPeriod.filter { (isSpend(it) && it.category == category) || (counts(Bucket.REFUNDS, it) && refundCategory(it, spendCats) == category) }
+            return if (want == null) inPeriod.filter { isSpend(it) || counts(Bucket.REFUNDS, it) }
+            else inPeriod.filter { (isSpend(it) && it.choice == want) || (counts(Bucket.REFUNDS, it) && refundCategory(it, spendCats) == want) }
         }
         val byBucket = inPeriod.filter { counts(bucket, it) }
-        return if (category == null) byBucket else byBucket.filter { it.category == category }
+        return if (want == null) byBucket else byBucket.filter { it.choice == want }
     }
 
     /**
@@ -150,7 +156,7 @@ class Books private constructor(
 
     fun budgets(budgets: List<Budget>, period: Period = Periods.month()): List<BudgetStatus> {
         val s = summary(period)
-        return budgets.map { b -> BudgetStatus(b, s.byCategory.firstOrNull { it.category == b.category }?.amountPaise ?: 0L) }
+        return budgets.map { b -> BudgetStatus(b, s.byCategory.firstOrNull { it.choice == b.choice }?.amountPaise ?: 0L) }
             .sortedByDescending { it.fraction }
     }
 
@@ -166,17 +172,17 @@ class Books private constructor(
         val out = mutableListOf<Insight>()
         for (cs in cur.byCategory) {
             if (cs.amountPaise <= 0) continue
-            val p = prev.byCategory.firstOrNull { it.category == cs.category }?.amountPaise ?: 0L
+            val p = prev.byCategory.firstOrNull { it.choice == cs.choice }?.amountPaise ?: 0L
             if (p < 0) continue
             if (p < 20_000 && cs.amountPaise < 50_000) continue
             if (p == 0L) {
-                out += Insight("New spending: ${cs.category.label}", "${InsightsEngine.rupees(cs.amountPaise)} this period, nothing last period.", Insight.Severity.INFO, cs.category, 0)
+                out += Insight("New spending: ${cs.label}", "${InsightsEngine.rupees(cs.amountPaise)} this period, nothing last period.", Insight.Severity.INFO, cs.category, 0, cs.customId, cs.label)
                 continue
             }
             val pct = InsightsEngine.changePercent(cs.amountPaise, p) ?: continue
             if (abs(pct) < 10) continue
-            if (pct > 0) out += Insight("${cs.category.label} up $pct%", "You spent ${InsightsEngine.rupees(cs.amountPaise)} vs ${InsightsEngine.rupees(p)} last period.", Insight.Severity.WARN, cs.category, pct)
-            else out += Insight("${cs.category.label} down ${-pct}%", "${InsightsEngine.rupees(cs.amountPaise)} vs ${InsightsEngine.rupees(p)} last period. Nice.", Insight.Severity.GOOD, cs.category, -pct)
+            if (pct > 0) out += Insight("${cs.label} up $pct%", "You spent ${InsightsEngine.rupees(cs.amountPaise)} vs ${InsightsEngine.rupees(p)} last period.", Insight.Severity.WARN, cs.category, pct, cs.customId, cs.label)
+            else out += Insight("${cs.label} down ${-pct}%", "${InsightsEngine.rupees(cs.amountPaise)} vs ${InsightsEngine.rupees(p)} last period. Nice.", Insight.Severity.GOOD, cs.category, -pct, cs.customId, cs.label)
         }
         return out.sortedByDescending { it.magnitude }
     }
@@ -236,9 +242,9 @@ class Books private constructor(
         // 5. Budget overspend.
         budgets(budgets, month).filter { it.over }.forEach {
             out += Insight(
-                "Over budget: ${it.budget.category.label}",
+                "Over budget: ${it.budget.choice.label(customs)}",
                 "${InsightsEngine.rupees(it.spentPaise)} spent of ${InsightsEngine.rupees(it.budget.monthlyLimitPaise)} budget (${(it.fraction * 100).roundToInt()}%).",
-                Insight.Severity.WARN, it.budget.category
+                Insight.Severity.WARN, it.budget.category, customId = it.budget.customId, label = it.budget.choice.label(customs)
             )
         }
 
@@ -265,7 +271,8 @@ class Books private constructor(
     companion object {
         private const val SUMMARY_CACHE = 24
 
-        fun of(payments: List<Transaction>, rules: CountingRules = CountingRules()) = Books(payments, rules)
+        fun of(payments: List<Transaction>, rules: CountingRules = CountingRules(), customs: Map<Long, CustomCategory> = emptyMap()) =
+            Books(payments, rules, customs)
 
         /** The figure a drill-down list adds up to: for spend, payments minus the refunds listed with them. */
         fun total(list: List<Transaction>, bucket: Bucket): Long =

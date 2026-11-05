@@ -27,14 +27,14 @@ object MonthlySummary {
         o.put("transaction_count", current.expenseCount)
         o.put("previous_period_net_spend", previous.spend.roundToInt())
         val cats = JSONArray()
-        current.byCategory.forEach { cs ->
-            val prev = previous.byCategory.firstOrNull { it.category == cs.category }?.amount ?: 0.0
+        current.byBuiltIn.forEach { cs ->
+            val prev = previous.byBuiltIn.firstOrNull { it.category == cs.category }?.amount ?: 0.0
             cats.put(JSONObject().apply {
                 put("category", cs.category.label)
                 put("amount", cs.amount.roundToInt())
                 put("count", cs.count)
                 put("previous_amount", prev.roundToInt())
-                budgets.firstOrNull { it.category == cs.category }?.let { put("budget", it.monthlyLimit.roundToInt()) }
+                budgets.firstOrNull { it.category == cs.category && it.customId == null }?.let { put("budget", it.monthlyLimit.roundToInt()) }
             })
         }
         o.put("categories", cats)

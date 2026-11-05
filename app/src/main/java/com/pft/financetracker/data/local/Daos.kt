@@ -11,6 +11,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TransactionDao {
+    /** Payments in one of the person's own categories follow it when it is moved under another built-in. */
+    @Query("UPDATE transactions SET category = :parent WHERE customCategoryId = :customId")
+    suspend fun reparent(customId: Long, parent: String)
+
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     fun observeAll(): Flow<List<TransactionEntity>>
 
@@ -409,36 +413,40 @@ interface TaxDao {
 }
 
 @Dao
-interface NetWorthDao {
-    @Query("SELECT * FROM assets ORDER BY liability, name")
-    fun observeAssets(): Flow<List<AssetEntity>>
-    @Query("SELECT * FROM assets ORDER BY liability, name")
-    suspend fun getAssets(): List<AssetEntity>
-    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertAsset(e: AssetEntity): Long
-    @Query("DELETE FROM assets WHERE id = :id")
-    suspend fun deleteAsset(id: Long)
+interface PayeeRuleDao {
+    @Query("SELECT * FROM payee_rules ORDER BY payeeKey")
+    fun observeAll(): Flow<List<PayeeRuleEntity>>
 
-    @Query("SELECT * FROM account_balances")
-    fun observeBalances(): Flow<List<AccountBalanceEntity>>
-    @Query("SELECT * FROM account_balances")
-    suspend fun getBalances(): List<AccountBalanceEntity>
-    @Query("SELECT * FROM account_balances WHERE accountRef = :ref")
-    suspend fun getBalance(ref: String): AccountBalanceEntity?
-    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertBalance(e: AccountBalanceEntity)
+    @Query("SELECT * FROM payee_rules")
+    suspend fun getAll(): List<PayeeRuleEntity>
 
-    @Query("SELECT * FROM holdings ORDER BY valuePaise DESC")
-    fun observeHoldings(): Flow<List<HoldingEntity>>
-    @Query("SELECT * FROM holdings ORDER BY valuePaise DESC")
-    suspend fun getHoldings(): List<HoldingEntity>
-    @Query("DELETE FROM holdings")
-    suspend fun clearHoldings()
-    @Insert suspend fun insertHoldings(e: List<HoldingEntity>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(e: PayeeRuleEntity)
 
-    @Query("SELECT * FROM networth_snapshots ORDER BY month")
-    fun observeSnapshots(): Flow<List<NetWorthSnapshotEntity>>
-    @Query("SELECT * FROM networth_snapshots ORDER BY month")
-    suspend fun getSnapshots(): List<NetWorthSnapshotEntity>
-    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsertSnapshot(e: NetWorthSnapshotEntity)
+    @Query("DELETE FROM payee_rules WHERE payeeKey = :key")
+    suspend fun delete(key: String)
+
+    @Query("DELETE FROM payee_rules WHERE category = :category")
+    suspend fun deleteForCategory(category: String)
+}
+
+@Dao
+interface CustomCategoryDao {
+    @Query("SELECT * FROM custom_categories ORDER BY name COLLATE NOCASE")
+    fun observeAll(): Flow<List<CustomCategoryEntity>>
+
+    @Query("SELECT * FROM custom_categories ORDER BY name COLLATE NOCASE")
+    suspend fun getAll(): List<CustomCategoryEntity>
+
+    @Insert suspend fun insert(e: CustomCategoryEntity): Long
+
+    @Update suspend fun update(e: CustomCategoryEntity)
+
+    @Query("DELETE FROM custom_categories WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    /** Payments in a deleted category go back to its parent, which [TransactionEntity.category] already holds. */
+    @Query("UPDATE transactions SET customCategoryId = NULL WHERE customCategoryId = :id")
+    suspend fun releasePayments(id: Long)
 }
 
 @Dao

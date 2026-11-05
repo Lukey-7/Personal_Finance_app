@@ -50,6 +50,7 @@ import com.pft.financetracker.domain.goals.GoalMath
 import com.pft.financetracker.domain.goals.GoalProgress
 import com.pft.financetracker.domain.model.Money
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.MoneyToolsViewModel
 import com.pft.financetracker.ui.components.AddButton
 import com.pft.financetracker.ui.components.AmountDisplay
 import com.pft.financetracker.ui.components.CapsLabel
@@ -92,8 +93,8 @@ private fun newGoal() = Goal(name = "", targetPaise = 0, targetDate = LocalDate.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
-    val goals by vm.goalProgress.collectAsState()
+fun GoalsScreen(vm: AppViewModel, tools: MoneyToolsViewModel, onBack: () -> Unit) {
+    val goals by tools.goalProgress.collectAsState()
     val lastMonthSavings by vm.lastMonthSavingsPaise.collectAsState()
     val dbLoaded by vm.loaded.collectAsState()
     // These lists start as "not loaded", so a first open shows the skeleton rather than flashing the empty state.
@@ -147,11 +148,11 @@ fun GoalsScreen(vm: AppViewModel, onBack: () -> Unit) {
     }
 
     adding?.let { p ->
-        AddMoneySheet(p, lastMonthSavings, takingOut, onSave = { v -> vm.contributeToGoal(p.goal.id, v) }, onDismiss = { adding = null })
+        AddMoneySheet(p, lastMonthSavings, takingOut, onSave = { v -> tools.contributeToGoal(p.goal.id, v) }, onDismiss = { adding = null })
     }
 
     editing?.let { g ->
-        GoalForm(g, onSave = { vm.saveGoal(it) }, onDelete = { vm.deleteGoal(g.id) }, onDismiss = { editing = null })
+        GoalForm(g, onSave = { tools.saveGoal(it) }, onDelete = { tools.deleteGoal(g.id) }, onDismiss = { editing = null })
     }
 }
 

@@ -150,9 +150,10 @@ fun TransactionRow(
         ?: (if (t.originalAmountPaise != null && t.type == TransactionType.DEBIT) "Your share" else null)
         ?: if (showDate) shortDate(t.timestamp) else null
     val amount = signOf(t) + money(t.amountPaise)
-    val sub = listOfNotNull(t.category.label, accountLabel(t)).joinToString(" · ")
+    val filed = categoryName(t)
+    val sub = listOfNotNull(filed, accountLabel(t)).joinToString(" · ")
     LedgerRow(
-        title = displayMerchant(t.merchant).ifBlank { t.category.label },
+        title = displayMerchant(t.merchant).ifBlank { filed },
         subtitle = sub,
         amount = amount,
         amountColor = flowColor(t),

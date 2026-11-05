@@ -53,6 +53,8 @@ the review queue from the same screen.
 - **One payment, two senders:** a bank alert and a UPI-app alert for the same payment are stored once when their reference numbers match, or when the same amount and direction arrive within ten minutes from a different bank/app (or one has no real merchant). Two references that both exist and differ are always two payments. Same merchant and amount hours apart is two payments.
 - **Your edits win:** once you edit a transaction, duplicate merging only fills in missing identifiers and rescans never rewrite it.
 - **Splits:** only your share is your expense. If you paid, you pick the payment under "Paid with" (the clear match, within 2% and 3 days, is picked for you) and it is trimmed to your share (the bank's original amount is remembered, so a second alert for the full bill is still recognised as the same payment); only when you say it isn't in FinTrack yet is your share recorded as a `SPLIT` expense, so a bill is never counted twice. Money friends pay back is a `SETTLEMENT`, not income, and so is your own payment to whoever paid. Deleting a manual split puts the payment back to its full amount and removes a share row it added. Automatic splits that share a friend's transfer are applied, suggested and accepted together, so a transfer is only a settlement when all of it is accounted for.
+- **Payee rules and your own categories (v1.6):** a category you give a payment by hand is remembered for its payee (the merchant name lower-cased, letters and digits only); the next SMS or statement row from that payee takes it before the keyword lists, as long as the direction fits (a spend rule never files money in). Placeholder names ("Payment (HDFC Bank)") never make a rule. A category of your own is stored as a built-in "parent" plus its id: flow, splits and tax use the parent; Home, Insights, Budgets, drill-downs and the CSV group by your category, so each line still adds up to the payments behind it.
+- **Cashback (v1.6):** a payment alert that says a cashback "of Rs X (has been) credited" saves the payment and, a second later, a `REFUND` of X for the same payee and category, so it reduces that category. "Will be credited", "eligible", "up to" and offers are ignored, and a cashback can never be as large as its payment. A cashback credit SMS within a week of one already saved this way, for the same amount, is a duplicate.
 
 Every rule above has a unit test under `app/src/test` (parser corpus, duplicate detection, import memory,
 insights, split maths, database migrations). Run them with `testDebugUnitTest`.
@@ -60,6 +62,6 @@ insights, split maths, database migrations). Run them with `testDebugUnitTest`.
 ### Known limits
 
 - Wording no bank in the corpus uses can still be misread. The defence is the review queue plus one new corpus row per report.
-- A "You paid ₹200 ... cashback ₹20 credited" message records the ₹200 spend; the ₹20 cashback is not recorded separately.
+- A cashback only promised ("will be credited") is not recorded; it shows up when the bank's own credit SMS arrives.
 - A balance alert that also mentions the last debit is imported. If the bank's real debit alert arrived more than ten minutes apart, **Clean up duplicates** in Settings will merge them.
 - Bank alerts sent from ordinary phone numbers (not sender IDs) are skipped, to keep personal SMS private.

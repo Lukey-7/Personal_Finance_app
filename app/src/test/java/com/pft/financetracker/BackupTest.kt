@@ -85,7 +85,18 @@ class BackupTest {
             assertEquals(table, dump(a, table), dump(b, table))
         }
         assertEquals("line1\nline2 \"quoted\"", b.transactionDao().getAll().single().note)
-        assertTrue(BackupService(a, codec).tables().containsAll(listOf("transactions", "bills", "goals", "goal_contributions", "refund_links", "networth_snapshots")))
+        assertTrue(BackupService(a, codec).tables().containsAll(listOf("transactions", "bills", "goals", "goal_contributions", "refund_links", "payee_rules", "custom_categories")))
+    }
+
+    /** A backup made before v1.6 still has the net-worth tables; they are skipped and everything else comes back. */
+    @Test fun aBackupWithTablesThatAreGoneStillRestores() = runBlocking {
+        seed(a)
+        val doc = org.json.JSONObject(codec.decrypt(BackupService(a, codec).export("correct horse".toCharArray()), "correct horse".toCharArray()))
+        doc.getJSONObject("tables").put("networth_snapshots", org.json.JSONObject()
+            .put("columns", org.json.JSONArray(listOf("month", "totalPaise", "ownPaise", "owePaise")))
+            .put("rows", org.json.JSONArray().put(org.json.JSONArray(listOf("2026-09", 800000, 800000, 0)))))
+        BackupService(b, codec).restore(codec.encrypt(doc.toString(), "correct horse".toCharArray()), "correct horse".toCharArray())
+        assertEquals(dump(a, "transactions"), dump(b, "transactions"))
     }
 
     @Test fun restoringReplacesWhatWasThere() = runBlocking {

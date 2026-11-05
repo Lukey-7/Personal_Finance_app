@@ -38,7 +38,12 @@ pass it around; build your own (below) for a copy with no key.
 - **Quick add.** A sheet with a number pad and a category grid, also from the widget and the app shortcut.
 - **Correct counting.** Amounts are integer paise. One payment reported by two SMS is stored once. Every
   transaction has a *flow* (expense, income, refund, transfer, investment, cash, settlement) that decides how it
-  counts. Refunds are paired with their purchase; failed payments that came straight back are hidden.
+  counts. Refunds are paired with their purchase; failed payments that came straight back are hidden. Cashback a
+  payment alert says was credited ("₹20 cashback credited") is saved as money back on that payment.
+- **It remembers your categories.** Move one payment from a payee to another category and that payee's next
+  payments go there too; FinTrack offers to move the earlier ones as well. **Your own categories** (Pets, Parents…)
+  each count as a built-in one for splits and tax, and get their own line on Home, in Insights and in Budgets.
+  Both live in Settings › Categories.
 - **Budgets and insights.** Monthly limits per category; weekly and monthly trends you can read by touch; category
   changes and local "reduce spending" tips.
 - **Split bills.** Photograph a bill (read on the phone, English and Hindi) and split it equally, by shares, amounts
@@ -49,7 +54,7 @@ pass it around; build your own (below) for a copy with no key.
 
 - **Subscriptions** with yearly cost and price-rise flags; **bills and loan EMIs** marked paid when the payment
   arrives; **credit-card cycles** and rewards; **savings goals**; a **tax helper** (80C, 80D, NPS, rent, donations)
-  with CSV; **net worth** from SMS balances, a mutual-fund CAS PDF and what you type in.
+  with CSV.
 - **Ask FinTrack:** plain questions ("food last month") answered by rules on the phone, with Gemini Nano on phones
   that have it.
 - **Reminders** before bills and renewals, and a **home-screen widget** (two sizes) with amounts hidden by default.
@@ -61,7 +66,8 @@ pass it around; build your own (below) for a copy with no key.
   every import undoable.
 - **SMS log** of every scanned message and what happened to it; **rescan the last 12 months** with the current
   parser without bringing back anything you deleted or overwriting your edits; **duplicate clean-up**.
-- **Encrypted backup** to one passphrase-locked file; **CSV export**; **clear everything**.
+- **Encrypted backup** to one passphrase-locked file, by hand or **every week into a folder you pick**; **CSV
+  export**; **clear everything**.
 - **Optional AI** for Ask, unclear splits and a month summary, with the provider you pick: OpenAI, Anthropic
   (Claude), Google Gemini, AWS Bedrock, Groq, OpenRouter, Mistral, DeepSeek, a model on the phone (Ollama, LM Studio,
   llama.cpp) or any OpenAI-compatible server. Your own key, one per provider, and Settings shows exactly what is sent.
@@ -89,7 +95,7 @@ pass it around; build your own (below) for a copy with no key.
 | Statements and screenshots | Picked through the system file / photo picker (no storage permission), read on the phone and not kept. A PDF password is used in memory to open the file and never stored. Only the parsed fields of each transaction are saved, like SMS. |
 | Network | The only network calls in the codebase go to the AI provider picked in **Settings › AI** (OpenAI by default; the full list is in `domain/ai/Llm.kt` and `scripts/audit_apk.py`): for Ask while "Answer Ask with AI" is on, when you tap **Generate**, and, if "Use AI for unclear cases" is on, for split intelligence. No provider is contacted until it is picked and has its key. Cleartext HTTP is disabled app-wide except to `localhost`, for a model server running on the phone itself. Separately, Google ML Kit sends its own anonymous usage logs, and Android AICore downloads the Gemini Nano model on phones that use it ([What ML Kit sends](#what-ml-kit-sends)). |
 | Data sent to the AI provider | Ask: your question, the last few turns, a year of monthly totals, categories, main payees and the latest 120 payments (date, payee, category, amount), with phone numbers and UPI IDs blanked; never SMS text, account or reference numbers. Summary: category totals, counts, budgets, and this and last month's totals. Settings has a **What is sent?** button that shows the exact payload. Split intelligence: for payments the on-phone rules cannot explain, the amounts, relative days and times, a payment type ("restaurant, food") and "Person A"-style labels for whoever sent money. Never merchant or people's names, SMS or statement text, bank names or account numbers. Answers are cached so the same week is never sent twice. |
-| Backups | `allowBackup=false` and data-extraction rules exclude everything from cloud backup and device-to-device transfer. Your own backup (Settings → Backup) is one file sealed with AES-256-GCM under a key derived from your passphrase (PBKDF2-HMAC-SHA256, 600,000 rounds, random salt); FinTrack writes it only where you pick and never uploads it. Without the passphrase it cannot be opened. |
+| Backups | `allowBackup=false` and data-extraction rules exclude everything from cloud backup and device-to-device transfer. Your own backup (Settings → Backup) is one file sealed with AES-256-GCM under a key derived from your passphrase (PBKDF2-HMAC-SHA256, 600,000 rounds, random salt); FinTrack writes it only where you pick and never uploads it. Without the passphrase it cannot be opened. Weekly automatic backup (off until you turn it on) keeps its passphrase in EncryptedSharedPreferences, like the AI keys, so it can seal the file unattended; it writes only into the folder you picked and removes only its own older files there. |
 | Reminders and widget | Worked out on the phone by WorkManager twice a day; notifications keep amounts off the lock screen. The widget shows "₹••••" unless you turn on amounts. |
 | Release build | R8 minification is on, and all `android.util.Log` calls are stripped. Screenshots and screen recording are allowed (no `FLAG_SECURE`), so the screen is as private as your phone. |
 | Third parties | Only AndroidX and Google libraries, plus SQLCipher. No Firebase SDK, analytics, crash reporting or ads. `scripts/audit_apk.py` checks each build: ML Kit's logging classes may not grow, and the only endpoints in FinTrack's own code are the AI providers in `ProviderKind`. |
@@ -151,7 +157,7 @@ release build). Recognised text is logged only in debug builds, never in release
 ## Known limits
 
 - Wording no bank in the corpus uses can still be misread. The defence is the review queue plus one new corpus row per report.
-- A "You paid ₹200 ... cashback ₹20 credited" message records the ₹200 spend; the ₹20 cashback is not recorded separately.
+- A cashback only promised ("will be credited") is not recorded; it shows up when the bank's own credit SMS arrives.
 - A balance alert that also mentions the last debit is imported. If the bank's real debit alert arrived more than ten minutes apart, **Clean up duplicates** in Settings will merge them.
 - Bank alerts sent from ordinary phone numbers (not sender IDs) are skipped, to keep personal SMS private.
 
@@ -181,9 +187,10 @@ app/src/main/java/com/pft/financetracker/
 │   ├── importer/     Statement and screenshot files (PDF, Excel, CSV, images)
 │   ├── split/        Split intelligence engine
 │   ├── refunds/      Refund and reversal pairing
-│   ├── recurring/ bills/ cards/ goals/ tax/ networth/   Money tools storage and services
+│   ├── recurring/ bills/ cards/ goals/ tax/   Money tools storage and services
 │   ├── reminders/    Bill and renewal notifications (WorkManager)
-│   ├── backup/       Encrypted backup and restore
+│   ├── backup/       Encrypted backup and restore, weekly automatic backup (WorkManager)
+│   ├── categories/   Your own categories and payee rules
 │   └── ai/           Gemini Nano on the phone
 ├── domain/           Pure Kotlin, unit tested
 │   ├── model/        Transaction, Category (with keyword lists), Budget, Rupees formatting
@@ -193,7 +200,7 @@ app/src/main/java/com/pft/financetracker/
 │   ├── split/        Split maths, solver and payer classification
 │   ├── ocr/          Receipt text -> structured bill
 │   ├── importer/     Statement table readers and parser
-│   ├── refunds/ recurring/ bills/ cards/ goals/ tax/ networth/ reminders/ widget/ backup/
+│   ├── books/ ledger/ refunds/ recurring/ bills/ cards/ goals/ tax/ reminders/ widget/ backup/
 │   ├── ask/          Ask FinTrack rules and the month in words
 │   ├── ai/           AI provider contract, adapters (OpenAI-compatible, Anthropic, Bedrock), summary payload
 │   └── export/       CSV exporter
@@ -273,8 +280,9 @@ Never commit the keystore or this file. `*.jks`, `*.keystore` and `keystore.prop
 
 ### Installing
 
-Enable installing from unknown sources on your phone, then copy the APK over, or run:
+Enable installing from unknown sources on your phone, then copy the APK over, or run (with the version you built in
+place of `X.Y.Z`):
 
 ```bash
-adb install app/build/outputs/apk/release/FinTrack-v1.4.0-arm64-v8a-release.apk
+adb install app/build/outputs/apk/release/FinTrack-vX.Y.Z-arm64-v8a-release.apk
 ```
