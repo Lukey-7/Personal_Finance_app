@@ -40,6 +40,7 @@ import com.pft.financetracker.domain.recurring.RecurringItem
 import com.pft.financetracker.domain.recurring.RecurringStatus
 import com.pft.financetracker.domain.recurring.RecurringView
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.MoneyToolsViewModel
 import com.pft.financetracker.ui.components.AdaptiveRow
 import com.pft.financetracker.ui.components.AmountDisplay
 import com.pft.financetracker.ui.components.AmountSize
@@ -76,8 +77,8 @@ import com.pft.financetracker.ui.theme.rememberHaptics
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () -> Unit) {
-    val book by vm.recurringBook.collectAsState()
+fun RecurringScreen(vm: AppViewModel, tools: MoneyToolsViewModel, onOpenTransaction: (Long) -> Unit, onBack: () -> Unit) {
+    val book by tools.recurringBook.collectAsState()
     val loaded by vm.loaded.collectAsState()
     var selected by remember { mutableStateOf<RecurringView?>(null) }
     var showStopped by rememberSaveable { mutableStateOf(false) }
@@ -150,7 +151,7 @@ fun RecurringScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack:
     selected?.let { v ->
         RecurringSheet(
             v,
-            onDecide = { status -> vm.decideRecurring(v.item.key, status) },
+            onDecide = { status -> tools.decideRecurring(v.item.key, status) },
             onOpenLast = { onOpenTransaction(v.item.transactionIds.last()) },
             onDismiss = { selected = null },
         )

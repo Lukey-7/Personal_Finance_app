@@ -4,9 +4,10 @@ FinTrack is the owner's private, on-device personal finance tracker for Android.
 turns them into transactions, and keeps everything in an encrypted database on the phone: no cloud, no account, no
 analytics. It is a personal project, not a production app. Read `README.md` first, then `CHANGELOG.md`.
 
-**State (23 Oct 2026):** v1.5.3 released (security hardening from a six-area review; v1.5.2 made sheets close safely),
-tag `v1.5.3`. Room database **version 7** (v1.2.1 owns 5→6, v1.3 owns 6→7; never reuse a released version number). 792
-unit tests, all green.
+**State (5 Nov 2026):** v1.6.0 released (payee rules, your own categories, weekly automatic backups, cashback, "No
+income yet"), tag `v1.6.0`. Room database **version 8** (v1.2.1 owns 5→6, v1.3 owns 6→7, v1.6 owns 7→8; never reuse a
+released version number). 819 unit tests, all green. The personal build also carries a backup Anthropic key
+(`ANTHROPIC_API_KEY` in `secrets.properties`), saved under Anthropic in Settings › AI and used only once picked there.
 
 ## Projects, in the order the owner works on them
 
@@ -58,7 +59,7 @@ bash build.sh --stop                     # always stop Gradle afterwards
 - Robolectric tests need `@Config(application = android.app.Application::class)` (FinanceApp loads SQLCipher natives).
 - Bash heredocs with quotes get mangled by the tool: write Python patch scripts to a file and run them.
 - Local-only files (git-ignored, copy them into any new worktree): `local.properties`, `keystore.properties`,
-  `secrets.properties` (holds `OPENAI_API_KEY` and `FINTRACK_EMBED_KEY=1`), `build.sh`, `build.cmd`.
+  `secrets.properties` (holds `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` and `FINTRACK_EMBED_KEY=1`), `build.sh`, `build.cmd`.
 - Kotlin 2.1.21, KSP 2.1.21-2.0.2 in KSP1 mode (`ksp.useKSP2=false`), Room 2.6.1, Compose BOM 2024.12.01
   (Material 3 1.3.1, no Expressive APIs). Experimental Compose APIs are opted in project-wide in `app/build.gradle.kts`.
 

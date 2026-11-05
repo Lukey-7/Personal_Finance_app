@@ -24,6 +24,7 @@ import com.pft.financetracker.domain.split.BillItem
 import com.pft.financetracker.domain.split.Split
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class TransactionRepository(
@@ -42,6 +43,7 @@ class TransactionRepository(
     suspend fun insert(t: Transaction): Long = dao.insert(t.toEntity())
     suspend fun update(t: Transaction) = dao.update(t.toEntity())
     suspend fun updateAll(rows: List<Transaction>) { if (rows.isNotEmpty()) dao.updateAll(rows.map { it.toEntity() }) }
+    suspend fun reparent(customId: Long, parent: Category) = dao.reparent(customId, parent.name)
     suspend fun getByIds(ids: Collection<Long>): List<Transaction> = if (ids.isEmpty()) emptyList() else dao.getByIds(ids.toList()).map { it.toDomain() }
     suspend fun delete(t: Transaction) = dao.delete(t.toEntity())
     suspend fun hashSeen(hash: String): Boolean = dao.hashExists(hash) || reviewDao.hashExists(hash)
@@ -133,11 +135,16 @@ class TransactionRepository(
     }
 }
 
-class BudgetRepository(private val dao: BudgetDao) {
-    val all: Flow<List<Budget>> = dao.observeAll().map { list -> list.map { it.toDomain() } }
-    suspend fun getAll(): List<Budget> = dao.getAll().map { it.toDomain() }
-    suspend fun set(category: Category, limitPaise: Long) {
-        if (limitPaise <= 0) dao.delete(category.name) else dao.upsert(Budget(category, limitPaise).toEntity())
+class BudgetRepository(
+    private val dao: BudgetDao,
+    /** The person's own categories, so a budget for one shows its name and one for a deleted category is dropped. */
+    private val customs: Flow<Map<Long, com.pft.financetracker.domain.model.CustomCategory>> = kotlinx.coroutines.flow.flowOf(emptyMap()),
+) {
+    val all: Flow<List<Budget>> = combine(dao.observeAll(), customs) { list, c -> list.mapNotNull { it.toDomain(c) } }
+    suspend fun getAll(): List<Budget> = dao.getAll().mapNotNull { it.toDomain(customs.first()) }
+    suspend fun set(category: Category, limitPaise: Long, customId: Long? = null) {
+        val b = Budget(category, limitPaise, customId)
+        if (limitPaise <= 0) dao.delete(b.choice.key) else dao.upsert(b.toEntity())
     }
     suspend fun clearAll() = dao.clear()
 }

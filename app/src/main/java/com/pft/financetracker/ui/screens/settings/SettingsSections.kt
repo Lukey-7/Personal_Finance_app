@@ -28,6 +28,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.ManageHistory
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.UploadFile
 import androidx.compose.material.icons.outlined.Widgets
@@ -61,6 +62,7 @@ import androidx.core.content.ContextCompat
 import com.pft.financetracker.data.ai.NanoAi
 import com.pft.financetracker.ui.AiUiState
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.BackupViewModel
 import com.pft.financetracker.ui.ImportUiState
 import com.pft.financetracker.ui.components.ActionRow
 import com.pft.financetracker.ui.components.AdaptiveRow
@@ -280,7 +282,7 @@ internal fun RemindersSection(vm: AppViewModel, snackbar: SnackbarHostState) {
 
 /** Backup: a passphrase-locked file you keep, and restoring from one. */
 @Composable
-internal fun BackupSection(vm: AppViewModel, snackbar: SnackbarHostState) {
+internal fun BackupSection(vm: BackupViewModel, snackbar: SnackbarHostState) {
     val scope = rememberCoroutineScope()
     val lastBackup by vm.lastBackupAt.collectAsState()
     val backupBusy by vm.backupBusy.collectAsState()
@@ -312,6 +314,12 @@ internal fun BackupSection(vm: AppViewModel, snackbar: SnackbarHostState) {
         }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> restoreAsk = uri }
+    val autoFolder by vm.autoBackupFolder.collectAsState()
+    val lastAuto by vm.lastAutoBackupAt.collectAsState()
+    val autoProblem by vm.autoBackupProblem.collectAsState()
+    var autoFolderPicked by rememberSaveable { mutableStateOf<Uri?>(null) }
+    var confirmStopAuto by rememberSaveable { mutableStateOf(false) }
+    val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> autoFolderPicked = uri }
 
     SettingsGroup {
         Text(
@@ -337,6 +345,35 @@ internal fun BackupSection(vm: AppViewModel, snackbar: SnackbarHostState) {
         }
     }
 
+    SettingsGroup("Automatic") {
+        val folder = autoFolder
+        SwitchRow(
+            "Back up every week", folder != null,
+            { on -> if (on) folderLauncher.launch(null) else confirmStopAuto = true },
+            subtitle = if (folder == null) "Into a folder you pick, such as a USB drive or a synced folder. FinTrack never uploads it."
+                else "Into ${folderName(folder)} · keeps the newest ${com.pft.financetracker.domain.backup.AutoBackup.KEEP}",
+        )
+        if (folder != null) {
+            autoProblem?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error) }
+            Note(if (lastAuto == 0L) "No automatic backup yet." else "Last automatic backup: ${fullDate(lastAuto)}")
+            if (backupBusy == null) Column {
+                ActionRow("Back up into the folder now", Icons.Outlined.Backup, {
+                    scope.launch { snackbar.showSnackbar(vm.autoBackupNow() ?: "Backup saved in ${folderName(folder)}") }
+                })
+                ActionRow("Change folder", Icons.Outlined.FolderOpen, { folderLauncher.launch(null) })
+            }
+        }
+        LearnMore(
+            "The passphrase is kept on this phone so the weekly backup can lock the file.",
+            "About automatic backups",
+            "Once a week, when the battery isn't low, FinTrack seals all your data with your passphrase and saves it in the " +
+                "folder you picked. It keeps the newest ${com.pft.financetracker.domain.backup.AutoBackup.KEEP} and removes its own older " +
+                "ones; nothing else in the folder is touched. The passphrase is kept in this phone's encrypted key store, like " +
+                "your AI keys: anyone who can unlock the phone can already see your data, and the file is useless anywhere " +
+                "else without the passphrase. Turning this off forgets the passphrase and the folder.",
+        )
+    }
+
     if (askPassphrase) {
         BackupPassphraseDialog(
             restoring = false,
@@ -356,6 +393,20 @@ internal fun BackupSection(vm: AppViewModel, snackbar: SnackbarHostState) {
             onDismiss = { backupAsk = null; discard(uri) },
         )
     }
+    autoFolderPicked?.let { folder ->
+        BackupPassphraseDialog(
+            restoring = false,
+            onConfirm = { pw -> autoFolderPicked = null; scope.launch { snackbar.showSnackbar(vm.startAutoBackup(folder, pw) ?: "Automatic backup is on. The first one is saved.") } },
+            onDismiss = { autoFolderPicked = null },
+        )
+    }
+    if (confirmStopAuto) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { confirmStopAuto = false },
+        title = { Text("Stop weekly backups?") },
+        text = { Text("The backups already in the folder stay there. FinTrack forgets the folder and the passphrase.") },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { vm.stopAutoBackup(); confirmStopAuto = false }) { Text("Stop backups") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmStopAuto = false }) { Text("Keep them") } },
+    )
     restoreAsk?.let { uri ->
         BackupPassphraseDialog(
             restoring = true,
@@ -524,3 +575,8 @@ internal fun DataSection(vm: AppViewModel, snackbar: SnackbarHostState) {
         onDismiss = { confirmClear = false },
     )
 }
+
+/** A picked folder's own name ("Backups" from ".../tree/primary%3ABackups"), for Settings' lines. */
+private fun folderName(folder: String): String =
+    runCatching { android.provider.DocumentsContract.getTreeDocumentId(Uri.parse(folder)).substringAfterLast(':').substringAfterLast('/') }
+        .getOrNull()?.takeIf { it.isNotBlank() } ?: "the folder you picked"

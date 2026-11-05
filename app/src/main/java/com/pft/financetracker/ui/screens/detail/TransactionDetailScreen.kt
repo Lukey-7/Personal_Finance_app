@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.bills.BillState
 import com.pft.financetracker.domain.tax.TaxTagger
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.MoneyToolsViewModel
 import com.pft.financetracker.ui.components.AmountDisplay
 import com.pft.financetracker.ui.components.AmountSize
 import com.pft.financetracker.ui.components.CapsLabel
@@ -82,6 +83,9 @@ import com.pft.financetracker.ui.model.TransactionDetail
 import com.pft.financetracker.ui.model.signOf
 import com.pft.financetracker.ui.screens.tax.TaxTagDialog
 import com.pft.financetracker.ui.screens.transactions.CategoryPickerSheet
+import com.pft.financetracker.ui.screens.transactions.AlsoMove
+import com.pft.financetracker.ui.screens.transactions.AlsoMoveDialog
+import com.pft.financetracker.ui.components.categoryName
 import com.pft.financetracker.ui.theme.Expense
 
 /**
@@ -91,7 +95,7 @@ import com.pft.financetracker.ui.theme.Expense
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionDetailScreen(
-    vm: AppViewModel,
+    vm: AppViewModel, tools: MoneyToolsViewModel,
     id: Long,
     onEdit: (Long) -> Unit,
     onOpenSplit: (Long) -> Unit,
@@ -103,12 +107,13 @@ fun TransactionDetailScreen(
     val badges by vm.refundBadges.collectAsState()
     val autoSplits by vm.autoSplitOf.collectAsState()
     val splits by vm.splits.collectAsState()
-    val bills by vm.billStates.collectAsState()
-    val tags by vm.taxTags.collectAsState()
+    val bills by tools.billStates.collectAsState()
+    val tags by tools.taxTags.collectAsState()
     val t = txns.firstOrNull { it.id == id }
     var menu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
+    var alsoMove by remember { mutableStateOf<AlsoMove?>(null) }
     var taxPicking by remember { mutableStateOf(false) }
     var sms by remember { mutableStateOf<String?>(null) }
     var smsChecked by remember { mutableStateOf(false) }
@@ -156,7 +161,7 @@ fun TransactionDetailScreen(
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 CategoryIcon(t.category, Modifier.sharedElement(SharedKeys.icon(t.id)), size = 56.dp)
                 Text(
-                    displayMerchant(t.merchant).ifBlank { t.category.label },
+                    displayMerchant(t.merchant).ifBlank { categoryName(t) },
                     Modifier.sharedElement(SharedKeys.title(t.id)).semantics { heading() },
                     style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center,
                 )
@@ -169,7 +174,7 @@ fun TransactionDetailScreen(
                     spokenLabel = "Amount",
                 )
                 Text(d.countsAs, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                PillChip(true, t.category.label, icon = categoryIcon(t.category), trailingIcon = Icons.Outlined.Edit, trailingLabel = "Change category") { picking = true }
+                PillChip(true, categoryName(t), icon = categoryIcon(t.category), trailingIcon = Icons.Outlined.Edit, trailingLabel = "Change category") { picking = true }
             }
 
             d.shareNote?.let { note ->
@@ -247,8 +252,12 @@ fun TransactionDetailScreen(
             PrimaryButton("Edit", { onEdit(t.id) }, icon = Icons.Outlined.Edit)
         }
 
-        if (picking) CategoryPickerSheet("Move to a category", t.category, onPick = { c -> vm.recategorise(setOf(t.id), c); picking = false }, onDismiss = { picking = false })
-        if (taxPicking) TaxTagDialog(t.merchant, onPick = { vm.tagTax(t.id, it); taxPicking = false }, onRule = { vm.clearTaxTag(t.id); taxPicking = false }, onDismiss = { taxPicking = false })
+        if (picking) CategoryPickerSheet("Move to a category", t.choice, onPick = { c ->
+            vm.recategorise(setOf(t.id), c); picking = false
+            vm.alsoMovable(t.copy(category = c.category, customCategoryId = c.customId)).takeIf { it.isNotEmpty() }?.let { alsoMove = AlsoMove(t.merchant, c, it.map { r -> r.id }.toSet()) }
+        }, onDismiss = { picking = false })
+        alsoMove?.let { m -> AlsoMoveDialog(m, onMove = { vm.moveAlso(m.ids, m.to) }, onDismiss = { alsoMove = null }) }
+        if (taxPicking) TaxTagDialog(t.merchant, onPick = { tools.tagTax(t.id, it); taxPicking = false }, onRule = { tools.clearTaxTag(t.id); taxPicking = false }, onDismiss = { taxPicking = false })
         if (confirmDelete) AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this payment?") },

@@ -10,7 +10,6 @@ import com.pft.financetracker.data.local.SmsLogEntity
 import com.pft.financetracker.data.prefs.SettingsRepository
 import com.pft.financetracker.data.repository.SmsLogRepository
 import com.pft.financetracker.data.repository.TransactionRepository
-import com.pft.financetracker.domain.categorize.Categorizer
 import com.pft.financetracker.domain.ledger.SamePayment
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.parser.FlowClassifier
@@ -23,6 +22,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+
+/** Marks the hash of a cashback saved from a payment's SMS: the payment's own hash plus this. */
+const val CASHBACK_SUFFIX = ":cashback"
 
 data class ImportStats(val runId: Long, val scanned: Int, val inserted: Int, val queuedForReview: Int, val ignored: Int, val duplicates: Int)
 
@@ -52,6 +54,8 @@ class SmsImporter(
     private val settings: SettingsRepository,
     /** A card statement alert (ignored as a transaction) still tells us a bill is due. */
     private val onCardStatement: suspend (com.pft.financetracker.domain.bills.CardStatement, String?) -> Unit = { _, _ -> },
+    /** The categories the person gave their payees; tried before the keyword lists. */
+    private val payeeRules: () -> com.pft.financetracker.domain.categorize.PayeeRules = { com.pft.financetracker.domain.categorize.PayeeRules.NONE },
 ) {
     fun hasSmsPermission(): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
@@ -155,14 +159,41 @@ class SmsImporter(
         if (existing.userEdited || existing.originalAmountPaise != null || existing.source != Transaction.Source.SMS) return
         val p = (parser.parse(sms) as? ParseResult.Success)?.transaction ?: return
         if (p.amountPaise != existing.amountPaise || p.type == existing.type) return
-        val category = Categorizer.categorize(p.merchant, p.type, p.bankName)
+        val choice = payeeRules().categorise(p.merchant, p.type, p.bankName)
+        val category = choice.category
         repo.update(
             existing.copy(
-                type = p.type, merchant = p.merchant, category = category,
+                type = p.type, merchant = p.merchant, category = category, customCategoryId = choice.customId,
                 flow = FlowClassifier.classify(p.type, sms.body, p.merchant, category), refNumber = existing.refNumber ?: p.refNumber,
             )
         )
         log.updateOutcome(logged.smsHash, Outcomes.SAVED, "repaired_${p.merchant}", existing.id)
+    }
+
+    /**
+     * "Rs 200 debited ... cashback of Rs 20 credited": the ₹20 is money back on this payment, saved as its own refund
+     * (same payee and category, so it reduces that category), a second after the payment. Its hash is the payment's
+     * with [CASHBACK_SUFFIX], so the same message can never add it twice.
+     */
+    private suspend fun bookCashback(payment: Transaction, body: String) {
+        val paise = com.pft.financetracker.domain.parser.Cashback.credited(body, payment.type, payment.amountPaise) ?: return
+        runCatching {
+            repo.insert(
+                payment.copy(
+                    id = 0, amountPaise = paise, type = com.pft.financetracker.domain.model.TransactionType.CREDIT,
+                    flow = com.pft.financetracker.domain.model.Flow.REFUND, timestamp = payment.timestamp + 1_000L,
+                    smsHash = payment.smsHash + CASHBACK_SUFFIX, refNumber = null, note = "Cashback", originalAmountPaise = null,
+                )
+            )
+        }
+    }
+
+    /** A cashback credit within a week of a cashback already saved from a payment's SMS, for the same amount. */
+    private suspend fun isCashbackAlreadyBooked(incoming: Transaction, body: String): Boolean {
+        if (incoming.type != com.pft.financetracker.domain.model.TransactionType.CREDIT || !body.lowercase().filter { it.isLetter() }.contains("cashback")) return false
+        val week = 7 * 86_400_000L
+        return repo.stored.similar(incoming.amountPaise, incoming.timestamp - week, incoming.timestamp + 60_000L)
+            .any { it.type == incoming.type && it.smsHash?.endsWith(CASHBACK_SUFFIX) == true }
     }
 
     /**
@@ -183,7 +214,8 @@ class SmsImporter(
         return when (val r = parser.parse(sms)) {
             is ParseResult.Success -> {
                 val p = r.transaction
-                val guessed = Categorizer.categorize(p.merchant, p.type, p.bankName)
+                val choice = payeeRules().categorise(p.merchant, p.type, p.bankName)
+                val guessed = choice.category
                 val flow = FlowClassifier.classify(p.type, sms.body, p.merchant, guessed)
                 val category = FlowClassifier.categoryFor(flow, guessed)
                 val candidate = Transaction(
@@ -191,6 +223,7 @@ class SmsImporter(
                     type = p.type,
                     merchant = FlowClassifier.nameFor(flow, sms.body, p.merchant, p.bankName),
                     category = category,
+                    customCategoryId = choice.customId.takeIf { category == guessed },
                     timestamp = p.timestamp,
                     bankName = p.bankName,
                     accountRef = p.accountRef,
@@ -228,9 +261,15 @@ class SmsImporter(
                     log.log(entry(Outcomes.IGNORED, Outcomes.DELETED_BY_USER, p.amountPaise, p.type.name))
                     return Outcome.IGNORED
                 }
+                // The bank's own alert for a cashback this payment's SMS already recorded (below): one cashback, not two.
+                if (isCashbackAlreadyBooked(candidate, sms.body)) {
+                    log.log(entry(Outcomes.DUPLICATE, "cashback_already_recorded", p.amountPaise, p.type.name))
+                    return Outcome.DUPLICATE
+                }
                 val id = repo.insert(candidate)
                 if (id == -1L) { log.log(entry(Outcomes.DUPLICATE, "same_sms", p.amountPaise, p.type.name)); return Outcome.DUPLICATE }
                 log.log(entry(Outcomes.SAVED, p.merchant, p.amountPaise, p.type.name, id))
+                if (flow == com.pft.financetracker.domain.model.Flow.EXPENSE) bookCashback(candidate, sms.body)
                 Outcome.INSERTED
             }
             is ParseResult.NeedsReview -> {

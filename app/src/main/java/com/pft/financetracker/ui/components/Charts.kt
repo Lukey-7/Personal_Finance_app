@@ -63,7 +63,8 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /** One chart slice: a category's share. */
-data class Slice(val label: String, val value: Double, val color: Color, val category: Category? = null)
+/** One ring slice; [customId] is set when the slice is one of the person's own categories under [category]. */
+data class Slice(val label: String, val value: Double, val color: Color, val category: Category? = null, val customId: Long? = null)
 
 fun colorFor(index: Int): Color = CategoryColors[index % CategoryColors.size]
 
@@ -192,7 +193,7 @@ fun CategoryRing(
     modifier: Modifier = Modifier,
     /** What the percentages are of; defaults to the slices' sum. Pass the full total when the slices leave some out. */
     totalValue: Double? = null,
-    onOpen: ((Category) -> Unit)? = null,
+    onOpen: ((Slice) -> Unit)? = null,
 ) {
     val total = (totalValue ?: slices.sumOf { it.value }).takeIf { it > 0 } ?: 1.0
     val empty = surfaces.sunken
@@ -217,7 +218,7 @@ fun CategoryRing(
                             var acc = 0.0
                             slices.forEach { s ->
                                 acc += s.value / total * 360.0
-                                if (deg <= acc) { s.category?.let { cat -> open?.invoke(cat) }; return@detectTapGestures }
+                                if (deg <= acc) { if (s.category != null) open?.invoke(s); return@detectTapGestures }
                             }
                         }
                     }
@@ -245,7 +246,7 @@ fun CategoryRing(
                 val pct = (s.value / total * 100).roundToInt()
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                        .then(if (onOpen != null && s.category != null) Modifier.clickable(role = Role.Button, onClickLabel = "See payments") { onOpen(s.category) } else Modifier)
+                        .then(if (onOpen != null && s.category != null) Modifier.clickable(role = Role.Button, onClickLabel = "See payments") { onOpen(s) } else Modifier)
                         .semantics(mergeDescendants = true) { contentDescription = "${s.label}, $pct percent, ${money(s.value)}" }
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,

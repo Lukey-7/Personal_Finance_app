@@ -1,5 +1,7 @@
 package com.pft.financetracker.ui.screens.edit
 
+import com.pft.financetracker.ui.components.LocalCustomCategories
+import com.pft.financetracker.domain.model.CategoryChoice
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -54,13 +56,13 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.pft.financetracker.domain.categorize.Categorizer
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
 import com.pft.financetracker.domain.parser.FlowClassifier
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.MoneyToolsViewModel
 import com.pft.financetracker.ui.components.ActionRow
 import com.pft.financetracker.ui.components.CapsLabel
 import com.pft.financetracker.ui.components.ChipFlow
@@ -103,7 +105,7 @@ private const val TAX_NONE = "NONE"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditTransactionScreen(
-    vm: AppViewModel,
+    vm: AppViewModel, tools: MoneyToolsViewModel,
     id: Long?,
     reviewId: Long?,
     prefill: Prefill? = null,
@@ -144,7 +146,10 @@ fun EditTransactionScreen(
     fun leave(action: () -> Unit) { if (!left) { left = true; action() } }
 
     val type = runCatching { TransactionType.valueOf(typeName) }.getOrDefault(TransactionType.DEBIT)
-    val category = Category.entries.firstOrNull { it.name == categoryName } ?: Category.OTHER
+    // A CategoryChoice key: a built-in name, or "custom:<id>" for one of the person's own.
+    val customs = LocalCustomCategories.current
+    val picked = CategoryChoice.fromKey(categoryName, customs)
+    val category = picked.category
     val flow = runCatching { Flow.valueOf(flowName) }.getOrDefault(FlowRules.default(type))
 
     LaunchedEffect(id, reviewId) {
@@ -158,7 +163,7 @@ fun EditTransactionScreen(
         if (!initialised) {
             if (t != null) {
                 amount = paiseToInput(t.amountPaise)
-                merchant = t.merchant; typeName = t.type.name; categoryName = t.category.name; categoryTouched = true
+                merchant = t.merchant; typeName = t.type.name; categoryName = t.choice.key; categoryTouched = true
                 flowName = t.flow.name; flowTouched = true; refNumber = t.refNumber
                 bank = t.bankName ?: ""; account = t.accountRef ?: ""; note = t.note ?: ""; timestamp = t.timestamp; smsHash = t.smsHash
             }
@@ -185,7 +190,7 @@ fun EditTransactionScreen(
 
     // Auto-suggest category and flow while the user has not picked them manually.
     LaunchedEffect(merchant, typeName, categoryName) {
-        if (!categoryTouched && merchant.length >= 3) categoryName = Categorizer.categorize(merchant, type).name
+        if (!categoryTouched && merchant.length >= 3) categoryName = vm.suggestCategory(merchant, type).key
         if (!flowTouched) flowName = FlowClassifier.classify(type, reviewBody ?: "", merchant, category).name
     }
 
@@ -198,6 +203,7 @@ fun EditTransactionScreen(
         type = type,
         merchant = merchant.trim(),
         category = category,
+        customCategoryId = picked.customId,
         timestamp = timestamp,
         bankName = bank.trim().ifBlank { null },
         accountRef = account.trim().takeLast(4).ifBlank { null },
@@ -288,7 +294,11 @@ fun EditTransactionScreen(
                 CapsLabel("Category")
                 ChipFlow {
                     Category.entries.forEach { c ->
-                        PillChip(category == c, c.label, icon = categoryIcon(c)) { categoryName = c.name; categoryTouched = true }
+                        PillChip(picked == CategoryChoice(c), c.label, icon = categoryIcon(c)) { categoryName = c.name; categoryTouched = true }
+                    }
+                    customs.values.sortedBy { it.name.lowercase() }.forEach { cc ->
+                        val choice = CategoryChoice(cc.parent, cc.id)
+                        PillChip(picked == choice, cc.name, icon = categoryIcon(cc.parent)) { categoryName = choice.key; categoryTouched = true }
                     }
                 }
                 OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") }, modifier = Modifier.fillMaxWidth())
@@ -321,7 +331,7 @@ fun EditTransactionScreen(
             // Tax: the rule's guess, or the person's own tag, for a payment out as the form now stands. A new choice
             // is applied on Save, so backing out leaves the tag as it was.
             existing?.takeIf { type == TransactionType.DEBIT }?.let { t ->
-                val tags by vm.taxTags.collectAsState()
+                val tags by tools.taxTags.collectAsState()
                 var picking by remember { mutableStateOf(false) }
                 val p = pendingTax
                 val (section, byYou) = when {
@@ -356,9 +366,9 @@ fun EditTransactionScreen(
                     val txId = existing?.id
                     if (txId != null && t.type == TransactionType.DEBIT) when (val p = pendingTax) {
                         null -> {}
-                        TAX_RULE -> vm.clearTaxTag(txId)
-                        TAX_NONE -> vm.tagTax(txId, null)
-                        else -> com.pft.financetracker.domain.tax.TaxSection.fromName(p)?.let { vm.tagTax(txId, it) }
+                        TAX_RULE -> tools.clearTaxTag(txId)
+                        TAX_NONE -> tools.tagTax(txId, null)
+                        else -> com.pft.financetracker.domain.tax.TaxSection.fromName(p)?.let { tools.tagTax(txId, it) }
                     }
                     if (reviewId != null) vm.resolveReview(reviewId, t) { leave(onBack) } else vm.save(t, existing) { leave(onBack) }
                 },

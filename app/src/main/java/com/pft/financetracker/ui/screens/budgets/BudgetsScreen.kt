@@ -1,5 +1,7 @@
 package com.pft.financetracker.ui.screens.budgets
 
+import com.pft.financetracker.ui.components.categoryName
+import com.pft.financetracker.domain.model.CategoryChoice
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -79,13 +81,17 @@ fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
     val budgets by vm.budgets.collectAsState()
     val loaded by vm.loaded.collectAsState()
     val summary = books.summary(Periods.month())
-    var editing by remember { mutableStateOf<Category?>(null) }
+    val customs by vm.customCategories.collectAsState()
+    var editing by remember { mutableStateOf<CategoryChoice?>(null) }
     var input by remember { mutableStateOf("") }
 
-    val limitOf = { cat: Category -> budgets.firstOrNull { it.category == cat }?.monthlyLimitPaise }
-    val spentOf = { cat: Category -> summary.byCategory.firstOrNull { it.category == cat }?.amountPaise ?: 0L }
-    val withLimit = Category.spendCategories.filter { limitOf(it) != null }
-    val withoutLimit = Category.spendCategories.filter { limitOf(it) == null }
+    val limitOf = { cat: CategoryChoice -> budgets.firstOrNull { it.choice == cat }?.monthlyLimitPaise }
+    val spentOf = { cat: CategoryChoice -> summary.byCategory.firstOrNull { it.choice == cat }?.amountPaise ?: 0L }
+    // The built-in spend categories, then the person's own (each counted apart from the built-in it sits under).
+    val all = Category.spendCategories.map { CategoryChoice(it) } +
+        customs.values.filter { it.parent != Category.INCOME }.sortedBy { it.name.lowercase() }.map { CategoryChoice(it.parent, it.id) }
+    val withLimit = all.filter { limitOf(it) != null }
+    val withoutLimit = all.filter { limitOf(it) == null }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -112,7 +118,7 @@ fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
             item(key = "hero") {
                 val limits = withLimit.sumOf { limitOf(it) ?: 0L }
                 val spent = withLimit.sumOf { spentOf(it) }
-                Hero(summary.period.label, limits, spent, totalSpent = Category.spendCategories.sumOf { spentOf(it) })
+                Hero(summary.period.label, limits, spent, totalSpent = all.sumOf { spentOf(it) })
             }
 
             if (withLimit.isNotEmpty()) {
@@ -139,8 +145,8 @@ fun BudgetsScreen(vm: AppViewModel, onBack: () -> Unit) {
             onInput = { input = it },
             limit = limitOf(cat),
             spent = spentOf(cat),
-            onSave = { paise -> vm.setBudget(cat, paise) },
-            onRemove = { vm.setBudget(cat, 0L) },
+            onSave = { paise -> vm.setBudget(cat.category, paise, cat.customId) },
+            onRemove = { vm.setBudget(cat.category, 0L, cat.customId) },
             onDismiss = { editing = null },
         )
     }
@@ -180,10 +186,10 @@ private fun Hero(period: String, limits: Long, spent: Long, totalSpent: Long) {
 /** A card of category rows, separated by hairlines that line up with the text. */
 @Composable
 private fun CategoryCard(
-    cats: List<Category>,
-    limitOf: (Category) -> Long?,
-    spentOf: (Category) -> Long,
-    onOpen: (Category, Long?) -> Unit,
+    cats: List<CategoryChoice>,
+    limitOf: (CategoryChoice) -> Long?,
+    spentOf: (CategoryChoice) -> Long,
+    onOpen: (CategoryChoice, Long?) -> Unit,
 ) {
     FinCard(Modifier.padding(horizontal = Gutter), padding = PaddingValues(vertical = Space.xs), spacing = 0.dp) {
         cats.forEachIndexed { i, cat ->
@@ -196,7 +202,7 @@ private fun CategoryCard(
 
 /** One category: icon, name, "₹X of ₹Y", its bar, and what is left or over in words. */
 @Composable
-private fun BudgetRow(cat: Category, limit: Long?, spent: Long, onClick: () -> Unit) {
+private fun BudgetRow(cat: CategoryChoice, limit: Long?, spent: Long, onClick: () -> Unit) {
     val frac = if (limit != null && limit > 0) (spent.toDouble() / limit).toFloat() else 0f
     val over = limit != null && spent > limit
     Row(
@@ -205,11 +211,11 @@ private fun BudgetRow(cat: Category, limit: Long?, spent: Long, onClick: () -> U
             .padding(horizontal = CardPadding, vertical = Space.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CategoryIcon(cat)
+        CategoryIcon(cat.category)
         Spacer(Modifier.width(RowIconGap))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(cat.label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(categoryName(cat), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.width(Space.sm))
                 Text(
                     if (limit != null) "${money(spent)} of ${money(limit)}" else money(spent),
@@ -234,7 +240,7 @@ private fun BudgetRow(cat: Category, limit: Long?, spent: Long, onClick: () -> U
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BudgetSheet(
-    cat: Category,
+    cat: CategoryChoice,
     input: String,
     onInput: (String) -> Unit,
     limit: Long?,
@@ -247,10 +253,10 @@ private fun BudgetSheet(
     var error by remember { mutableStateOf<String?>(null) }
 
     val sheet = rememberFinSheet()
-    FinSheet(onDismiss = onDismiss, title = "${cat.label} budget", sheet = sheet) {
+    FinSheet(onDismiss = onDismiss, title = "${categoryName(cat)} budget", sheet = sheet) {
         SoftPanel(spacing = Space.xs) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CategoryIcon(cat, size = 32.dp)
+                CategoryIcon(cat.category, size = 32.dp)
                 Spacer(Modifier.width(Space.md))
                 Text("Spent this month", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(Space.sm))

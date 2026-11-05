@@ -55,6 +55,7 @@ import com.pft.financetracker.domain.bills.LoanProgress
 import com.pft.financetracker.domain.model.Category
 import com.pft.financetracker.domain.model.Money
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.MoneyToolsViewModel
 import com.pft.financetracker.ui.components.AdaptiveRow
 import com.pft.financetracker.ui.components.AddButton
 import com.pft.financetracker.ui.components.AmountDisplay
@@ -121,8 +122,8 @@ private fun newBill() = Bill(name = "", amountPaise = null, dueDay = LocalDate.n
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BillsScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () -> Unit) {
-    val states by vm.billStates.collectAsState()
+fun BillsScreen(vm: AppViewModel, tools: MoneyToolsViewModel, onOpenTransaction: (Long) -> Unit, onBack: () -> Unit) {
+    val states by tools.billStates.collectAsState()
     val dbLoaded by vm.loaded.collectAsState()
     // These lists start as "not loaded", so a first open shows the skeleton rather than flashing the empty state.
     val loaded = dbLoaded && com.pft.financetracker.ui.isLoaded(states)
@@ -198,18 +199,18 @@ fun BillsScreen(vm: AppViewModel, onOpenTransaction: (Long) -> Unit, onBack: () 
     selected?.let { (b, s) ->
         BillSheet(
             b, s,
-            onMarkPaid = { due -> vm.markBillPaid(b.id, due) },
-            onUnmark = { due -> vm.unmarkBillPaid(b.id, due) },
+            onMarkPaid = { due -> tools.markBillPaid(b.id, due) },
+            onUnmark = { due -> tools.unmarkBillPaid(b.id, due) },
             // Stored with the bill's paid marks (BillTracker.ignoreMark), so the bill stops counting that payment.
-            onUnlink = { txId -> vm.markBillPaid(b.id, BillTracker.ignoreMark(txId)) },
-            onDelete = { vm.deleteBill(b.id) },
+            onUnlink = { txId -> tools.markBillPaid(b.id, BillTracker.ignoreMark(txId)) },
+            onDelete = { tools.deleteBill(b.id) },
             onEdit = { editing = b; selected = null },
             onOpenTransaction = onOpenTransaction,
             onDismiss = { selected = null },
         )
     }
 
-    editing?.let { b -> BillEditor(b, onSave = { vm.saveBill(it) }, onDismiss = { editing = null }) }
+    editing?.let { b -> BillEditor(b, onSave = { tools.saveBill(it) }, onDismiss = { editing = null }) }
 }
 
 /** "today", "tomorrow", "in 3 days". */

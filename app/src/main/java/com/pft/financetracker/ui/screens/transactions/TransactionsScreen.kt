@@ -1,5 +1,8 @@
 package com.pft.financetracker.ui.screens.transactions
 
+import com.pft.financetracker.ui.components.categoryName
+import com.pft.financetracker.ui.components.LocalCustomCategories
+import com.pft.financetracker.domain.model.CategoryChoice
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -142,6 +145,7 @@ fun TransactionsScreen(
     var showFilters by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var categorising by remember { mutableStateOf<Set<Long>?>(null) }
+    var alsoMove by remember { mutableStateOf<AlsoMove?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -262,38 +266,48 @@ fun TransactionsScreen(
     )
 
     categorising?.let { ids ->
-        val current = if (ids.size == 1) txns.firstOrNull { it.id == ids.first() }?.category else null
+        val one = if (ids.size == 1) txns.firstOrNull { it.id == ids.first() } else null
         CategoryPickerSheet(
             title = if (ids.size == 1) "Move to a category" else "Move ${ids.size} payments to",
-            selected = current,
-            onPick = { c -> vm.recategorise(ids, c); categorising = null; selection = Selection() },
+            selected = one?.choice,
+            onPick = { c ->
+                vm.recategorise(ids, c); categorising = null; selection = Selection()
+                one?.let { t -> vm.alsoMovable(t.copy(category = c.category, customCategoryId = c.customId)).takeIf { it.isNotEmpty() }?.let { alsoMove = AlsoMove(t.merchant, c, it.map { r -> r.id }.toSet()) } }
+            },
             onDismiss = { categorising = null },
         )
     }
+    alsoMove?.let { m -> AlsoMoveDialog(m, onMove = { vm.moveAlso(m.ids, m.to) }, onDismiss = { alsoMove = null }) }
 }
 
-/** Every category as a tile; tapping one picks it. Used by swipe-to-categorise and multi-select. */
+/**
+ * Every category as a tile, the person's own ones after the built-ins (each with the icon of what it counts as);
+ * tapping one picks it. Used by swipe-to-categorise, multi-select and a payment's page.
+ */
 @Composable
-fun CategoryPickerSheet(title: String, selected: Category?, onPick: (Category) -> Unit, onDismiss: () -> Unit) {
+fun CategoryPickerSheet(title: String, selected: CategoryChoice?, onPick: (CategoryChoice) -> Unit, onDismiss: () -> Unit) {
     val s = surfaces
     val sheet = rememberFinSheet()
+    val customs = LocalCustomCategories.current
+    val choices = Category.entries.map { CategoryChoice(it) } + customs.values.sortedBy { it.name.lowercase() }.map { CategoryChoice(it.parent, it.id) }
     FinSheet(onDismiss, title, sheet = sheet) {
-        Category.entries.chunked(3).forEach { row ->
+        choices.chunked(3).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 row.forEach { c ->
                     val on = c == selected
+                    val label = c.label(customs)
                     Column(
                         Modifier.weight(1f).heightIn(min = 76.dp).clip(ControlShape)
                             .background(if (on) s.accentSoft else s.card)
                             .border(if (on) 1.5.dp else 1.dp, if (on) MaterialTheme.colorScheme.primary else s.hairline, ControlShape)
                             .clickable(role = Role.RadioButton) { sheet.close { onPick(c) } }
-                            .semantics { this.selected = on; contentDescription = c.label }
+                            .semantics { this.selected = on; contentDescription = label }
                             .padding(Space.sm),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Icon(categoryIcon(c), null, tint = avatarInk(categoryColor(c)))
-                        Text(c.label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        Icon(categoryIcon(c.category), null, tint = avatarInk(categoryColor(c.category)))
+                        Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
                             fontWeight = if (on) FontWeight.SemiBold else FontWeight.Medium,
                             color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                     }
@@ -302,6 +316,24 @@ fun CategoryPickerSheet(title: String, selected: Category?, onPick: (Category) -
             }
         }
     }
+}
+
+/** What "Also move the earlier ones?" offers: [ids] are [merchant]'s earlier payments, filed elsewhere, to move to [to]. */
+data class AlsoMove(val merchant: String, val to: CategoryChoice, val ids: Set<Long>)
+
+/** Asked once after a payment's category is changed by hand, when the same payee has earlier payments filed elsewhere. */
+@Composable
+fun AlsoMoveDialog(m: AlsoMove, onMove: () -> Unit, onDismiss: () -> Unit) {
+    val name = displayMerchant(m.merchant).ifBlank { "This payee" }
+    val to = categoryName(m.to)
+    val earlier = if (m.ids.size == 1) "1 earlier payment" else "${m.ids.size} earlier payments"
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Move $earlier too?") },
+        text = { Text("New payments to $name will go to $to from now on. $name also has $earlier filed elsewhere.") },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { onMove(); onDismiss() }) { Text("Move them") } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("Just this one") } },
+    )
 }
 
 /** Category, account, kind of money, dates and reversed payments; applied together with "Show N payments". */

@@ -37,6 +37,7 @@ fun TransactionEntity.toDomain(): Transaction {
         userEdited = userEdited,
         counterpartyKind = CounterpartyKind.fromName(counterpartyKind),
         importBatchId = importBatchId,
+        customCategoryId = customCategoryId,
     )
 }
 
@@ -60,10 +61,16 @@ fun Transaction.toEntity() = TransactionEntity(
     userEdited = userEdited,
     counterpartyKind = counterpartyKind?.name,
     importBatchId = importBatchId,
+    customCategoryId = customCategoryId,
 )
 
-fun BudgetEntity.toDomain() = Budget(Category.fromName(category), monthlyLimitPaise)
-fun Budget.toEntity() = BudgetEntity(category.name, monthlyLimitPaise)
+/** A budget for one of the person's own categories that has since gone reads as null. */
+fun BudgetEntity.toDomain(customs: Map<Long, com.pft.financetracker.domain.model.CustomCategory> = emptyMap()): Budget? {
+    val choice = com.pft.financetracker.domain.model.CategoryChoice.fromKey(category, customs)
+    if (com.pft.financetracker.domain.model.CategoryChoice.isCustomKey(category) && choice.customId == null) return null
+    return Budget(choice.category, monthlyLimitPaise, choice.customId)
+}
+fun Budget.toEntity() = BudgetEntity(choice.key, monthlyLimitPaise)
 
 fun assembleSplits(splits: List<SplitEntity>, people: List<SplitPersonEntity>, shares: List<SplitShareEntity>): List<Split> {
     val peopleBy = people.groupBy { it.splitId }

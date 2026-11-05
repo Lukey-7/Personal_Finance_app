@@ -25,13 +25,14 @@ object MonthlySummary {
             lines += if (cur.savingsPaise >= 0) "Income ${rupees(cur.incomePaise)}, so you saved **${rupees(cur.savingsPaise)}** (${pct(cur.savingsPaise, cur.incomePaise)}% of it)."
             else "Income ${rupees(cur.incomePaise)}: you spent ${rupees(-cur.savingsPaise)} more than came in."
         }
-        val prevByCat = prev.byCategory.associate { it.category to it.amountPaise }
-        cur.byCategory.mapNotNull { c -> prevByCat[c.category]?.takeIf { it > 0 && c.amountPaise > it }?.let { Triple(c.category, c.amountPaise, it) } }
+        val prevByCat = prev.byCategory.associate { it.choice to it.amountPaise }
+        cur.byCategory.mapNotNull { c -> prevByCat[c.choice]?.takeIf { it > 0 && c.amountPaise > it }?.let { Triple(c.label, c.amountPaise, it) } }
             .maxByOrNull { (_, now, then) -> (now - then).toDouble() / then }
-            ?.let { (cat, now, then) -> lines += "${cat.label} is up ${pct(now - then, then)}% (${rupees(now)} against ${rupees(then)})." }
+            ?.let { (name, now, then) -> lines += "$name is up ${pct(now - then, then)}% (${rupees(now)} against ${rupees(then)})." }
         budgets.forEach { b ->
-            val spent = cur.byCategory.firstOrNull { it.category == b.category }?.amountPaise ?: 0L
-            if (spent > b.monthlyLimitPaise) lines += "${b.category.label} is ${rupees(spent - b.monthlyLimitPaise)} over its budget."
+            val line = cur.byCategory.firstOrNull { it.choice == b.choice }
+            val spent = line?.amountPaise ?: 0L
+            if (spent > b.monthlyLimitPaise) lines += "${line?.label ?: b.category.label} is ${rupees(spent - b.monthlyLimitPaise)} over its budget."
         }
         if (recurring.monthlyPaise > 0) lines += "Subscriptions and other repeating charges cost ${rupees(recurring.monthlyPaise)} a month."
         return lines.joinToString("\n") { "- $it" }

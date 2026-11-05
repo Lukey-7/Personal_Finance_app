@@ -2,6 +2,7 @@ package com.pft.financetracker.domain.insights
 
 import com.pft.financetracker.domain.model.Budget
 import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.CategoryChoice
 import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Money
 import com.pft.financetracker.domain.model.Rupees
@@ -81,8 +82,10 @@ object Periods {
 }
 
 /** Net spend per category: expenses minus refunds matched to that category. All paise. */
-data class CategorySpend(val category: Category, val amountPaise: Long, val count: Int) {
+/** One category's spend. [customId] and [label] name the person's own category when the payments are filed in one. */
+data class CategorySpend(val category: Category, val amountPaise: Long, val count: Int, val customId: Long? = null, val label: String = category.label) {
     val amount: Double get() = Money.toRupees(amountPaise)
+    val choice: CategoryChoice get() = CategoryChoice(category, customId)
 }
 
 data class MerchantSpend(val merchant: String, val amountPaise: Long, val count: Int, val category: Category)
@@ -115,6 +118,14 @@ data class PeriodSummary(
 ) {
     val netSpendPaise: Long get() = grossSpendPaise - refundsPaise
     val savingsPaise: Long get() = incomePaise - netSpendPaise
+
+    /**
+     * [byCategory] with the person's own categories folded into the built-in each counts as. What leaves the phone (the
+     * AI payloads) uses this: a name someone typed ("Rahul's rent") is never sent.
+     */
+    val byBuiltIn: List<CategorySpend> get() = byCategory.groupBy { it.category }
+        .map { (c, l) -> CategorySpend(c, l.sumOf { it.amountPaise }, l.sumOf { it.count }) }
+        .sortedByDescending { it.amountPaise }
     val spend: Double get() = Money.toRupees(netSpendPaise)
     val income: Double get() = Money.toRupees(incomePaise)
 
@@ -129,8 +140,13 @@ data class PeriodSummary(
         if (now in period) dailyAveragePaise(now) * period.days else null
 }
 
-data class Insight(val title: String, val body: String, val severity: Severity, val category: Category? = null, val magnitude: Int = 0) {
+/** [customId] and [label] name the person's own category when the insight is about one (under [category]). */
+data class Insight(
+    val title: String, val body: String, val severity: Severity, val category: Category? = null, val magnitude: Int = 0,
+    val customId: Long? = null, val label: String? = null,
+) {
     enum class Severity { INFO, WARN, GOOD }
+    val choice: CategoryChoice? get() = category?.let { CategoryChoice(it, customId) }
 }
 
 data class BudgetStatus(val budget: Budget, val spentPaise: Long) {

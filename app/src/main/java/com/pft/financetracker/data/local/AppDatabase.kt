@@ -19,9 +19,9 @@ import java.security.SecureRandom
         SplitLinkEntity::class, SplitDecisionEntity::class, ImportBatchEntity::class, ImportMatchEntity::class,
         RefundLinkEntity::class, ParserTemplateEntity::class, RecurringDecisionEntity::class, BillEntity::class, BillMarkEntity::class,
         CardEntity::class, GoalEntity::class, GoalContributionEntity::class, TaxTagEntity::class,
-        AssetEntity::class, AccountBalanceEntity::class, HoldingEntity::class, NetWorthSnapshotEntity::class,
+        PayeeRuleEntity::class, CustomCategoryEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,7 +38,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun cardDao(): CardDao
     abstract fun goalDao(): GoalDao
     abstract fun taxDao(): TaxDao
-    abstract fun netWorthDao(): NetWorthDao
+    abstract fun payeeRuleDao(): PayeeRuleDao
+    abstract fun customCategoryDao(): CustomCategoryDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -336,7 +337,21 @@ abstract class AppDatabase : RoomDatabase() {
             "CREATE TABLE IF NOT EXISTS networth_snapshots (month TEXT NOT NULL, totalPaise INTEGER NOT NULL, ownPaise INTEGER NOT NULL, owePaise INTEGER NOT NULL, PRIMARY KEY(month))",
         )
 
-        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+        /**
+         * v7 -> v8 (v1.6): payee rules and the person's own categories arrive; the net-worth tables, unused since
+         * v1.5.0 removed the screen, go. Every other row is untouched.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                listOf("assets", "account_balances", "holdings", "networth_snapshots").forEach { db.execSQL("DROP TABLE IF EXISTS `$it`") }
+                db.execSQL("CREATE TABLE IF NOT EXISTS payee_rules (payeeKey TEXT NOT NULL, category TEXT NOT NULL, createdAt INTEGER NOT NULL, PRIMARY KEY(payeeKey))")
+                db.execSQL("CREATE TABLE IF NOT EXISTS custom_categories (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, parent TEXT NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_custom_categories_name ON custom_categories (name)")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN customCategoryId INTEGER")
+            }
+        }
+
+        val ALL_MIGRATIONS = arrayOf<Migration>(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
     }
 }
 

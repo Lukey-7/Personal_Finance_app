@@ -116,6 +116,8 @@ fun InsightsScreen(
     onOpenTools: () -> Unit = {},
     /** Opens the payments behind a row, for the period this screen shows (not Home's). */
     onDrill: (Bucket, Category?, Period) -> Unit = { _, _, _ -> },
+    /** The same for one of the person's own categories ([Long] is its id). */
+    onDrillCustom: (Bucket, Category, Long, Period) -> Unit = { b, c, _, p -> onDrill(b, c, p) },
 ) {
     val books by vm.books.collectAsState()
     val budgets by vm.budgets.collectAsState()
@@ -133,9 +135,14 @@ fun InsightsScreen(
     val current = if (weekly) Periods.week() else Periods.month()
     val before = Periods.sameSpanBefore(current, if (weekly) Periods.week(-1) else Periods.month(-1), now)
     val trends = books.trends(current, before).sortedByDescending { it.magnitude }
-    val curByCat = books.summary(current).byCategory.associate { it.category to it.amountPaise }
-    val prevByCat = books.summary(before).byCategory.associate { it.category to it.amountPaise }
-    val biggest = trends.maxOfOrNull { t -> t.category?.let { curByCat[it] } ?: 0L }?.coerceAtLeast(1L) ?: 1L
+    val curByCat = books.summary(current).byCategory.associate { it.choice to it.amountPaise }
+    val prevByCat = books.summary(before).byCategory.associate { it.choice to it.amountPaise }
+    val biggest = trends.maxOfOrNull { t -> t.choice?.let { curByCat[it] } ?: 0L }?.coerceAtLeast(1L) ?: 1L
+    fun open(i: Insight, period: Period): (() -> Unit)? {
+        val cat = i.category ?: return null
+        val id = i.customId
+        return { if (id != null) onDrillCustom(Bucket.SPEND, cat, id, period) else onDrill(Bucket.SPEND, cat, period) }
+    }
     val suggestions = books.suggestions(budgets, now)
     // Tips look at this month, so their payments open on this month.
     val tipsPeriod = Periods.month(0, now)
@@ -239,10 +246,10 @@ fun InsightsScreen(
                         if (i > 0) Hairline(startInset = RowTextInset, endInset = Gutter)
                         TrendRow(
                             insight = t,
-                            nowPaise = t.category?.let { curByCat[it] } ?: 0L,
-                            beforePaise = t.category?.let { prevByCat[it] } ?: 0L,
+                            nowPaise = t.choice?.let { curByCat[it] } ?: 0L,
+                            beforePaise = t.choice?.let { prevByCat[it] } ?: 0L,
                             biggest = biggest,
-                            onOpen = t.category?.let { cat -> { onDrill(Bucket.SPEND, cat, current) } },
+                            onOpen = open(t, current),
                         )
                     }
                 }
@@ -262,7 +269,7 @@ fun InsightsScreen(
                             TipCard(
                                 s,
                                 onDismiss = { dismissed.add(s.title) },
-                                onOpen = s.category?.let { cat -> { onDrill(Bucket.SPEND, cat, tipsPeriod) } },
+                                onOpen = open(s, tipsPeriod),
                                 modifier = Modifier.padding(bottom = Space.md),
                             )
                         }
@@ -284,7 +291,7 @@ fun InsightsScreen(
 @Composable
 private fun TrendRow(insight: Insight, nowPaise: Long, beforePaise: Long, biggest: Long, onOpen: (() -> Unit)?) {
     val cat = insight.category
-    val name = cat?.label ?: insight.title
+    val name = insight.label ?: cat?.label ?: insight.title
     val (icon, words, tone) = when (insight.severity) {
         Insight.Severity.WARN -> Triple(Icons.Outlined.ArrowUpward, "Up ${insight.magnitude}%", Expense)
         Insight.Severity.GOOD -> Triple(Icons.Outlined.ArrowDownward, "Down ${insight.magnitude}%", Income)

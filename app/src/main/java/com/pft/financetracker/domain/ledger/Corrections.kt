@@ -1,6 +1,7 @@
 package com.pft.financetracker.domain.ledger
 
 import com.pft.financetracker.domain.model.Category
+import com.pft.financetracker.domain.model.CategoryChoice
 import com.pft.financetracker.domain.model.Flow
 import com.pft.financetracker.domain.model.Transaction
 import com.pft.financetracker.domain.model.TransactionType
@@ -37,10 +38,13 @@ fun applyEdit(stored: Transaction, opened: Transaction, edited: Transaction): Tr
     fun <T> pick(field: (Transaction) -> T): T = if (field(edited) != field(opened)) field(edited) else field(stored)
     return stored.copy(
         amountPaise = pick { it.amountPaise }, type = pick { it.type }, merchant = pick { it.merchant },
-        category = pick { it.category }, timestamp = pick { it.timestamp }, bankName = pick { it.bankName },
+        category = pick { it.category }, customCategoryId = pick { it.customCategoryId }, timestamp = pick { it.timestamp }, bankName = pick { it.bankName },
         accountRef = pick { it.accountRef }, flow = pick { it.flow }, note = pick { it.note },
     )
 }
 
 fun recategorise(txns: List<Transaction>, ids: Set<Long>, category: Category): List<Transaction> =
-    txns.filter { it.id in ids && it.category != category }.map { it.copy(category = category, userEdited = true) }
+    recategorise(txns, ids, CategoryChoice(category))
+
+fun recategorise(txns: List<Transaction>, ids: Set<Long>, choice: CategoryChoice): List<Transaction> =
+    txns.filter { it.id in ids && it.choice != choice }.map { it.copy(category = choice.category, customCategoryId = choice.customId, userEdited = true) }

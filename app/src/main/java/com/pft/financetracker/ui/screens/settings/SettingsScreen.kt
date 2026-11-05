@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.outlined.CallSplit
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.Calculate
+import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Settings
@@ -67,6 +68,7 @@ import java.util.Locale
 private val sectionTitles = linkedMapOf(
     "sms" to "SMS & import",
     "calculation" to "Calculation",
+    "categories" to "Categories",
     "splits" to "Splits",
     "reminders" to "Reminders",
     "backup" to "Backup",
@@ -78,6 +80,7 @@ private val sectionTitles = linkedMapOf(
 private val sectionIcons: Map<String, ImageVector> = mapOf(
     "sms" to Icons.Outlined.Sms,
     "calculation" to Icons.Outlined.Calculate,
+    "categories" to Icons.Outlined.Category,
     "splits" to Icons.AutoMirrored.Outlined.CallSplit,
     "reminders" to Icons.Outlined.NotificationsActive,
     "backup" to Icons.Outlined.Backup,
@@ -103,6 +106,8 @@ fun SettingsScreen(vm: AppViewModel, onOpenSection: (String) -> Unit) {
     val aiProviderLabel = vm.aiProvider.collectAsState().value.label
     val remindersOn by vm.remindersEnabled.collectAsState()
     val lastBackup by vm.lastBackupAt.collectAsState()
+    val customs by vm.customCategories.collectAsState()
+    val rules by vm.payeeRules.collectAsState()
     val widgetHide by vm.widgetHideAmounts.collectAsState()
     val useNano by vm.useNano.collectAsState()
     val nanoStatus by vm.nanoStatus.collectAsState()
@@ -117,6 +122,10 @@ fun SettingsScreen(vm: AppViewModel, onOpenSection: (String) -> Unit) {
             else -> "Auto-scan off"
         },
         "calculation" to if (cashAsSpend) "Cash counts as spend" else "Cash kept out of spend",
+        "categories" to listOf(
+            when (customs.size) { 0 -> "No categories of your own"; 1 -> "1 of your own"; else -> "${customs.size} of your own" },
+            when (rules.size) { 0 -> null; 1 -> "1 payee rule"; else -> "${rules.size} payee rules" },
+        ).filterNotNull().joinToString(" · "),
         "splits" to listOfNotNull(
             myName.trim().takeIf { it.isNotEmpty() }?.let { "You appear as $it" } ?: "Your name isn't set",
             if (splitAi && hasKey) "AI for unclear cases" else null,
@@ -156,7 +165,7 @@ fun SettingsScreen(vm: AppViewModel, onOpenSection: (String) -> Unit) {
                     }
                 }
             }
-            IndexGroup("Tracking", listOf("sms", "calculation", "splits"), subtitles, onOpenSection)
+            IndexGroup("Tracking", listOf("sms", "calculation", "categories", "splits"), subtitles, onOpenSection)
             IndexGroup("Everyday", listOf("reminders", "backup", "widget"), subtitles, onOpenSection)
             IndexGroup("Privacy", listOf("ai", "data"), subtitles, onOpenSection)
             Text(
@@ -222,9 +231,10 @@ fun SettingsSectionScreen(
             when (section) {
                 "sms" -> SmsSection(vm, snackbar, onOpenSmsLog, onOpenImport)
                 "calculation" -> CalculationSection(vm)
+                "categories" -> CategoriesSection(vm, snackbar)
                 "splits" -> SplitsSection(vm)
                 "reminders" -> RemindersSection(vm, snackbar)
-                "backup" -> BackupSection(vm, snackbar)
+                "backup" -> BackupSection(androidx.lifecycle.viewmodel.compose.viewModel<com.pft.financetracker.ui.BackupViewModel>(), snackbar)
                 "widget" -> WidgetSection(vm, snackbar)
                 "ai" -> AiSection(vm)
                 "data" -> DataSection(vm, snackbar)

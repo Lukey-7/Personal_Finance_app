@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import com.pft.financetracker.domain.bills.BillState
 import com.pft.financetracker.domain.bills.BillTracker
 import com.pft.financetracker.ui.AppViewModel
+import com.pft.financetracker.ui.MoneyToolsViewModel
 import com.pft.financetracker.ui.model.askSource
 import com.pft.financetracker.ui.components.CardRadius
 import com.pft.financetracker.ui.components.CardShape
@@ -96,14 +97,14 @@ private data class ToolTile(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ToolsScreen(vm: AppViewModel, onOpen: (route: String) -> Unit, onBack: () -> Unit) {
+fun ToolsScreen(vm: AppViewModel, tools: MoneyToolsViewModel, onOpen: (route: String) -> Unit, onBack: () -> Unit) {
     val loaded by vm.loaded.collectAsState()
-    val book by vm.recurringBook.collectAsState()
-    val bills by vm.billStates.collectAsState()
-    val cards by vm.cardSummaries.collectAsState()
-    val goals by vm.goalProgress.collectAsState()
-    val tax by vm.taxSummary.collectAsState()
-    val fy by vm.taxYear.collectAsState()
+    val book by tools.recurringBook.collectAsState()
+    val bills by tools.billStates.collectAsState()
+    val cards by tools.cardSummaries.collectAsState()
+    val goals by tools.goalProgress.collectAsState()
+    val tax by tools.taxSummary.collectAsState()
+    val fy by tools.taxYear.collectAsState()
     val hasKey by vm.hasApiKey.collectAsState()
     val askOnline by vm.askUseOpenAi.collectAsState()
     val aiName by vm.aiName.collectAsState()

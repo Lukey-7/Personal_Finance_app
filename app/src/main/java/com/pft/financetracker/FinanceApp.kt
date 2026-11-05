@@ -26,7 +26,10 @@ class AppContainer(context: Context) {
     val db: AppDatabase = AppDatabase.get(context)
     val settings: SettingsRepository = SettingsRepository(context)
     val transactions: TransactionRepository = TransactionRepository(db.transactionDao(), db.reviewDao())
-    val budgets: BudgetRepository = BudgetRepository(db.budgetDao())
+    /** The person's own categories and the category they gave each payee. */
+    val categories: com.pft.financetracker.data.categories.CategoryStore =
+        com.pft.financetracker.data.categories.CategoryStore(db.customCategoryDao(), db.payeeRuleDao(), db.budgetDao())
+    val budgets: BudgetRepository = BudgetRepository(db.budgetDao(), categories.customs)
     val smsLog: SmsLogRepository = SmsLogRepository(db.smsLogDao())
     val splits: SplitRepository = SplitRepository(db.splitDao())
     /** Message shapes the person taught by confirming Review items; the parser tries them first for their sender. */
@@ -41,6 +44,7 @@ class AppContainer(context: Context) {
     val importer: SmsImporter = SmsImporter(
         context, parser, transactions, smsLog, settings,
         onCardStatement = { s, bank -> bills.fromStatement(s, bank) },
+        payeeRules = { categories.rules },
     )
     val splitEngine: SplitEngine = SplitEngine(
         db.transactionDao(), db.splitDao(),
@@ -53,7 +57,7 @@ class AppContainer(context: Context) {
         },
     )
     val statementFiles: StatementFiles = StatementFiles(context)
-    val statementImporter: StatementImporter = StatementImporter(db.transactionDao(), transactions, db.importDao(), smsLog)
+    val statementImporter: StatementImporter = StatementImporter(db.transactionDao(), transactions, db.importDao(), smsLog, payeeRules = { categories.rules })
     /** Everything that can have a due date. Features add themselves here; [com.pft.financetracker.data.reminders.ReminderWorker] reads it. */
     val reminderSources: MutableList<ReminderSource> = mutableListOf()
     val refunds: RefundLinker = RefundLinker(db.transactionDao(), db.refundDao())
@@ -67,6 +71,7 @@ class AppContainer(context: Context) {
         },
         afterChange = { useAi -> afterChange(useAi) },
         scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO),
+        learnPayee = { merchant, choice -> categories.learn(merchant, choice) },
     )
 
     /**
@@ -138,7 +143,9 @@ class FinanceApp : Application() {
         }
         publishShortcuts()
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { runCatching { container.templates.load() } }
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch { runCatching { container.categories.load() } }
         Reminders.schedule(this)
+        com.pft.financetracker.data.backup.AutoBackups.schedule(this, container.settings.autoBackupFolder.value != null)
     }
 
     /**
@@ -162,8 +169,10 @@ class FinanceApp : Application() {
 
     private fun seedBuiltInApiKey() {
         val seed = BuildConfig.SEED_OPENAI_KEY
-        if (seed.isBlank()) return
-        container?.settings?.seedApiKey(seed)
+        if (seed.isNotBlank()) container?.settings?.seedApiKey(seed)
+        // The backup: ready under Anthropic in Settings › AI, used only once that provider is picked.
+        val anthropic = BuildConfig.SEED_ANTHROPIC_KEY
+        if (anthropic.isNotBlank()) container?.settings?.seedProviderKey(com.pft.financetracker.domain.ai.ProviderKind.ANTHROPIC, anthropic)
     }
 }
 

@@ -39,6 +39,8 @@ data class TransactionEntity(
     val counterpartyKind: String? = null,
     /** The statement/screenshot import that added this row ([ImportBatchEntity]); null otherwise. */
     val importBatchId: Long? = null,
+    /** The person's own category ([CustomCategoryEntity]) when they picked one; [category] then holds its parent. */
+    val customCategoryId: Long? = null,
 )
 
 /**
@@ -329,44 +331,24 @@ data class TaxTagEntity(
     val section: String?,
 )
 
-/** Something owned (or, with [liability], owed) typed in by hand for net worth (v1.3). */
-@Entity(tableName = "assets")
-data class AssetEntity(
+/**
+ * The category a person gave a payee (v1.6), used for that payee's next payments before the keyword lists. [payeeKey]
+ * is the merchant reduced by `InsightsEngine.normalizeMerchant`; [category] is a [CategoryRef] key ("FOOD", "custom:3").
+ */
+@Entity(tableName = "payee_rules")
+data class PayeeRuleEntity(
+    @PrimaryKey val payeeKey: String,
+    val category: String,
+    val createdAt: Long = System.currentTimeMillis(),
+)
+
+/** A category the person made (v1.6). It counts as its built-in [parent] (a Category name) for flow, splits and tax. */
+@Entity(tableName = "custom_categories", indices = [Index(value = ["name"], unique = true)])
+data class CustomCategoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val kind: String,
-    val valuePaise: Long,
-    val liability: Boolean,
-    val accountRef: String?,
-    val updatedAt: Long = System.currentTimeMillis(),
-)
-
-/** The newest balance a bank SMS reported for an account ("Avl Bal ..."), by its last digits. */
-@Entity(tableName = "account_balances")
-data class AccountBalanceEntity(
-    @PrimaryKey val accountRef: String,
-    val bankName: String?,
-    val balancePaise: Long,
-    val at: Long,
-)
-
-/** A mutual-fund holding from the latest CAS statement; a new CAS replaces them all. */
-@Entity(tableName = "holdings")
-data class HoldingEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val folio: String,
-    val scheme: String,
-    val valuePaise: Long,
-    val asOfDay: Long,
-)
-
-/** Net worth at the end of each month it was seen, for the history line. [month] is "yyyy-MM". */
-@Entity(tableName = "networth_snapshots")
-data class NetWorthSnapshotEntity(
-    @PrimaryKey val month: String,
-    val totalPaise: Long,
-    val ownPaise: Long,
-    val owePaise: Long,
+    val parent: String,
+    val createdAt: Long = System.currentTimeMillis(),
 )
 
 @Entity(tableName = "import_batches")

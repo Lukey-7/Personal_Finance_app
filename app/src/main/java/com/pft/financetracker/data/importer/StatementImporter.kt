@@ -24,6 +24,8 @@ class StatementImporter(
     private val repo: TransactionRepository,
     private val importDao: ImportDao,
     private val smsLog: com.pft.financetracker.data.repository.SmsLogRepository? = null,
+    /** The categories the person gave their payees; a statement row from one of them is filed the same way. */
+    private val payeeRules: () -> com.pft.financetracker.domain.categorize.PayeeRules = { com.pft.financetracker.domain.categorize.PayeeRules.NONE },
 ) {
     data class Preview(
         val statement: ParsedStatement,
@@ -74,8 +76,14 @@ class StatementImporter(
             if (wasDeleted(r)) continue
             val late = findExisting(r, consumed)
             if (late != null) { lateDuplicates += r to late; consumed += late.id; continue }
+            // Only for plain spend and income: a transfer or an investment keeps the category its flow gave it.
+            val rule = payeeRules().choiceFor(r.counterparty)?.takeIf {
+                (r.flow == com.pft.financetracker.domain.model.Flow.EXPENSE && it.category != com.pft.financetracker.domain.model.Category.INCOME) ||
+                    (r.flow == com.pft.financetracker.domain.model.Flow.INCOME && it.category == com.pft.financetracker.domain.model.Category.INCOME)
+            }
             val t = Transaction(
-                amountPaise = r.amountPaise, type = r.type, merchant = r.counterparty, category = r.category,
+                amountPaise = r.amountPaise, type = r.type, merchant = r.counterparty, category = rule?.category ?: r.category,
+                customCategoryId = rule?.customId,
                 // Statements give the day, not the time: noon keeps it on that day, and the row order keeps same-day
                 // payments in sequence (a dinner before its paybacks).
                 timestamp = r.time ?: (r.date + 12 * 3_600_000L + r.order * 1_000L),

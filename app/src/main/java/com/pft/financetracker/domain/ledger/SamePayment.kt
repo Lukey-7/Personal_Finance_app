@@ -215,6 +215,9 @@ object SamePayment {
             amountPaise = existing.amountPaise, originalAmountPaise = existing.originalAmountPaise, note = existing.note,
             refNumber = base.refNumber ?: other.refNumber, accountRef = base.accountRef ?: other.accountRef, bankName = base.bankName ?: other.bankName,
             counterpartyKind = existing.counterpartyKind ?: incoming.counterpartyKind, importBatchId = existing.importBatchId,
+            // The person's own category goes with the built-in it counts as.
+            customCategoryId = if (category == existing.category && existing.customCategoryId != null) existing.customCategoryId
+                else incoming.customCategoryId.takeIf { category == incoming.category },
             source = existing.source, userEdited = existing.userEdited, confidence = existing.confidence, needsReview = existing.needsReview,
             // A statement row only knew the day; the SMS knows the minute.
             timestamp = if (existing.source == Transaction.Source.STATEMENT) incoming.timestamp else existing.timestamp,

@@ -152,15 +152,54 @@ data class Transaction(
     val counterpartyKind: CounterpartyKind? = null,
     /** The statement or screenshot import that added this row, so a whole import can be undone. Null for SMS and manual rows. */
     val importBatchId: Long? = null,
+    /** The person's own category, when they picked one; [category] then holds the built-in it counts as. */
+    val customCategoryId: Long? = null,
 ) {
     /** SMS alert, typed by hand, created by a split, or read from an imported statement / screenshot. */
     enum class Source { SMS, MANUAL, SPLIT, STATEMENT }
     val amount: Double get() = Money.toRupees(amountPaise)
+    /** Where this payment is filed, as the person sees it. */
+    val choice: CategoryChoice get() = CategoryChoice(category, customCategoryId)
+}
+
+/**
+ * A category the person made. It counts as its built-in [parent] wherever the app reasons about money (flow, splits,
+ * tax, icons); only its name is shown and grouped by.
+ */
+data class CustomCategory(val id: Long, val name: String, val parent: Category)
+
+/**
+ * Where a payment is filed: a built-in [category], or the person's own category [customId] that counts as it. One
+ * string [key] stores it in budgets and payee rules: "FOOD", or "custom:3".
+ */
+data class CategoryChoice(val category: Category, val customId: Long? = null) {
+    val key: String get() = customId?.let { "$CUSTOM_PREFIX$it" } ?: category.name
+
+    /** The name to show: the person's own name when it still exists, else the built-in label. */
+    fun label(customs: Map<Long, CustomCategory>): String = customId?.let { customs[it]?.name } ?: category.label
+
+    companion object {
+        private const val CUSTOM_PREFIX = "custom:"
+
+        /** Reads a [key] back; a custom key whose category is gone (or unknown) falls back to its parent or Other. */
+        fun fromKey(key: String?, customs: Map<Long, CustomCategory>): CategoryChoice {
+            if (key != null && key.startsWith(CUSTOM_PREFIX)) {
+                val c = key.removePrefix(CUSTOM_PREFIX).toLongOrNull()?.let { customs[it] } ?: return CategoryChoice(Category.OTHER)
+                return CategoryChoice(c.parent, c.id)
+            }
+            return CategoryChoice(Category.fromName(key))
+        }
+
+        fun isCustomKey(key: String) = key.startsWith(CUSTOM_PREFIX)
+    }
 }
 
 data class Budget(
     val category: Category,
     val monthlyLimitPaise: Long,
+    /** The person's own category this limit is for; [category] is then its parent. */
+    val customId: Long? = null,
 ) {
+    val choice: CategoryChoice get() = CategoryChoice(category, customId)
     val monthlyLimit: Double get() = Money.toRupees(monthlyLimitPaise)
 }
