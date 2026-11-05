@@ -174,6 +174,7 @@ class SettingsRepository(context: Context) {
     /** A key for any provider. OpenAI's goes through [setApiKey], which keeps the built-in key's rules. */
     fun setProviderKey(kind: ProviderKind, key: String?) {
         if (kind == ProviderKind.OPENAI) return setApiKey(key)
+        plain.edit().putBoolean(KEY_API_USER_MANAGED + "_" + kind.id, true).apply()
         val trimmed = key?.trim()
         if (trimmed.isNullOrEmpty()) secure.edit().remove(keyFor(kind)).apply() else secure.edit().putString(keyFor(kind), trimmed).apply()
         refreshAi()
@@ -216,6 +217,23 @@ class SettingsRepository(context: Context) {
         secure.edit().putString(KEY_API, key).apply()
         plain.edit().putBoolean(KEY_API_SEEDED, true).apply()
         _apiKeyBuiltIn.value = true
+        refreshAi()
+    }
+
+    /**
+     * Saves a key built into this build for another provider ([kind]), as a ready backup: only into an empty slot or
+     * one an earlier build filled, never over a key typed in Settings, and without changing which provider is active.
+     */
+    fun seedProviderKey(kind: ProviderKind, key: String) {
+        if (kind == ProviderKind.OPENAI) return seedApiKey(key)
+        // A key the person typed or removed for this provider is theirs: a rebuild never puts the built-in one back.
+        if (plain.getBoolean(KEY_API_USER_MANAGED + "_" + kind.id, false)) return
+        val seededFlag = KEY_API_SEEDED + "_" + kind.id
+        val current = getApiKey(kind)
+        if (!current.isNullOrBlank() && !plain.getBoolean(seededFlag, false)) return
+        if (current == key) return
+        runCatching { secure.edit().putString(keyFor(kind), key).apply() }.onFailure { return }
+        plain.edit().putBoolean(seededFlag, true).apply()
         refreshAi()
     }
 

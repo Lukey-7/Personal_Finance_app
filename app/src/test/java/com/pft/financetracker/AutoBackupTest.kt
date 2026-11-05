@@ -32,6 +32,8 @@ class AutoBackupTest {
         assertEquals(listOf("FinTrack-auto-2026-10-01.ftbackup", "FinTrack-auto-2026-10-08.ftbackup"), AutoBackup.toRemove(names))
         assertTrue(AutoBackup.toRemove(names.take(3)).isEmpty())
         assertFalse(AutoBackup.isOurs("FinTrack-2026-09-01.ftbackup"))
+        // A provider that renames a clash ("… (1).ftbackup") still leaves one of FinTrack's own files.
+        assertTrue(AutoBackup.isOurs("FinTrack-auto-2026-11-05 (1).ftbackup"))
     }
 
     @Test fun aRunIsDueAfterAWeekWithALittleSlack() {

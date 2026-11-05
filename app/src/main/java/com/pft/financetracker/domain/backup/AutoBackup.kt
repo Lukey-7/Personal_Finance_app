@@ -17,7 +17,8 @@ object AutoBackup {
 
     private const val PREFIX = "FinTrack-auto-"
     private const val SUFFIX = ".ftbackup"
-    private val Name = Regex("""^FinTrack-auto-(\d{4}-\d{2}-\d{2})(?:-(\d+))?\.ftbackup$""")
+    // " (1)" is how some file providers rename a clash; such a file is still one of FinTrack's own.
+    private val Name = Regex("""^FinTrack-auto-(\d{4}-\d{2}-\d{2})(?:-(\d+))?(?: \(\d+\))?\.ftbackup$""")
 
     /** "FinTrack-auto-2026-11-05.ftbackup", or "-2" and so on when that name is already in the folder. */
     fun fileName(now: Long, existing: Collection<String>, zone: ZoneId = ZoneId.systemDefault()): String {

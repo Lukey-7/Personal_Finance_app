@@ -13,6 +13,7 @@ import com.pft.financetracker.AppContainer
 import com.pft.financetracker.appContainerOrNull
 import com.pft.financetracker.domain.backup.AutoBackup
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
@@ -24,14 +25,16 @@ class AutoBackupWorker(context: Context, params: WorkerParameters) : CoroutineWo
     override suspend fun doWork(): Result {
         val c = applicationContext.appContainerOrNull ?: return Result.success()
         if (c.settings.autoBackupFolder.value == null) return Result.success()
-        if (!AutoBackup.isDue(c.settings.lastAutoBackupAt.value, System.currentTimeMillis())) return Result.success()
-        AutoBackups.runNow(applicationContext, c)
+        AutoBackups.runNow(applicationContext, c, onlyIfDue = true)
         return Result.success()
     }
 }
 
 object AutoBackups {
     private const val WORK = "fintrack-auto-backup"
+
+    /** One backup at a time: turning it on writes the first one while the newly booked job may be starting too. */
+    private val running = kotlinx.coroutines.sync.Mutex()
 
     /** Books the daily check while automatic backup is on, and cancels it when off. Idempotent; called at app start too. */
     fun schedule(context: Context, on: Boolean) {
@@ -45,9 +48,13 @@ object AutoBackups {
 
     /**
      * Writes one backup now and removes FinTrack's own older automatic ones beyond [AutoBackup.KEEP]. Returns null when
-     * it saved, or the words Settings shows (also recorded, so the page says why after a background run).
+     * it saved, or the words Settings shows (also recorded, so the page says why after a background run). With [onlyIfDue]
+     * (the weekly job) it does nothing unless a week has passed, checked once it holds the lock.
      */
-    suspend fun runNow(context: Context, c: AppContainer): String? = withContext(Dispatchers.IO) {
+    suspend fun runNow(context: Context, c: AppContainer, onlyIfDue: Boolean = false): String? = running.withLock { write(context, c, onlyIfDue) }
+
+    private suspend fun write(context: Context, c: AppContainer, onlyIfDue: Boolean): String? = withContext(Dispatchers.IO) {
+        if (onlyIfDue && !AutoBackup.isDue(c.settings.lastAutoBackupAt.value, System.currentTimeMillis())) return@withContext null
         val folder = c.settings.autoBackupFolder.value ?: return@withContext "Automatic backup is off."
         val passphrase = c.settings.autoBackupPassphrase()
             ?: return@withContext fail(c, "Automatic backup stopped: its passphrase is gone. Turn it on again in Settings › Backup.")

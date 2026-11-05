@@ -3,7 +3,7 @@
 All notable changes are recorded here. Versions follow [Semantic Versioning](https://semver.org): `MAJOR.MINOR.PATCH`.
 Each release is a git tag `vX.Y.Z` with the signed APK attached on the GitHub Releases page.
 
-## [Unreleased: 1.6.0]
+## [1.6.0] - 2026-11-05
 
 Focus: **the app remembers you**. Database version 8 (adds payee rules and your own categories, drops the unused
 net-worth tables; every payment, budget, bill, card and goal is kept).
@@ -26,6 +26,9 @@ net-worth tables; every payment, budget, bill, card and goal is kept).
 
 ### Changed
 - **Savings with no income recorded** reads "No income yet" instead of a red minus figure.
+- **A second built-in key, for Anthropic (Claude), in the personal build.** It waits under Anthropic in Settings › AI
+  as a backup: OpenAI stays the provider in use, and Anthropic is contacted only if you pick it there. A key you type
+  for Anthropic yourself is never replaced by it.
 
 ### Removed
 - The net-worth tables, unused since v1.5.0 removed the screen. Older backups that still have them restore normally.

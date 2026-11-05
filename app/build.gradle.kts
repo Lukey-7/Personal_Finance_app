@@ -10,8 +10,8 @@ plugins {
 // Single source of truth for the version. Bump both for every release:
 //   versionCode: integer, +1 each release (Android uses it to decide what is an upgrade)
 //   versionName: semantic version MAJOR.MINOR.PATCH, matches the git tag vX.Y.Z
-val appVersionCode = 13
-val appVersionName = "1.5.3"
+val appVersionCode = 14
+val appVersionName = "1.6.0"
 
 // Release signing is read from keystore.properties (git-ignored). Without it, release falls back to the debug key.
 val keystoreProps = Properties().apply {
@@ -32,8 +32,11 @@ val secretProps = Properties().apply {
 }
 fun secret(name: String): String = System.getenv(name)?.takeIf { it.isNotEmpty() } ?: secretProps.getProperty(name, "")
 val buildKey = secret("OPENAI_API_KEY").filter { it.isLetterOrDigit() || it in "-_" }
+// A second, Anthropic key, built in the same way as a backup: saved for the Anthropic provider so Claude can be picked
+// in Settings › AI without typing a key. It is never used until that provider is picked.
+val buildAnthropicKey = secret("ANTHROPIC_API_KEY").filter { it.isLetterOrDigit() || it in "-_" }
 val embedRequested = secret("FINTRACK_EMBED_KEY") == "1"
-val personalRelease = embedRequested && buildKey.isNotEmpty()
+val personalRelease = embedRequested && (buildKey.isNotEmpty() || buildAnthropicKey.isNotEmpty())
 if (embedRequested && buildKey.isEmpty()) {
     logger.warn("FINTRACK_EMBED_KEY=1 but no OPENAI_API_KEY is set: the release build will have no built-in key.")
 }
@@ -69,12 +72,14 @@ android {
             // The app starts with OPENAI_API_KEY already saved, so you never type it into the phone.
             // This bakes the key into the APK: never share a debug build made with it set.
             buildConfigField("String", "SEED_OPENAI_KEY", "\"$buildKey\"")
+            buildConfigField("String", "SEED_ANTHROPIC_KEY", "\"$buildAnthropicKey\"")
         }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             // No key unless this is an explicitly requested personal build (see buildKey above).
             buildConfigField("String", "SEED_OPENAI_KEY", "\"${if (personalRelease) buildKey else ""}\"")
+            buildConfigField("String", "SEED_ANTHROPIC_KEY", "\"${if (personalRelease) buildAnthropicKey else ""}\"")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
@@ -121,7 +126,7 @@ android {
             val abi = (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
                 .filters.find { it.filterType == "ABI" }?.identifier
             // Any APK with a built-in key is marked in its file name, so it cannot be mistaken for one to share.
-            val hasKey = if (buildType.name == "release") personalRelease else buildKey.isNotEmpty()
+            val hasKey = if (buildType.name == "release") personalRelease else (buildKey.isNotEmpty() || buildAnthropicKey.isNotEmpty())
             val personal = if (hasKey) "-personal" else ""
             outputFileName = "FinTrack-v${versionName}-${abi ?: "universal"}-${buildType.name}$personal.apk"
         }

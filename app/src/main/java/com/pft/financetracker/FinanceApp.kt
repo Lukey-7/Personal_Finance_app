@@ -169,8 +169,10 @@ class FinanceApp : Application() {
 
     private fun seedBuiltInApiKey() {
         val seed = BuildConfig.SEED_OPENAI_KEY
-        if (seed.isBlank()) return
-        container?.settings?.seedApiKey(seed)
+        if (seed.isNotBlank()) container?.settings?.seedApiKey(seed)
+        // The backup: ready under Anthropic in Settings › AI, used only once that provider is picked.
+        val anthropic = BuildConfig.SEED_ANTHROPIC_KEY
+        if (anthropic.isNotBlank()) container?.settings?.seedProviderKey(com.pft.financetracker.domain.ai.ProviderKind.ANTHROPIC, anthropic)
     }
 }
 

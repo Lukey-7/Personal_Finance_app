@@ -60,6 +60,12 @@ import kotlinx.coroutines.launch
 internal fun CategoriesSection(vm: AppViewModel, snackbar: SnackbarHostState) {
     val customs by vm.customCategories.collectAsState()
     val rules by vm.payeeRules.collectAsState()
+    val payments by vm.transactions.collectAsState()
+    // A rule is kept by its payee key ("zomatoltd"); show the name as a payment from that payee spells it.
+    val names = remember(payments, rules) {
+        val wanted = rules.map { it.first }.toSet()
+        buildMap { payments.forEach { t -> com.pft.financetracker.domain.categorize.PayeeRules.keyOf(t.merchant)?.takeIf { it in wanted }?.let { putIfAbsent(it, t.merchant) } } }
+    }
     val scope = rememberCoroutineScope()
     /** null: closed; a category to change; [NEW] to add one. */
     var editing by remember { mutableStateOf<CustomCategory?>(null) }
@@ -92,13 +98,14 @@ internal fun CategoriesSection(vm: AppViewModel, snackbar: SnackbarHostState) {
             if (i > 0) Hairline()
             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(key, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(names[key]?.let { com.pft.financetracker.ui.components.displayMerchant(it) } ?: key, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(categoryName(choice), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = {
                     vm.forgetPayeeRule(key)
-                    scope.launch { snackbar.showSnackbar("New payments from $key will be categorised automatically again") }
-                }) { Icon(Icons.Outlined.Close, "Remove rule for $key") }
+                    val name = names[key] ?: key
+                    scope.launch { snackbar.showSnackbar("New payments from $name will be categorised automatically again") }
+                }) { Icon(Icons.Outlined.Close, "Remove rule for ${names[key] ?: key}") }
             }
         }
     }

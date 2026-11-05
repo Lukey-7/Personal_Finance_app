@@ -61,8 +61,9 @@ class BackupViewModel(app: Application) : AndroidViewModel(app) {
             runCatching { app.contentResolver.takePersistableUriPermission(folder, flags) }
                 .onFailure { return@withContext "FinTrack couldn't keep access to that folder. Try another one." }
             if (!c.settings.setAutoBackup(folder.toString(), passphrase)) return@withContext "The passphrase couldn't be stored safely on this phone."
-            com.pft.financetracker.data.backup.AutoBackups.schedule(app, true)
+            // The first backup before the weekly job is booked, so the job finds it done.
             com.pft.financetracker.data.backup.AutoBackups.runNow(app, c)
+                .also { com.pft.financetracker.data.backup.AutoBackups.schedule(app, true) }
         } finally {
             passphrase.fill(' ')
         }

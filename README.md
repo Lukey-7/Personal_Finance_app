@@ -19,8 +19,8 @@ written down below.
 
 Get the latest APK from the [Releases page](https://github.com/Lukey-7/Personal_Finance_app/releases/latest). Each
 release attaches **one file, the arm64-v8a APK** (any phone from the last several years), with its SHA-256 in the
-notes. It is the author's **personal build with an OpenAI key built in** (the name ends in `-personal`), so don't
-pass it around; build your own (below) for a copy with no key.
+notes. It is the author's **personal build with an OpenAI key and a backup Anthropic key built in** (the name ends in
+`-personal`), so don't pass it around; build your own (below) for a copy with no key.
 
 ## Features
 
@@ -89,7 +89,7 @@ pass it around; build your own (below) for a copy with no key.
 | Area | What the app does |
 |---|---|
 | Database | Encrypted with SQLCipher. A random 256-bit key is created per install and kept in EncryptedSharedPreferences backed by the Android Keystore. `secure_delete` is on, so cleared rows are overwritten. |
-| API keys | One per AI provider, stored only in EncryptedSharedPreferences using AES-256-GCM with a Keystore master key. Never logged or exported, and never in the source. **The APK attached to GitHub releases is a personal build with the author's own OpenAI key built in** (file names end in `-personal`); anyone holding the file can extract that key. Build your own APK without `FINTRACK_EMBED_KEY` to get one with no key (see `docs/RUNNING.md`). A built-in key can be changed or removed in Settings. |
+| API keys | One per AI provider, stored only in EncryptedSharedPreferences using AES-256-GCM with a Keystore master key. Never logged or exported, and never in the source. **The APK attached to GitHub releases is a personal build with the author's own OpenAI key built in, plus an Anthropic key kept as a backup** (file names end in `-personal`); anyone holding the file can extract those keys. The Anthropic one is used only if Anthropic is picked in Settings › AI. Build your own APK without `FINTRACK_EMBED_KEY` to get one with no key (see `docs/RUNNING.md`). A built-in key can be changed or removed in Settings. |
 | SMS | Only messages from alphanumeric sender IDs such as `VM-HDFCBK` are read. Personal messages from phone numbers are skipped. Only parsed fields are stored. Raw text is kept only for messages waiting in the review queue, and is deleted when you resolve them. The SMS log stores sender, time, outcome, reason and amount, never the body. |
 | Bill photos | Read on the phone by ML Kit Text Recognition with the **bundled** Latin and Devanagari models (`com.google.mlkit:text-recognition`, `com.google.mlkit:text-recognition-devanagari`): no model download, works in airplane mode. The camera capture goes to a temp file in app-private cache and is deleted after recognition, whether or not it succeeded; gallery images are read through the system Photo Picker without a storage permission. No image is stored or sent. ML Kit's own anonymous usage logging to Google is on; see [What ML Kit sends](#what-ml-kit-sends). |
 | Statements and screenshots | Picked through the system file / photo picker (no storage permission), read on the phone and not kept. A PDF password is used in memory to open the file and never stored. Only the parsed fields of each transaction are saved, like SMS. |
